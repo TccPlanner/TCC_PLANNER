@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { LayoutDashboard, Timer, Calendar, CheckSquare, BookOpen, History, LogOut, Menu } from 'lucide-react';
-import Cronometro from './Cronometro';
+import EstudarAgora from './EstudarAgora';
+import Calendario from "./Calendario";
+
+
 
 function Dashboard({ user }) {
     const [abaAtiva, setAbaAtiva] = useState('inicio');
@@ -56,7 +59,9 @@ function Dashboard({ user }) {
                 </header>
                 <section className="rounded-2xl p-6 min-h-[500px] shadow-xl border bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800">
                     {abaAtiva === 'inicio' && <div className="text-center py-20 text-slate-500">Bem-vindo ao seu painel estratégico.</div>}
-                    {abaAtiva === 'cronometro' && <Cronometro user={user} />}
+                    {abaAtiva === 'cronometro' && <EstudarAgora user={user} />}
+                    {abaAtiva === "calendario" && <Calendario user={user} />}
+
                 </section>
             </main>
         </div>
