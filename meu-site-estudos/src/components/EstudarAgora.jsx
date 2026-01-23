@@ -35,7 +35,9 @@ const ModalCentral = ({ open, onClose, title, message, variant = "info", actions
 
     return (
         <div className="fixed inset-0 z-[999999] bg-black/60 flex items-center justify-center p-4">
-            <div className={`w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 ring-2 ${ring} ${glow}`}>
+            <div
+                className={`w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 ring-2 ${ring} ${glow}`}
+            >
                 <div className="flex items-start justify-between gap-4">
                     <div className={`px-3 py-1 rounded-full text-xs font-black ${badge}`}>
                         {variant === "alarm" ? "⏰ ALARME" : "✅ STATUS"}
@@ -114,45 +116,35 @@ const ModalAtividade = ({ open, onClose, atividade, formatarTempo }) => {
 
                 <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
-                            Conteúdo
-                        </p>
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">Conteúdo</p>
                         <p className="mt-1 font-bold text-slate-900 dark:text-white">
                             {atividade.conteudo || "—"}
                         </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
-                            Tipo de estudo
-                        </p>
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">Tipo de estudo</p>
                         <p className="mt-1 font-bold text-slate-900 dark:text-white">
                             {atividade.tipo_estudo}
                         </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
-                            Início
-                        </p>
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">Início</p>
                         <p className="mt-1 font-bold text-slate-900 dark:text-white">
                             {inicio.toLocaleString()}
                         </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
-                            Fim
-                        </p>
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">Fim</p>
                         <p className="mt-1 font-bold text-slate-900 dark:text-white">
                             {fim.toLocaleString()}
                         </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4 md:col-span-2">
-                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
-                            Duração
-                        </p>
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">Duração</p>
                         <p className="mt-1 font-black font-mono text-indigo-600 dark:text-indigo-400 text-xl">
                             {formatarTempo(atividade.duracao_segundos || 0)}
                         </p>
@@ -166,24 +158,28 @@ const ModalAtividade = ({ open, onClose, atividade, formatarTempo }) => {
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="rounded-xl bg-white/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 text-center">
                                     <p className="text-[11px] text-slate-500 dark:text-slate-300 font-black">Feitas</p>
-                                    <p className="font-black text-slate-900 dark:text-white">{atividade.questoes_feitas || 0}</p>
+                                    <p className="font-black text-slate-900 dark:text-white">
+                                        {atividade.questoes_feitas || 0}
+                                    </p>
                                 </div>
                                 <div className="rounded-xl bg-white/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 text-center">
                                     <p className="text-[11px] text-slate-500 dark:text-slate-300 font-black">Acertos</p>
-                                    <p className="font-black text-emerald-600">{atividade.questoes_acertos || 0}</p>
+                                    <p className="font-black text-emerald-600">
+                                        {atividade.questoes_acertos || 0}
+                                    </p>
                                 </div>
                                 <div className="rounded-xl bg-white/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 text-center">
                                     <p className="text-[11px] text-slate-500 dark:text-slate-300 font-black">Erros</p>
-                                    <p className="font-black text-rose-500">{atividade.questoes_erros || 0}</p>
+                                    <p className="font-black text-rose-500">
+                                        {atividade.questoes_erros || 0}
+                                    </p>
                                 </div>
                             </div>
                         </div>
                     )}
 
                     <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4 md:col-span-2">
-                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
-                            Anotações
-                        </p>
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">Anotações</p>
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white whitespace-pre-wrap">
                             {atividade.anotacao?.trim() ? atividade.anotacao : "—"}
                         </p>
@@ -196,6 +192,90 @@ const ModalAtividade = ({ open, onClose, atividade, formatarTempo }) => {
                         className="px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-black cursor-pointer"
                     >
                         Fechar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/* ============================
+   MODAL DE DURAÇÃO
+============================ */
+const DuracaoModal = ({ valorInicial, onClose, onSave }) => {
+    const [temp, setTemp] = useState(valorInicial);
+
+    const horas = Array.from({ length: 25 }, (_, i) => i);
+    const minsSecs = Array.from({ length: 60 }, (_, i) => i);
+
+    return (
+        <div
+            className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4"
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-2xl rounded-3xl bg-slate-900 text-white p-6 md:p-8 shadow-2xl border border-slate-700"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <h3 className="text-2xl font-black mb-6">Duração</h3>
+
+                <div className="grid grid-cols-3 gap-6 items-center text-center">
+                    <div>
+                        <p className="text-xs font-black text-slate-400 mb-2">Horas</p>
+                        <select
+                            value={temp.h}
+                            onChange={(e) => setTemp({ ...temp, h: Number(e.target.value) })}
+                            className="w-full text-center text-2xl font-black bg-transparent border-b-2 border-cyan-400 pb-2 outline-none"
+                        >
+                            {horas.map((n) => (
+                                <option key={n} value={n} className="text-slate-900">
+                                    {n}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <p className="text-xs font-black text-slate-400 mb-2">Min</p>
+                        <select
+                            value={temp.m}
+                            onChange={(e) => setTemp({ ...temp, m: Number(e.target.value) })}
+                            className="w-full text-center text-2xl font-black bg-transparent border-b-2 border-cyan-400 pb-2 outline-none"
+                        >
+                            {minsSecs.map((n) => (
+                                <option key={n} value={n} className="text-slate-900">
+                                    {n}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <p className="text-xs font-black text-slate-400 mb-2">Seg</p>
+                        <select
+                            value={temp.s}
+                            onChange={(e) => setTemp({ ...temp, s: Number(e.target.value) })}
+                            className="w-full text-center text-2xl font-black bg-transparent border-b-2 border-cyan-400 pb-2 outline-none"
+                        >
+                            {minsSecs.map((n) => (
+                                <option key={n} value={n} className="text-slate-900">
+                                    {n}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-6 mt-8 text-sm font-black">
+                    <button onClick={onClose} className="text-rose-400 hover:text-rose-300 cursor-pointer">
+                        CANCELAR
+                    </button>
+
+                    <button
+                        onClick={() => onSave(temp)}
+                        className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black cursor-pointer"
+                    >
+                        SALVAR
                     </button>
                 </div>
             </div>
@@ -240,7 +320,6 @@ const EstudarAgora = ({ user }) => {
         const d = new Date();
         return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }, []);
-
     const [dataInicio, setDataInicio] = useState(hojeISO);
     const [horaInicio, setHoraInicio] = useState(agoraHHMM);
 
@@ -258,12 +337,12 @@ const EstudarAgora = ({ user }) => {
     const [alarmeDuracaoMin, setAlarmeDuracaoMin] = useState("30");
     const [alarmeHorario, setAlarmeHorario] = useState(agoraHHMM);
 
-    // ✅ Alarmes ativos (com countdown)
+    // Alarmes ativos e concluídos
     const [alarmesAtivos, setAlarmesAtivos] = useState([]);
-    const alarmesTimeoutsRef = useRef(new Map());
-
-    // ✅ Alarmes concluídos (para usar o tempo ao salvar)
     const [alarmesConcluidos, setAlarmesConcluidos] = useState([]);
+
+    // timeouts apenas para alarmes POR HORÁRIO (para continuar mesmo pausado)
+    const alarmesTimeoutsRef = useRef(new Map());
 
     // Últimas atividades
     const [ultimasAtividades, setUltimasAtividades] = useState([]);
@@ -281,7 +360,7 @@ const EstudarAgora = ({ user }) => {
         actions: [],
     });
 
-    // Toast (opcional, ainda útil)
+    // Toast
     const [toast, setToast] = useState({ show: false, title: "", message: "" });
     const toastTimer = useRef(null);
 
@@ -294,20 +373,16 @@ const EstudarAgora = ({ user }) => {
     };
 
     /* ========= NOTIFICAÇÕES ========= */
-    const suporteNotificacao =
-        typeof window !== "undefined" && "Notification" in window;
+    const suporteNotificacao = typeof window !== "undefined" && "Notification" in window;
 
     const pedirPermissaoNotificacao = async () => {
         if (!suporteNotificacao) return false;
-
         if (Notification.permission === "granted") return true;
         if (Notification.permission === "denied") return false;
-
         const perm = await Notification.requestPermission();
         return perm === "granted";
     };
 
-    // ✅ Som beep (não precisa arquivo)
     const playBeep = () => {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -342,7 +417,6 @@ const EstudarAgora = ({ user }) => {
                 body: `Sessão: ${materia || "Estudo"} • ${conteudo || "Sem conteúdo"}`,
                 silent: false,
             });
-
             n.onclick = () => {
                 window.focus();
                 n.close();
@@ -375,48 +449,65 @@ const EstudarAgora = ({ user }) => {
         return alvo.getTime() - agora.getTime();
     };
 
-    /* ========= ALARME: DISPARO ========= */
-    const dispararAlarme = (alarmeData) => {
-        playBeep();
-        vibrar();
-        dispararNotificacao();
-
-        // guarda nos concluídos
-        setAlarmesConcluidos((prev) => [
-            ...prev,
-            {
-                id: `done-${Date.now()}`,
-                label: alarmeData?.label || "Alarme concluído",
-                duracaoSegundos: alarmeData?.duracaoSegundos || 0,
-                firedAt: Date.now(),
-            },
-        ]);
-
-        // ✅ Modal central chamativo
-        setModalCentral({
-            open: true,
-            variant: "alarm",
-            title: "⏰ Hora de pausar!",
-            message: "Seu alarme disparou. Você pode salvar sua atividade com esse tempo se quiser.",
-            actions: [
-                {
-                    label: "Salvar atividade com este tempo",
-                    kind: "danger",
-                    onClick: async () => {
-                        // força salvar usando o tempo do alarme (se for duração)
-                        const dur = alarmeData?.duracaoSegundos ?? 0;
-                        await salvarSessao({ forceDuration: dur });
-                        setModalCentral((m) => ({ ...m, open: false }));
-                    },
-                },
-                { label: "Fechar", kind: "secondary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) },
-            ],
-        });
+    const duracaoManualEmSegundos = () => {
+        const h = Number(duracaoManual.h || 0);
+        const m = Number(duracaoManual.m || 0);
+        const s = Number(duracaoManual.s || 0);
+        return h * 3600 + m * 60 + s;
     };
 
-    /* ========= ALARMES ATIVOS: add/remove ========= */
+    // soma das durações dos alarmes concluídos
+    const totalAlarmesConcluidosSeg = useMemo(() => {
+        return alarmesConcluidos.reduce((acc, a) => acc + (Number(a.duracaoSegundos) || 0), 0);
+    }, [alarmesConcluidos]);
+
+    // ✅ total que será salvo (prévia) — IMPORTANTE: se cronômetro tem valor, ele manda (não soma alarmes)
+    const duracaoTotalParaSalvar = useMemo(() => {
+        if (abaAtiva === "manual") return duracaoManualEmSegundos();
+        if (segundos > 0) return segundos;
+        return totalAlarmesConcluidosSeg;
+    }, [abaAtiva, segundos, totalAlarmesConcluidosSeg]);
+
+    /* ========= CRONÔMETRO ========= */
+    useEffect(() => {
+        let intervalo = null;
+        if (ativo) intervalo = setInterval(() => setSegundos((s) => s + 1), 1000);
+        return () => clearInterval(intervalo);
+    }, [ativo]);
+
+    const segundosRef = useRef(0);
+    useEffect(() => {
+        segundosRef.current = segundos;
+    }, [segundos]);
+
+    const iniciarCronometroSePrecisar = () => {
+        if (!inicioCronometroEm) setInicioCronometroEm(new Date().toISOString());
+        setAtivo(true);
+    };
+
+    const iniciarOuPausar = () => {
+        if (!ativo && segundos === 0 && !inicioCronometroEm) setInicioCronometroEm(new Date().toISOString());
+        setAtivo((v) => !v);
+    };
+
+    const resetarCronometro = () => {
+        setSegundos(0);
+        setAtivo(false);
+        setInicioCronometroEm(null);
+
+        // remove apenas alarmes ativos
+        setAlarmesAtivos([]);
+        alarmesTimeoutsRef.current.forEach((t) => clearTimeout(t));
+        alarmesTimeoutsRef.current.clear();
+
+        // NÃO apaga concluídos (pra você poder salvar só eles)
+    };
+
+    /* ========= ALARMES: add/remove ========= */
     const removerAlarmeAtivo = (id) => {
         setAlarmesAtivos((prev) => prev.filter((a) => a.id !== id));
+
+        // só existe timeout para alarme por horário
         const timeout = alarmesTimeoutsRef.current.get(id);
         if (timeout) {
             clearTimeout(timeout);
@@ -429,54 +520,133 @@ const EstudarAgora = ({ user }) => {
         showToast("⛔ Alarme cancelado", "O alarme foi removido.");
     };
 
+    /* ========= ALARMES CONCLUÍDOS: excluir (com confirmação) ========= */
+    const confirmarExcluirAlarmeConcluido = (id) => {
+        setModalCentral({
+            open: true,
+            variant: "info",
+            title: "Excluir alarme concluído?",
+            message: "Tem certeza que deseja excluir este alarme concluído? O tempo será subtraído do cronômetro e do total a salvar.",
+            actions: [
+                {
+                    label: "Cancelar",
+                    kind: "secondary",
+                    onClick: () => setModalCentral((m) => ({ ...m, open: false })),
+                },
+                {
+                    label: "Excluir",
+                    kind: "danger",
+                    onClick: () => {
+                        const alarme = alarmesConcluidos.find((a) => a.id === id);
+                        const tempo = Number(alarme?.duracaoSegundos || 0);
+
+                        // ✅ subtrai do cronômetro (e automaticamente do total a salvar)
+                        setSegundos((s) => Math.max(0, s - tempo));
+
+                        // remove da lista
+                        setAlarmesConcluidos((prev) => prev.filter((a) => a.id !== id));
+
+                        setModalCentral((m) => ({ ...m, open: false }));
+                        showToast("🗑️ Excluído", "O alarme concluído foi removido e o tempo foi subtraído.");
+                    },
+                },
+            ],
+        });
+    };
+
+    /* ========= ALARME: DISPARO ========= */
+    const dispararAlarme = (alarmeData, duracaoConcluidaSeg) => {
+        playBeep();
+        vibrar();
+        dispararNotificacao();
+
+        // ✅ pausa o cronômetro, mas NÃO zera (você pode dar play e continuar)
+        setAtivo(false);
+
+        // ✅ adiciona concluído COM duração (nunca mais aparece "---")
+        setAlarmesConcluidos((prev) => [
+            ...prev,
+            {
+                id: `done-${Date.now()}`,
+                tipo: alarmeData?.tipo,
+                label: alarmeData?.label || "Alarme concluído",
+                duracaoSegundos: Math.max(0, Number(duracaoConcluidaSeg || 0)),
+                firedAt: Date.now(),
+            },
+        ]);
+
+        setModalCentral({
+            open: true,
+            variant: "alarm",
+            title: "⏰ Hora de pausar!",
+            message:
+                "Seu alarme disparou. O cronômetro foi pausado e NÃO zerou — você pode dar play e continuar do mesmo tempo.",
+            actions: [
+                {
+                    label: "Fechar",
+                    kind: "secondary",
+                    onClick: () => setModalCentral((m) => ({ ...m, open: false })),
+                },
+            ],
+        });
+    };
+
+    const alarmeJaAdicionado = (tipo, valor) => {
+        if (!tipo || tipo === "nenhum") return false;
+        if (tipo === "duracao") {
+            return alarmesAtivos.some((a) => a.tipo === "duracao" && String(a.valorRaw) === String(valor));
+        }
+        if (tipo === "horario") {
+            return alarmesAtivos.some((a) => a.tipo === "horario" && String(a.valorRaw) === String(valor));
+        }
+        return false;
+    };
+
+    /* ========= CRIAR ALARME ATIVO ========= */
     const criarAlarmeAtivo = async () => {
         if (alarmeTipo === "nenhum") {
             showToast("Selecione um tipo", "Escolha 'Por duração' ou 'Por horário'.");
             return;
         }
 
-        // ✅ pede permissão se suportar
+        // ✅ ao ativar alarme, inicia automaticamente o cronômetro (como você pediu)
+        iniciarCronometroSePrecisar();
         await pedirPermissaoNotificacao();
 
         if (alarmeTipo === "duracao") {
-            if (!ativo) {
-                showToast("Inicie o cronômetro", "O alarme por duração funciona com o cronômetro rodando.");
+            const alvoSeg = Number(alarmeDuracaoMin || 0) * 60;
+            if (alvoSeg <= 0) {
+                showToast("Tempo inválido", "Escolha uma duração válida.");
                 return;
             }
 
-            const alvoSeg = Number(alarmeDuracaoMin || 0) * 60;
-            const restante = alvoSeg - segundos;
-            if (restante <= 0) {
-                showToast("Tempo inválido", "A duração escolhida já foi atingida.");
+            if (alarmeJaAdicionado("duracao", alarmeDuracaoMin)) {
+                showToast("⚠️ Alarme já adicionado", "Esse alarme por duração já está ativo.");
                 return;
             }
 
             const id = `dur-${Date.now()}`;
-            const fireAt = Date.now() + restante * 1000;
-
             const alarmeData = {
                 id,
                 tipo: "duracao",
+                valorRaw: alarmeDuracaoMin,
                 label: `Duração • ${alarmeDuracaoMin} min`,
-                fireAt,
-                remaining: restante,
-                duracaoSegundos: alvoSeg, // duração total configurada
+                targetSeconds: alvoSeg,
+                startSeconds: segundosRef.current, // ✅ base: tempo atual do cronômetro
+                remaining: alvoSeg,
             };
 
             setAlarmesAtivos((prev) => [...prev, alarmeData]);
-
-            const t = setTimeout(() => {
-                dispararAlarme(alarmeData);
-                removerAlarmeAtivo(id);
-            }, restante * 1000);
-
-            alarmesTimeoutsRef.current.set(id, t);
-
-            showToast("✅ Alarme ativado", `Vai disparar em ${Math.ceil(restante / 60)} min.`);
+            showToast("✅ Alarme ativado", `Vai disparar após ${alarmeDuracaoMin} min de estudo (pausa congela).`);
             return;
         }
 
         if (alarmeTipo === "horario") {
+            if (alarmeJaAdicionado("horario", alarmeHorario)) {
+                showToast("⚠️ Alarme já adicionado", "Esse alarme por horário já está ativo.");
+                return;
+            }
+
             const ms = msAteHorario(alarmeHorario);
             if (ms <= 0) {
                 showToast("Horário inválido", "Não consegui calcular o horário do alarme.");
@@ -489,58 +659,72 @@ const EstudarAgora = ({ user }) => {
             const alarmeData = {
                 id,
                 tipo: "horario",
+                valorRaw: alarmeHorario,
                 label: `Horário • ${alarmeHorario}`,
                 fireAt,
                 remaining: Math.ceil(ms / 1000),
-                duracaoSegundos: 0,
             };
 
             setAlarmesAtivos((prev) => [...prev, alarmeData]);
 
+            // ✅ por horário: continua regressiva mesmo com cronômetro pausado
             const t = setTimeout(() => {
-                dispararAlarme(alarmeData);
+                // duração concluída = tempo de estudo acumulado (segundos do cronômetro), mesmo se estiver pausado
+                dispararAlarme(alarmeData, segundosRef.current);
                 removerAlarmeAtivo(id);
             }, ms);
 
             alarmesTimeoutsRef.current.set(id, t);
 
-            showToast("✅ Alarme ativado", `Vai disparar às ${alarmeHorario}.`);
+            showToast("✅ Alarme ativado", `Vai disparar às ${alarmeHorario}. (continua contando mesmo pausado)`);
         }
     };
 
-    // ✅ Atualiza countdown
+    /* ========= COUNTDOWN (UI) ========= */
+    // Duração: NÃO usa timeout — só depende do cronômetro (pausou, congela).
+    // Horário: depende do relógio (continua).
     useEffect(() => {
         if (alarmesAtivos.length === 0) return;
 
         const interval = setInterval(() => {
             setAlarmesAtivos((prev) =>
-                prev.map((a) => ({
-                    ...a,
-                    remaining: calcularRemainingSeg(a.fireAt),
-                }))
+                prev.map((a) => {
+                    if (a.tipo === "horario") {
+                        return { ...a, remaining: calcularRemainingSeg(a.fireAt) };
+                    }
+
+                    if (a.tipo === "duracao") {
+                        const passado = Math.max(0, segundosRef.current - a.startSeconds);
+                        const remaining = Math.max(0, a.targetSeconds - passado);
+                        return { ...a, remaining };
+                    }
+
+                    return a;
+                })
             );
         }, 1000);
 
         return () => clearInterval(interval);
     }, [alarmesAtivos.length]);
 
-    /* ========= CRONÔMETRO ========= */
+    /* ========= DISPARO POR DURAÇÃO ========= */
+    // ✅ dispara somente quando o cronômetro (segundos) atingir o alvo (se pausar, não dispara).
     useEffect(() => {
-        let intervalo = null;
-        if (ativo) intervalo = setInterval(() => setSegundos((s) => s + 1), 1000);
-        return () => clearInterval(intervalo);
-    }, [ativo]);
+        const duracaoAlarmes = alarmesAtivos.filter((a) => a.tipo === "duracao");
+        if (duracaoAlarmes.length === 0) return;
 
-    const iniciarOuPausar = () => {
-        if (!ativo && segundos === 0) setInicioCronometroEm(new Date().toISOString());
-        setAtivo((v) => !v);
-    };
+        duracaoAlarmes.forEach((a) => {
+            const passado = Math.max(0, segundos - a.startSeconds);
+            const remaining = Math.max(0, a.targetSeconds - passado);
 
-    const resetarCronometro = () => {
-        setSegundos(0);
-        setAtivo(false);
-        setInicioCronometroEm(null);
-    };
+            if (remaining === 0) {
+                dispararAlarme(a, a.targetSeconds); // ✅ concluído mostra a duração do alarme
+                removerAlarmeAtivo(a.id);
+            }
+        });
+
+        // eslint-disable-next-line
+    }, [segundos, alarmesAtivos]);
 
     /* ========= QUESTÕES: validação ========= */
     const setFeitas = (val) => {
@@ -622,27 +806,20 @@ const EstudarAgora = ({ user }) => {
     }, []);
 
     /* ========= SALVAR SESSÃO ========= */
-    const duracaoManualEmSegundos = () => {
-        const h = Number(duracaoManual.h || 0);
-        const m = Number(duracaoManual.m || 0);
-        const s = Number(duracaoManual.s || 0);
-        return h * 3600 + m * 60 + s;
-    };
-
-    // ✅ permite forçar duração via alarme concluído
-    const salvarSessao = async ({ forceDuration } = {}) => {
+    const salvarSessao = async () => {
         if (!materia.trim()) {
             setModalCentral({
                 open: true,
                 variant: "info",
                 title: "Faltou matéria",
                 message: "Defina uma matéria antes de salvar.",
-                actions: [{ label: "Entendi", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
+                actions: [
+                    { label: "Entendi", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) },
+                ],
             });
             return;
         }
 
-        // validação de questões
         if (tipoEstudo === "Exercícios" || tipoEstudo === "Simulado") {
             const feitas = Number(questoes.feitas || 0);
             const acertos = Number(questoes.acertos || 0);
@@ -654,7 +831,9 @@ const EstudarAgora = ({ user }) => {
                     variant: "info",
                     title: "Números inconsistentes",
                     message: "Acertos/Erros não podem ultrapassar Questões feitas.",
-                    actions: [{ label: "Ok", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
+                    actions: [
+                        { label: "Ok", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) },
+                    ],
                 });
                 return;
             }
@@ -673,13 +852,14 @@ const EstudarAgora = ({ user }) => {
                 duracao_segundos = duracaoManualEmSegundos();
             } else {
                 inicio_em_iso = inicioCronometroEm ?? new Date().toISOString();
-                duracao_segundos = Math.max(0, Number(segundos || 0));
+
+                // ✅ regra final:
+                // - se o cronômetro tem tempo (segundos > 0): salva o valor do cronômetro (não soma alarmes concluídos)
+                // - se cronômetro foi resetado (segundos = 0): salva somente a soma dos alarmes concluídos
+                duracao_segundos = segundos > 0 ? segundos : totalAlarmesConcluidosSeg;
             }
 
-            // ✅ se veio de alarme concluído, força a duração
-            if (typeof forceDuration === "number" && forceDuration > 0) {
-                duracao_segundos = forceDuration;
-            }
+            const duracao_hms = formatarTempo(duracao_segundos);
 
             const payload = {
                 user_id: user.id,
@@ -688,21 +868,16 @@ const EstudarAgora = ({ user }) => {
                 tipo_estudo: tipoEstudo,
                 inicio_em: inicio_em_iso,
                 duracao_segundos,
+                duracao_hms,
                 modo,
                 anotacao: anotacao.trim(),
 
                 questoes_feitas:
-                    tipoEstudo === "Exercícios" || tipoEstudo === "Simulado"
-                        ? Number(questoes.feitas || 0)
-                        : 0,
+                    tipoEstudo === "Exercícios" || tipoEstudo === "Simulado" ? Number(questoes.feitas || 0) : 0,
                 questoes_acertos:
-                    tipoEstudo === "Exercícios" || tipoEstudo === "Simulado"
-                        ? Number(questoes.acertos || 0)
-                        : 0,
+                    tipoEstudo === "Exercícios" || tipoEstudo === "Simulado" ? Number(questoes.acertos || 0) : 0,
                 questoes_erros:
-                    tipoEstudo === "Exercícios" || tipoEstudo === "Simulado"
-                        ? Number(questoes.erros || 0)
-                        : 0,
+                    tipoEstudo === "Exercícios" || tipoEstudo === "Simulado" ? Number(questoes.erros || 0) : 0,
 
                 alarme_tipo: alarmeTipo,
                 alarme_valor:
@@ -721,7 +896,9 @@ const EstudarAgora = ({ user }) => {
                     variant: "info",
                     title: "Erro ao salvar",
                     message: error.message,
-                    actions: [{ label: "Ok", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
+                    actions: [
+                        { label: "Ok", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) },
+                    ],
                 });
                 return;
             }
@@ -731,7 +908,6 @@ const EstudarAgora = ({ user }) => {
             // ✅ limpa alarmes concluídos após registrar
             setAlarmesConcluidos([]);
 
-            // ✅ modal central de “salvo”
             setModalCentral({
                 open: true,
                 variant: "info",
@@ -767,7 +943,6 @@ const EstudarAgora = ({ user }) => {
 
     return (
         <div className="max-w-2xl mx-auto space-y-6">
-            {/* ✅ MODAL CENTRAL (ALARME/SALVO) */}
             <ModalCentral
                 open={modalCentral.open}
                 onClose={() => setModalCentral((m) => ({ ...m, open: false }))}
@@ -777,7 +952,6 @@ const EstudarAgora = ({ user }) => {
                 actions={modalCentral.actions}
             />
 
-            {/* ✅ MODAL DETALHES ATIVIDADE */}
             <ModalAtividade
                 open={modalAtividadeOpen}
                 onClose={() => setModalAtividadeOpen(false)}
@@ -785,7 +959,6 @@ const EstudarAgora = ({ user }) => {
                 formatarTempo={formatarTempo}
             />
 
-            {/* ✅ TOAST opcional */}
             {toast.show && (
                 <div className="fixed top-6 right-6 z-[99999] w-[320px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4">
                     <p className="font-black text-slate-900 dark:text-white">{toast.title}</p>
@@ -804,10 +977,7 @@ const EstudarAgora = ({ user }) => {
                 <button
                     onClick={() => setAbaAtiva("manual")}
                     className={`flex-1 py-3 rounded-xl font-bold transition-all cursor-pointer
-            ${abaAtiva === "manual"
-                            ? "bg-indigo-600 text-white shadow-md"
-                            : "text-slate-600 dark:text-slate-200"
-                        }`}
+          ${abaAtiva === "manual" ? "bg-indigo-600 text-white shadow-md" : "text-slate-600 dark:text-slate-200"}`}
                 >
                     Manual
                 </button>
@@ -815,10 +985,7 @@ const EstudarAgora = ({ user }) => {
                 <button
                     onClick={() => setAbaAtiva("cronometro")}
                     className={`flex-1 py-3 rounded-xl font-bold transition-all cursor-pointer
-            ${abaAtiva === "cronometro"
-                            ? "bg-indigo-600 text-white shadow-md"
-                            : "text-slate-600 dark:text-slate-200"
-                        }`}
+          ${abaAtiva === "cronometro" ? "bg-indigo-600 text-white shadow-md" : "text-slate-600 dark:text-slate-200"}`}
                 >
                     Cronômetro
                 </button>
@@ -875,9 +1042,7 @@ const EstudarAgora = ({ user }) => {
                     </div>
 
                     {ultimasAtividades.length === 0 ? (
-                        <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Nenhuma atividade registrada ainda.
-                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Nenhuma atividade registrada ainda.</p>
                     ) : (
                         <div className={`space-y-2 ${verMaisAtividades ? "max-h-56 overflow-y-auto pr-1 custom-scroll" : ""}`}>
                             {(verMaisAtividades ? ultimasAtividades : ultimasAtividades.slice(0, 2)).map((a) => (
@@ -942,18 +1107,14 @@ const EstudarAgora = ({ user }) => {
                         </div>
 
                         <div className="col-span-2">
-                            <p className="text-xs font-black text-slate-500 dark:text-slate-300 mb-2">
-                                Duração
-                            </p>
+                            <p className="text-xs font-black text-slate-500 dark:text-slate-300 mb-2">Duração</p>
 
                             <button
                                 onClick={() => setDuracaoModalAberto(true)}
                                 className="w-full p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 flex items-center justify-between font-black cursor-pointer"
                             >
                                 <span className="text-lg font-mono">{DuracaoTexto}</span>
-                                <span className="text-indigo-600 dark:text-indigo-400 text-sm font-black">
-                                    Alterar
-                                </span>
+                                <span className="text-indigo-600 dark:text-indigo-400 text-sm font-black">Alterar</span>
                             </button>
                         </div>
                     </div>
@@ -963,11 +1124,23 @@ const EstudarAgora = ({ user }) => {
                             {formatarTempo(segundos)}
                         </div>
 
+                        {/* ✅ Total a salvar (em cima do botão salvar) */}
+                        <div className="text-xs font-black text-slate-600 dark:text-slate-300 text-center">
+                            <span className="text-slate-500 dark:text-slate-400">Total a salvar: </span>
+                            <span className="text-indigo-600 dark:text-indigo-400 font-mono">
+                                {formatarTempo(duracaoTotalParaSalvar)}
+                            </span>
+
+                            {abaAtiva === "cronometro" && segundos === 0 && totalAlarmesConcluidosSeg > 0 && (
+                                <span className="ml-2 text-slate-500 dark:text-slate-400">(somente alarmes concluídos)</span>
+                            )}
+                        </div>
+
                         <div className="flex justify-center gap-4">
                             <button
                                 onClick={iniciarOuPausar}
-                                className={`p-4 rounded-full text-white cursor-pointer transition-all active:scale-95
-                  ${ativo ? "bg-amber-500" : "bg-indigo-600"}`}
+                                className={`p-4 rounded-full text-white cursor-pointer transition-all active:scale-95 ${ativo ? "bg-amber-500" : "bg-indigo-600"
+                                    }`}
                             >
                                 {ativo ? <Pause /> : <Play />}
                             </button>
@@ -991,43 +1164,31 @@ const EstudarAgora = ({ user }) => {
                                     value={alarmeTipo}
                                     onChange={(e) => setAlarmeTipo(e.target.value)}
                                     className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700
-             bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100
-             text-sm font-black outline-none cursor-pointer"
+                  bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100
+                  text-sm font-black outline-none cursor-pointer"
                                 >
-
-                                    <option value="nenhum" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                        Nenhum
-                                    </option>
-                                    <option value="duracao" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                        Por duração
-                                    </option>
-                                    <option value="horario" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                        Por horário
-                                    </option>
-
+                                    <option value="nenhum">Nenhum</option>
+                                    <option value="duracao">Por duração</option>
+                                    <option value="horario">Por horário</option>
                                 </select>
                             </div>
 
                             {alarmeTipo === "duracao" && (
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                                        Disparar em:
-                                    </span>
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Disparar em:</span>
 
                                     <select
                                         value={alarmeDuracaoMin}
                                         onChange={(e) => setAlarmeDuracaoMin(e.target.value)}
                                         className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700
-             bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100
-             text-sm font-black outline-none cursor-pointer"
+                    bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100
+                    text-sm font-black outline-none cursor-pointer"
                                     >
-
-                                        <option value="15" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">15 min</option>
-                                        <option value="30" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">30 min</option>
-                                        <option value="45" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">45 min</option>
-                                        <option value="60" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">60 min</option>
-                                        <option value="90" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">90 min</option>
-
+                                        <option value="15">15 min</option>
+                                        <option value="30">30 min</option>
+                                        <option value="45">45 min</option>
+                                        <option value="60">60 min</option>
+                                        <option value="90">90 min</option>
                                     </select>
                                 </div>
                             )}
@@ -1060,9 +1221,7 @@ const EstudarAgora = ({ user }) => {
                             {/* Alarmes ativos */}
                             {alarmesAtivos.length > 0 && (
                                 <div className="mt-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 space-y-2">
-                                    <p className="text-xs font-black text-slate-700 dark:text-slate-200">
-                                        Alarmes ativos
-                                    </p>
+                                    <p className="text-xs font-black text-slate-700 dark:text-slate-200">Alarmes ativos</p>
 
                                     {alarmesAtivos.map((a) => (
                                         <div
@@ -1070,10 +1229,7 @@ const EstudarAgora = ({ user }) => {
                                             className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2"
                                         >
                                             <div className="flex flex-col text-left">
-                                                <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                                                    {a.label}
-                                                </span>
-
+                                                <span className="text-xs font-black text-slate-800 dark:text-slate-100">{a.label}</span>
                                                 <span className="text-[11px] font-mono font-black text-indigo-600 dark:text-indigo-400">
                                                     {formatarTempo(a.remaining)}
                                                 </span>
@@ -1094,9 +1250,7 @@ const EstudarAgora = ({ user }) => {
                             {/* Alarmes concluídos */}
                             {alarmesConcluidos.length > 0 && (
                                 <div className="mt-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/20 p-3 space-y-2">
-                                    <p className="text-xs font-black text-emerald-700 dark:text-emerald-200">
-                                        Alarmes concluídos
-                                    </p>
+                                    <p className="text-xs font-black text-emerald-700 dark:text-emerald-200">Alarmes concluídos</p>
 
                                     {alarmesConcluidos.map((a) => (
                                         <div
@@ -1104,23 +1258,19 @@ const EstudarAgora = ({ user }) => {
                                             className="flex items-center justify-between rounded-xl border border-emerald-200 dark:border-emerald-900/40 bg-white/70 dark:bg-slate-900 px-3 py-2"
                                         >
                                             <div className="flex flex-col text-left">
-                                                <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                                                    {a.label}
-                                                </span>
-
+                                                <span className="text-xs font-black text-slate-800 dark:text-slate-100">{a.label}</span>
                                                 <span className="text-[11px] font-mono font-black text-emerald-700 dark:text-emerald-300">
-                                                    Tempo: {a.duracaoSegundos ? formatarTempo(a.duracaoSegundos) : "—"}
+                                                    Tempo: {formatarTempo(a.duracaoSegundos || 0)}
                                                 </span>
                                             </div>
 
-                                            {a.duracaoSegundos > 0 && (
-                                                <button
-                                                    onClick={() => salvarSessao({ forceDuration: a.duracaoSegundos })}
-                                                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black cursor-pointer"
-                                                >
-                                                    Salvar com esse tempo
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={() => confirmarExcluirAlarmeConcluido(a.id)}
+                                                className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/40 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/20 cursor-pointer"
+                                                title="Excluir alarme"
+                                            >
+                                                <X size={16} className="text-emerald-700 dark:text-emerald-300" />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -1176,9 +1326,7 @@ const EstudarAgora = ({ user }) => {
                 <div className="space-y-3">
                     <button
                         onClick={() => setAgendarRevisao((v) => !v)}
-                        className={`text-sm font-black flex items-center gap-2 cursor-pointer ${agendarRevisao
-                            ? "text-indigo-600"
-                            : "text-slate-500 dark:text-slate-300"
+                        className={`text-sm font-black flex items-center gap-2 cursor-pointer ${agendarRevisao ? "text-indigo-600" : "text-slate-500 dark:text-slate-300"
                             }`}
                     >
                         <Calendar size={16} className="text-indigo-600 dark:text-indigo-400" />
@@ -1188,13 +1336,13 @@ const EstudarAgora = ({ user }) => {
                     {agendarRevisao && (
                         <div className="flex flex-wrap gap-2">
                             {revisoesPreset.map((opt) => {
-                                const ativo = revisoesSelecionadas.includes(opt.days);
+                                const ativoChip = revisoesSelecionadas.includes(opt.days);
                                 return (
                                     <button
                                         key={opt.days}
                                         onClick={() => alternarDiaRevisao(opt.days)}
                                         className={`px-4 py-2 rounded-2xl text-sm font-black border transition-all active:scale-95 cursor-pointer
-                      ${ativo
+                    ${ativoChip
                                                 ? "bg-indigo-600 text-white border-indigo-600"
                                                 : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800"
                                             }`}
@@ -1227,87 +1375,6 @@ const EstudarAgora = ({ user }) => {
                     }}
                 />
             )}
-        </div>
-    );
-};
-
-/* ============================
-   MODAL DE DURAÇÃO
-============================ */
-const DuracaoModal = ({ valorInicial, onClose, onSave }) => {
-    const [temp, setTemp] = useState(valorInicial);
-
-    const horas = Array.from({ length: 25 }, (_, i) => i);
-    const minsSecs = Array.from({ length: 60 }, (_, i) => i);
-
-    return (
-        <div
-            className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4"
-            onClick={onClose}
-        >
-            <div
-                className="w-full max-w-2xl rounded-3xl bg-slate-900 text-white p-6 md:p-8 shadow-2xl border border-slate-700"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <h3 className="text-2xl font-black mb-6">Duração</h3>
-
-                <div className="grid grid-cols-3 gap-6 items-center text-center">
-                    <div>
-                        <p className="text-xs font-black text-slate-400 mb-2">Horas</p>
-                        <select
-                            value={temp.h}
-                            onChange={(e) => setTemp({ ...temp, h: Number(e.target.value) })}
-                            className="w-full text-center text-2xl font-black bg-transparent border-b-2 border-cyan-400 pb-2 outline-none"
-                        >
-                            {horas.map((n) => (
-                                <option key={n} value={n} className="text-slate-900">
-                                    {n}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <p className="text-xs font-black text-slate-400 mb-2">Min</p>
-                        <select
-                            value={temp.m}
-                            onChange={(e) => setTemp({ ...temp, m: Number(e.target.value) })}
-                            className="w-full text-center text-2xl font-black bg-transparent border-b-2 border-cyan-400 pb-2 outline-none"
-                        >
-                            {minsSecs.map((n) => (
-                                <option key={n} value={n} className="text-slate-900">
-                                    {n}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <p className="text-xs font-black text-slate-400 mb-2">Seg</p>
-                        <select
-                            value={temp.s}
-                            onChange={(e) => setTemp({ ...temp, s: Number(e.target.value) })}
-                            className="w-full text-center text-2xl font-black bg-transparent border-b-2 border-cyan-400 pb-2 outline-none"
-                        >
-                            {minsSecs.map((n) => (
-                                <option key={n} value={n} className="text-slate-900">
-                                    {n}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                <div className="flex justify-end gap-6 mt-8 text-sm font-black">
-                    <button onClick={onClose} className="text-rose-400 hover:text-rose-300 cursor-pointer">
-                        CANCELAR
-                    </button>
-
-                    <button onClick={() => onSave(temp)} className="text-emerald-400 hover:text-emerald-300 cursor-pointer">
-                        SALVAR
-                    </button>
-                </div>
-            </div>
         </div>
     );
 };
