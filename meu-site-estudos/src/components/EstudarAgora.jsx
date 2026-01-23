@@ -9,8 +9,203 @@ import {
     Clock3,
     X,
 } from "lucide-react";
+
 import { supabase } from "../supabaseClient";
 
+/* ============================
+   COMPONENTE MODAL CENTRAL
+============================ */
+const ModalCentral = ({ open, onClose, title, message, variant = "info", actions }) => {
+    if (!open) return null;
+
+    const ring =
+        variant === "alarm"
+            ? "ring-rose-400/30 dark:ring-rose-500/30"
+            : "ring-indigo-400/30 dark:ring-indigo-500/30";
+
+    const badge =
+        variant === "alarm"
+            ? "bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30"
+            : "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30";
+
+    const glow =
+        variant === "alarm"
+            ? "shadow-[0_0_45px_-20px_rgba(244,63,94,0.55)]"
+            : "shadow-[0_0_45px_-20px_rgba(99,102,241,0.55)]";
+
+    return (
+        <div className="fixed inset-0 z-[999999] bg-black/60 flex items-center justify-center p-4">
+            <div className={`w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 ring-2 ${ring} ${glow}`}>
+                <div className="flex items-start justify-between gap-4">
+                    <div className={`px-3 py-1 rounded-full text-xs font-black ${badge}`}>
+                        {variant === "alarm" ? "⏰ ALARME" : "✅ STATUS"}
+                    </div>
+
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                        aria-label="Fechar"
+                    >
+                        <X size={18} className="text-slate-500 dark:text-slate-300" />
+                    </button>
+                </div>
+
+                <h3 className="mt-3 text-2xl font-black text-slate-900 dark:text-white">
+                    {title}
+                </h3>
+
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                    {message}
+                </p>
+
+                {actions?.length > 0 && (
+                    <div className="mt-6 flex flex-col gap-3">
+                        {actions.map((a) => (
+                            <button
+                                key={a.label}
+                                onClick={a.onClick}
+                                className={
+                                    a.kind === "primary"
+                                        ? "w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm cursor-pointer active:scale-[0.99] transition-all"
+                                        : a.kind === "danger"
+                                            ? "w-full py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-sm cursor-pointer active:scale-[0.99] transition-all"
+                                            : "w-full py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-black text-sm cursor-pointer active:scale-[0.99] transition-all"
+                                }
+                            >
+                                {a.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+/* ============================
+   MODAL DETALHES ATIVIDADE
+============================ */
+const ModalAtividade = ({ open, onClose, atividade, formatarTempo }) => {
+    if (!open || !atividade) return null;
+
+    const inicio = new Date(atividade.inicio_em);
+    const fim = new Date(inicio.getTime() + (atividade.duracao_segundos || 0) * 1000);
+
+    return (
+        <div className="fixed inset-0 z-[999999] bg-black/60 flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
+                            Resumo da atividade
+                        </p>
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+                            {atividade.materia}
+                        </h3>
+                    </div>
+
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    >
+                        <X size={18} className="text-slate-500 dark:text-slate-300" />
+                    </button>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
+                            Conteúdo
+                        </p>
+                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                            {atividade.conteudo || "—"}
+                        </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
+                            Tipo de estudo
+                        </p>
+                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                            {atividade.tipo_estudo}
+                        </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
+                            Início
+                        </p>
+                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                            {inicio.toLocaleString()}
+                        </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
+                            Fim
+                        </p>
+                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                            {fim.toLocaleString()}
+                        </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4 md:col-span-2">
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
+                            Duração
+                        </p>
+                        <p className="mt-1 font-black font-mono text-indigo-600 dark:text-indigo-400 text-xl">
+                            {formatarTempo(atividade.duracao_segundos || 0)}
+                        </p>
+                    </div>
+
+                    {(atividade.tipo_estudo === "Exercícios" || atividade.tipo_estudo === "Simulado") && (
+                        <div className="rounded-2xl bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 p-4 md:col-span-2">
+                            <p className="text-xs font-black text-slate-700 dark:text-slate-200 mb-2">
+                                Questões
+                            </p>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="rounded-xl bg-white/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 text-center">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-300 font-black">Feitas</p>
+                                    <p className="font-black text-slate-900 dark:text-white">{atividade.questoes_feitas || 0}</p>
+                                </div>
+                                <div className="rounded-xl bg-white/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 text-center">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-300 font-black">Acertos</p>
+                                    <p className="font-black text-emerald-600">{atividade.questoes_acertos || 0}</p>
+                                </div>
+                                <div className="rounded-xl bg-white/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 text-center">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-300 font-black">Erros</p>
+                                    <p className="font-black text-rose-500">{atividade.questoes_erros || 0}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4 md:col-span-2">
+                        <p className="text-xs font-black text-slate-500 dark:text-slate-300">
+                            Anotações
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white whitespace-pre-wrap">
+                            {atividade.anotacao?.trim() ? atividade.anotacao : "—"}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                    <button
+                        onClick={onClose}
+                        className="px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-black cursor-pointer"
+                    >
+                        Fechar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/* ============================
+   COMPONENTE PRINCIPAL
+============================ */
 const EstudarAgora = ({ user }) => {
     const [abaAtiva, setAbaAtiva] = useState("cronometro"); // manual | cronometro
     const [loading, setLoading] = useState(false);
@@ -37,11 +232,7 @@ const EstudarAgora = ({ user }) => {
     const [revisoesSelecionadas, setRevisoesSelecionadas] = useState([1]);
 
     // Questões
-    const [questoes, setQuestoes] = useState({
-        feitas: 0,
-        acertos: 0,
-        erros: 0,
-    });
+    const [questoes, setQuestoes] = useState({ feitas: 0, acertos: 0, erros: 0 });
 
     // Manual
     const hojeISO = useMemo(() => new Date().toISOString().split("T")[0], []);
@@ -62,30 +253,35 @@ const EstudarAgora = ({ user }) => {
     const [ativo, setAtivo] = useState(false);
     const [inicioCronometroEm, setInicioCronometroEm] = useState(null);
 
-    // Alarmes
+    // Alarmes (configs)
     const [alarmeTipo, setAlarmeTipo] = useState("nenhum"); // nenhum | duracao | horario
     const [alarmeDuracaoMin, setAlarmeDuracaoMin] = useState("30");
     const [alarmeHorario, setAlarmeHorario] = useState(agoraHHMM);
 
-    // ✅ Alarmes ativos e concluídos
+    // ✅ Alarmes ativos (com countdown)
     const [alarmesAtivos, setAlarmesAtivos] = useState([]);
-    const [alarmesConcluidos, setAlarmesConcluidos] = useState([]);
-
-    // guarda os timeouts de cada alarme (id -> timeout)
     const alarmesTimeoutsRef = useRef(new Map());
 
-    // ✅ Overlay chamativo do alarme
-    const [alarmeTocando, setAlarmeTocando] = useState(false);
-    const [alarmeTitulo, setAlarmeTitulo] = useState("⏰ Alarme!");
-    const [alarmeMensagem, setAlarmeMensagem] = useState("Seu tempo atingiu o limite configurado.");
-
-    const alarmRingIntervalRef = useRef(null);
-    const alarmRingStopRef = useRef(null);
+    // ✅ Alarmes concluídos (para usar o tempo ao salvar)
+    const [alarmesConcluidos, setAlarmesConcluidos] = useState([]);
 
     // Últimas atividades
     const [ultimasAtividades, setUltimasAtividades] = useState([]);
 
-    // ✅ Toast
+    // Modal detalhes atividade
+    const [atividadeSelecionada, setAtividadeSelecionada] = useState(null);
+    const [modalAtividadeOpen, setModalAtividadeOpen] = useState(false);
+
+    // Modal Central
+    const [modalCentral, setModalCentral] = useState({
+        open: false,
+        title: "",
+        message: "",
+        variant: "info", // info | alarm
+        actions: [],
+    });
+
+    // Toast (opcional, ainda útil)
     const [toast, setToast] = useState({ show: false, title: "", message: "" });
     const toastTimer = useRef(null);
 
@@ -97,67 +293,21 @@ const EstudarAgora = ({ user }) => {
         }, 4500);
     };
 
-    // =============================
-    // Helpers de tempo
-    // =============================
-    const formatarTempo = (s) => {
-        const total = Math.max(0, Number(s || 0));
-        const h = Math.floor(total / 3600);
-        const m = Math.floor((total % 3600) / 60);
-        const seg = total % 60;
-        return `${h.toString().padStart(2, "0")}:${m
-            .toString()
-            .padStart(2, "0")}:${seg.toString().padStart(2, "0")}`;
-    };
-
-    const calcularRemainingSeg = (fireAt) => {
-        return Math.max(0, Math.ceil((fireAt - Date.now()) / 1000));
-    };
-
-    const formatarRestante = (totalSeg) => {
-        return formatarTempo(Math.max(0, Number(totalSeg || 0)));
-    };
-
-    const msAteHorario = (hhmm) => {
-        const [hh, mm] = String(hhmm || "00:00").split(":").map(Number);
-        if (Number.isNaN(hh) || Number.isNaN(mm)) return -1;
-
-        const agora = new Date();
-        const alvo = new Date();
-
-        alvo.setHours(hh);
-        alvo.setMinutes(mm);
-        alvo.setSeconds(0);
-        alvo.setMilliseconds(0);
-
-        if (alvo.getTime() <= agora.getTime()) alvo.setDate(alvo.getDate() + 1);
-
-        return alvo.getTime() - agora.getTime();
-    };
-
-    // =============================
-    // Notificações + Som
-    // =============================
+    /* ========= NOTIFICAÇÕES ========= */
     const suporteNotificacao =
         typeof window !== "undefined" && "Notification" in window;
 
     const pedirPermissaoNotificacao = async () => {
         if (!suporteNotificacao) return false;
-        if (Notification.permission === "granted") return true;
 
-        if (Notification.permission === "denied") {
-            showToast(
-                "Notificações bloqueadas ❌",
-                "Ative manualmente nas configurações do navegador."
-            );
-            return false;
-        }
+        if (Notification.permission === "granted") return true;
+        if (Notification.permission === "denied") return false;
 
         const perm = await Notification.requestPermission();
         return perm === "granted";
     };
 
-    // ✅ Beep forte + repetido (sem baixar arquivo)
+    // ✅ Som beep (não precisa arquivo)
     const playBeep = () => {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -165,8 +315,8 @@ const EstudarAgora = ({ user }) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
 
-            osc.type = "square"; // mais chamativo que sine
-            osc.frequency.value = 980;
+            osc.type = "sine";
+            osc.frequency.value = 880;
             gain.gain.value = 0.12;
 
             osc.connect(gain);
@@ -176,19 +326,19 @@ const EstudarAgora = ({ user }) => {
             setTimeout(() => {
                 osc.stop();
                 ctx.close();
-            }, 240);
+            }, 1100);
         } catch (e) { }
     };
 
     const vibrar = () => {
         try {
-            if ("vibrate" in navigator) navigator.vibrate([250, 120, 250, 120, 400]);
+            if ("vibrate" in navigator) navigator.vibrate([250, 120, 250, 120, 350]);
         } catch (e) { }
     };
 
     const dispararNotificacao = () => {
         if (suporteNotificacao && Notification.permission === "granted") {
-            const n = new Notification("⏰ Hora de pausar!", {
+            const n = new Notification("⏰ Alarme!", {
                 body: `Sessão: ${materia || "Estudo"} • ${conteudo || "Sem conteúdo"}`,
                 silent: false,
             });
@@ -200,59 +350,73 @@ const EstudarAgora = ({ user }) => {
         }
     };
 
-    // ✅ Alarme EXTENSO e chamativo (overlay + beeps por ~12s)
-    const pararAlarmeChamativo = () => {
-        setAlarmeTocando(false);
-        if (alarmRingIntervalRef.current) {
-            clearInterval(alarmRingIntervalRef.current);
-            alarmRingIntervalRef.current = null;
-        }
-        if (alarmRingStopRef.current) {
-            clearTimeout(alarmRingStopRef.current);
-            alarmRingStopRef.current = null;
-        }
+    /* ========= HELPERS ========= */
+    const formatarTempo = (s) => {
+        const total = Math.max(0, Number(s || 0));
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const seg = total % 60;
+        return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${seg
+            .toString()
+            .padStart(2, "0")}`;
     };
 
-    const iniciarAlarmeChamativo = (titulo, mensagem) => {
-        // evita duplicar tocando
-        pararAlarmeChamativo();
+    const calcularRemainingSeg = (fireAt) => Math.max(0, Math.ceil((fireAt - Date.now()) / 1000));
 
-        setAlarmeTitulo(titulo || "⏰ Alarme!");
-        setAlarmeMensagem(mensagem || "Seu tempo atingiu o limite configurado.");
-        setAlarmeTocando(true);
+    const msAteHorario = (hhmm) => {
+        const [hh, mm] = String(hhmm || "00:00").split(":").map(Number);
+        if (Number.isNaN(hh) || Number.isNaN(mm)) return 0;
 
-        // beeps repetidos
-        alarmRingIntervalRef.current = setInterval(() => {
-            playBeep();
-            vibrar();
-        }, 520);
+        const agora = new Date();
+        const alvo = new Date();
+        alvo.setHours(hh, mm, 0, 0);
 
-        // auto para em 12 segundos
-        alarmRingStopRef.current = setTimeout(() => {
-            pararAlarmeChamativo();
-        }, 12000);
+        if (alvo.getTime() <= agora.getTime()) alvo.setDate(alvo.getDate() + 1);
+        return alvo.getTime() - agora.getTime();
     };
 
-    const dispararAlarme = (tituloExtra) => {
-        // Notificação
+    /* ========= ALARME: DISPARO ========= */
+    const dispararAlarme = (alarmeData) => {
+        playBeep();
+        vibrar();
         dispararNotificacao();
 
-        // Overlay chamativo + som/vibração repetida
-        iniciarAlarmeChamativo(
-            tituloExtra || "⏰ Alarme!",
-            "Seu tempo atingiu o limite configurado."
-        );
+        // guarda nos concluídos
+        setAlarmesConcluidos((prev) => [
+            ...prev,
+            {
+                id: `done-${Date.now()}`,
+                label: alarmeData?.label || "Alarme concluído",
+                duracaoSegundos: alarmeData?.duracaoSegundos || 0,
+                firedAt: Date.now(),
+            },
+        ]);
 
-        // Toast também
-        showToast("⏰ Alarme!", "Seu tempo atingiu o limite configurado.");
+        // ✅ Modal central chamativo
+        setModalCentral({
+            open: true,
+            variant: "alarm",
+            title: "⏰ Hora de pausar!",
+            message: "Seu alarme disparou. Você pode salvar sua atividade com esse tempo se quiser.",
+            actions: [
+                {
+                    label: "Salvar atividade com este tempo",
+                    kind: "danger",
+                    onClick: async () => {
+                        // força salvar usando o tempo do alarme (se for duração)
+                        const dur = alarmeData?.duracaoSegundos ?? 0;
+                        await salvarSessao({ forceDuration: dur });
+                        setModalCentral((m) => ({ ...m, open: false }));
+                    },
+                },
+                { label: "Fechar", kind: "secondary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) },
+            ],
+        });
     };
 
-    // =============================
-    // Alarmes ativos/concluídos
-    // =============================
+    /* ========= ALARMES ATIVOS: add/remove ========= */
     const removerAlarmeAtivo = (id) => {
         setAlarmesAtivos((prev) => prev.filter((a) => a.id !== id));
-
         const timeout = alarmesTimeoutsRef.current.get(id);
         if (timeout) {
             clearTimeout(timeout);
@@ -265,59 +429,23 @@ const EstudarAgora = ({ user }) => {
         showToast("⛔ Alarme cancelado", "O alarme foi removido.");
     };
 
-    const removerConcluido = (id) => {
-        setAlarmesConcluidos((prev) => prev.filter((a) => a.id !== id));
-    };
-
-    const usarTempoConcluido = (item) => {
-        // aplica a duração pra salvar a sessão com esse tempo
-        if (typeof item?.duracaoSeg === "number") {
-            setSegundos(item.duracaoSeg);
-            setAtivo(false); // pausa
-            showToast("✅ Tempo aplicado", "Agora você pode salvar a tarefa com essa duração.");
-        } else {
-            showToast("Sem duração fixa", "Esse alarme não possui duração definida.");
-        }
-    };
-
-    const concluirAlarme = (alarmeObj) => {
-        // remove dos ativos
-        removerAlarmeAtivo(alarmeObj.id);
-
-        // adiciona nos concluídos
-        setAlarmesConcluidos((prev) => [
-            {
-                id: `done-${Date.now()}`,
-                label: alarmeObj.label,
-                concluidoEm: new Date().toISOString(),
-                duracaoSeg: alarmeObj.duracaoSeg ?? null,
-            },
-            ...prev,
-        ]);
-    };
-
     const criarAlarmeAtivo = async () => {
         if (alarmeTipo === "nenhum") {
             showToast("Selecione um tipo", "Escolha 'Por duração' ou 'Por horário'.");
             return;
         }
 
-        // tenta permissão (melhor experiência)
+        // ✅ pede permissão se suportar
         await pedirPermissaoNotificacao();
 
-        // ✅ Por duração (precisa cronômetro rodando)
         if (alarmeTipo === "duracao") {
             if (!ativo) {
-                showToast(
-                    "Inicie o cronômetro",
-                    "O alarme por duração funciona com o cronômetro rodando."
-                );
+                showToast("Inicie o cronômetro", "O alarme por duração funciona com o cronômetro rodando.");
                 return;
             }
 
             const alvoSeg = Number(alarmeDuracaoMin || 0) * 60;
             const restante = alvoSeg - segundos;
-
             if (restante <= 0) {
                 showToast("Tempo inválido", "A duração escolhida já foi atingida.");
                 return;
@@ -326,33 +454,28 @@ const EstudarAgora = ({ user }) => {
             const id = `dur-${Date.now()}`;
             const fireAt = Date.now() + restante * 1000;
 
-            const alarmeObj = {
+            const alarmeData = {
                 id,
                 tipo: "duracao",
                 label: `Duração • ${alarmeDuracaoMin} min`,
                 fireAt,
                 remaining: restante,
-                duracaoSeg: alvoSeg, // ✅ isso permite salvar com esse tempo depois
+                duracaoSegundos: alvoSeg, // duração total configurada
             };
 
-            setAlarmesAtivos((prev) => [...prev, alarmeObj]);
+            setAlarmesAtivos((prev) => [...prev, alarmeData]);
 
             const t = setTimeout(() => {
-                // quando dispara -> pausa cronômetro e aplica exatamente a duração configurada
-                setAtivo(false);
-                setSegundos(alvoSeg);
-
-                dispararAlarme("⏰ Hora de pausar!");
-                concluirAlarme(alarmeObj);
+                dispararAlarme(alarmeData);
+                removerAlarmeAtivo(id);
             }, restante * 1000);
 
             alarmesTimeoutsRef.current.set(id, t);
 
-            showToast("✅ Alarme ativado", `Vai disparar em ~${Math.ceil(restante / 60)} min.`);
+            showToast("✅ Alarme ativado", `Vai disparar em ${Math.ceil(restante / 60)} min.`);
             return;
         }
 
-        // ✅ Por horário
         if (alarmeTipo === "horario") {
             const ms = msAteHorario(alarmeHorario);
             if (ms <= 0) {
@@ -363,20 +486,20 @@ const EstudarAgora = ({ user }) => {
             const id = `hr-${Date.now()}`;
             const fireAt = Date.now() + ms;
 
-            const alarmeObj = {
+            const alarmeData = {
                 id,
                 tipo: "horario",
                 label: `Horário • ${alarmeHorario}`,
                 fireAt,
                 remaining: Math.ceil(ms / 1000),
-                duracaoSeg: null, // horário não tem duração fixa
+                duracaoSegundos: 0,
             };
 
-            setAlarmesAtivos((prev) => [...prev, alarmeObj]);
+            setAlarmesAtivos((prev) => [...prev, alarmeData]);
 
             const t = setTimeout(() => {
-                dispararAlarme("⏰ Alarme por horário!");
-                concluirAlarme(alarmeObj);
+                dispararAlarme(alarmeData);
+                removerAlarmeAtivo(id);
             }, ms);
 
             alarmesTimeoutsRef.current.set(id, t);
@@ -385,7 +508,7 @@ const EstudarAgora = ({ user }) => {
         }
     };
 
-    // ✅ atualiza contagem regressiva dos alarmes ativos
+    // ✅ Atualiza countdown
     useEffect(() => {
         if (alarmesAtivos.length === 0) return;
 
@@ -401,9 +524,7 @@ const EstudarAgora = ({ user }) => {
         return () => clearInterval(interval);
     }, [alarmesAtivos.length]);
 
-    // =============================
-    // Cronômetro ticking
-    // =============================
+    /* ========= CRONÔMETRO ========= */
     useEffect(() => {
         let intervalo = null;
         if (ativo) intervalo = setInterval(() => setSegundos((s) => s + 1), 1000);
@@ -421,28 +542,7 @@ const EstudarAgora = ({ user }) => {
         setInicioCronometroEm(null);
     };
 
-    // =============================
-    // Supabase
-    // =============================
-    useEffect(() => {
-        buscarUltimasAtividades();
-        // eslint-disable-next-line
-    }, []);
-
-    const buscarUltimasAtividades = async () => {
-        const { data, error } = await supabase
-            .from("sessoes_estudo")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("inicio_em", { ascending: false })
-            .limit(50);
-
-        if (!error && data) setUltimasAtividades(data);
-    };
-
-    // =============================
-    // Questões (validação)
-    // =============================
+    /* ========= QUESTÕES: validação ========= */
     const setFeitas = (val) => {
         const feitas = Math.max(0, Number(val || 0));
         let acertos = Number(questoes.acertos || 0);
@@ -461,8 +561,7 @@ const EstudarAgora = ({ user }) => {
         let erros = Number(questoes.erros || 0);
 
         const acertosClamped = Math.min(acertos, feitas);
-        if (acertosClamped + erros > feitas)
-            erros = Math.max(0, feitas - acertosClamped);
+        if (acertosClamped + erros > feitas) erros = Math.max(0, feitas - acertosClamped);
 
         setQuestoes({ ...questoes, acertos: acertosClamped, erros });
     };
@@ -473,15 +572,12 @@ const EstudarAgora = ({ user }) => {
         let acertos = Number(questoes.acertos || 0);
 
         const errosClamped = Math.min(erros, feitas);
-        if (acertos + errosClamped > feitas)
-            acertos = Math.max(0, feitas - errosClamped);
+        if (acertos + errosClamped > feitas) acertos = Math.max(0, feitas - errosClamped);
 
         setQuestoes({ ...questoes, erros: errosClamped, acertos });
     };
 
-    // =============================
-    // Revisões espaçadas
-    // =============================
+    /* ========= REVISÕES ========= */
     const alternarDiaRevisao = (days) => {
         setRevisoesSelecionadas((atual) => {
             if (atual.includes(days)) {
@@ -508,9 +604,24 @@ const EstudarAgora = ({ user }) => {
         if (error) showToast("Erro ao agendar", error.message);
     };
 
-    // =============================
-    // Salvar sessão
-    // =============================
+    /* ========= SUPABASE: últimas atividades ========= */
+    const buscarUltimasAtividades = async () => {
+        const { data, error } = await supabase
+            .from("sessoes_estudo")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("inicio_em", { ascending: false })
+            .limit(50);
+
+        if (!error && data) setUltimasAtividades(data);
+    };
+
+    useEffect(() => {
+        buscarUltimasAtividades();
+        // eslint-disable-next-line
+    }, []);
+
+    /* ========= SALVAR SESSÃO ========= */
     const duracaoManualEmSegundos = () => {
         const h = Number(duracaoManual.h || 0);
         const m = Number(duracaoManual.m || 0);
@@ -518,21 +629,34 @@ const EstudarAgora = ({ user }) => {
         return h * 3600 + m * 60 + s;
     };
 
-    const salvarSessao = async () => {
+    // ✅ permite forçar duração via alarme concluído
+    const salvarSessao = async ({ forceDuration } = {}) => {
         if (!materia.trim()) {
-            return showToast("Faltou matéria", "Defina uma matéria antes de salvar.");
+            setModalCentral({
+                open: true,
+                variant: "info",
+                title: "Faltou matéria",
+                message: "Defina uma matéria antes de salvar.",
+                actions: [{ label: "Entendi", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
+            });
+            return;
         }
 
+        // validação de questões
         if (tipoEstudo === "Exercícios" || tipoEstudo === "Simulado") {
             const feitas = Number(questoes.feitas || 0);
             const acertos = Number(questoes.acertos || 0);
             const erros = Number(questoes.erros || 0);
 
             if (acertos > feitas || erros > feitas || acertos + erros > feitas) {
-                return showToast(
-                    "Números inconsistentes",
-                    "Acertos/Erros não podem ultrapassar Questões feitas."
-                );
+                setModalCentral({
+                    open: true,
+                    variant: "info",
+                    title: "Números inconsistentes",
+                    message: "Acertos/Erros não podem ultrapassar Questões feitas.",
+                    actions: [{ label: "Ok", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
+                });
+                return;
             }
         }
 
@@ -550,6 +674,11 @@ const EstudarAgora = ({ user }) => {
             } else {
                 inicio_em_iso = inicioCronometroEm ?? new Date().toISOString();
                 duracao_segundos = Math.max(0, Number(segundos || 0));
+            }
+
+            // ✅ se veio de alarme concluído, força a duração
+            if (typeof forceDuration === "number" && forceDuration > 0) {
+                duracao_segundos = forceDuration;
             }
 
             const payload = {
@@ -587,14 +716,31 @@ const EstudarAgora = ({ user }) => {
             const { error } = await supabase.from("sessoes_estudo").insert([payload]);
 
             if (error) {
-                showToast("Erro ao salvar", error.message);
+                setModalCentral({
+                    open: true,
+                    variant: "info",
+                    title: "Erro ao salvar",
+                    message: error.message,
+                    actions: [{ label: "Ok", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
+                });
                 return;
             }
 
             if (agendarRevisao) await criarRevisoes(materia.trim());
 
-            showToast("✅ Salvo!", "Atividade registrada com sucesso.");
+            // ✅ limpa alarmes concluídos após registrar
+            setAlarmesConcluidos([]);
 
+            // ✅ modal central de “salvo”
+            setModalCentral({
+                open: true,
+                variant: "info",
+                title: "✅ Atividade registrada!",
+                message: `Salvo com duração ${formatarTempo(duracao_segundos)}.`,
+                actions: [{ label: "Fechar", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
+            });
+
+            // reset inputs
             setMateria("");
             setConteudo("");
             setAnotacao("");
@@ -611,6 +757,7 @@ const EstudarAgora = ({ user }) => {
         }
     };
 
+    /* ========= UI: duração manual texto ========= */
     const DuracaoTexto = useMemo(() => {
         const hh = String(duracaoManual.h).padStart(2, "0");
         const mm = String(duracaoManual.m).padStart(2, "0");
@@ -618,59 +765,27 @@ const EstudarAgora = ({ user }) => {
         return `${hh}:${mm}:${ss}`;
     }, [duracaoManual]);
 
-    // =============================
-    // UI
-    // =============================
     return (
         <div className="max-w-2xl mx-auto space-y-6">
-            {/* ✅ OVERLAY DO ALARME CHAMATIVO */}
-            {alarmeTocando && (
-                <div className="fixed inset-0 z-[999999] bg-black/70 flex items-center justify-center p-4">
-                    <div className="w-full max-w-md rounded-3xl border border-rose-400/40 bg-slate-950 p-6 shadow-2xl">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <p className="text-2xl font-black text-white animate-pulse">
-                                    {alarmeTitulo}
-                                </p>
-                                <p className="mt-2 text-sm text-slate-200">
-                                    {alarmeMensagem}
-                                </p>
-                                <p className="mt-2 text-xs text-slate-400">
-                                    {materia ? `📘 ${materia}` : "📘 Estudo"}{" "}
-                                    {conteudo ? `• ${conteudo}` : ""}
-                                </p>
-                            </div>
+            {/* ✅ MODAL CENTRAL (ALARME/SALVO) */}
+            <ModalCentral
+                open={modalCentral.open}
+                onClose={() => setModalCentral((m) => ({ ...m, open: false }))}
+                title={modalCentral.title}
+                message={modalCentral.message}
+                variant={modalCentral.variant}
+                actions={modalCentral.actions}
+            />
 
-                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-400/40">
-                                <Bell className="text-rose-300 animate-bounce" />
-                            </div>
-                        </div>
+            {/* ✅ MODAL DETALHES ATIVIDADE */}
+            <ModalAtividade
+                open={modalAtividadeOpen}
+                onClose={() => setModalAtividadeOpen(false)}
+                atividade={atividadeSelecionada}
+                formatarTempo={formatarTempo}
+            />
 
-                        <div className="mt-5 grid grid-cols-2 gap-3">
-                            <button
-                                onClick={pararAlarmeChamativo}
-                                className="py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black cursor-pointer"
-                                type="button"
-                            >
-                                Parar alarme
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    pararAlarmeChamativo();
-                                    showToast("💾 Dica", "Se quiser salvar com a duração, clique em SALVAR ATIVIDADE.");
-                                }}
-                                className="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-black cursor-pointer"
-                                type="button"
-                            >
-                                Ok
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ✅ TOAST */}
+            {/* ✅ TOAST opcional */}
             {toast.show && (
                 <div className="fixed top-6 right-6 z-[99999] w-[320px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4">
                     <p className="font-black text-slate-900 dark:text-white">{toast.title}</p>
@@ -678,7 +793,6 @@ const EstudarAgora = ({ user }) => {
                     <button
                         onClick={() => setToast({ show: false, title: "", message: "" })}
                         className="mt-3 text-xs font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                        type="button"
                     >
                         Fechar
                     </button>
@@ -694,10 +808,10 @@ const EstudarAgora = ({ user }) => {
                             ? "bg-indigo-600 text-white shadow-md"
                             : "text-slate-600 dark:text-slate-200"
                         }`}
-                    type="button"
                 >
                     Manual
                 </button>
+
                 <button
                     onClick={() => setAbaAtiva("cronometro")}
                     className={`flex-1 py-3 rounded-xl font-bold transition-all cursor-pointer
@@ -705,7 +819,6 @@ const EstudarAgora = ({ user }) => {
                             ? "bg-indigo-600 text-white shadow-md"
                             : "text-slate-600 dark:text-slate-200"
                         }`}
-                    type="button"
                 >
                     Cronômetro
                 </button>
@@ -720,7 +833,7 @@ const EstudarAgora = ({ user }) => {
                         placeholder="Matéria"
                         value={materia}
                         onChange={(e) => setMateria(e.target.value)}
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700"
+                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                     />
 
                     <input
@@ -728,14 +841,13 @@ const EstudarAgora = ({ user }) => {
                         placeholder="Conteúdo"
                         value={conteudo}
                         onChange={(e) => setConteudo(e.target.value)}
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700"
+                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                     />
 
                     <select
                         value={tipoEstudo}
                         onChange={(e) => setTipoEstudo(e.target.value)}
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 md:col-span-2
-            text-slate-900 dark:text-slate-100"
+                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 md:col-span-2 text-slate-900 dark:text-slate-100 font-black cursor-pointer"
                     >
                         <option value="Teoria">📖 Teoria</option>
                         <option value="Exercícios">📝 Exercícios</option>
@@ -756,7 +868,6 @@ const EstudarAgora = ({ user }) => {
                             <button
                                 onClick={() => setVerMaisAtividades((v) => !v)}
                                 className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                                type="button"
                             >
                                 {verMaisAtividades ? "Ver menos" : "Ver mais"}
                             </button>
@@ -768,37 +879,32 @@ const EstudarAgora = ({ user }) => {
                             Nenhuma atividade registrada ainda.
                         </p>
                     ) : (
-                        <div
-                            className={`space-y-2 ${verMaisAtividades ? "max-h-56 overflow-y-auto pr-1" : ""
-                                }`}
-                        >
-                            {(verMaisAtividades
-                                ? ultimasAtividades
-                                : ultimasAtividades.slice(0, 2)
-                            ).map((a) => (
-                                <div
+                        <div className={`space-y-2 ${verMaisAtividades ? "max-h-56 overflow-y-auto pr-1 custom-scroll" : ""}`}>
+                            {(verMaisAtividades ? ultimasAtividades : ultimasAtividades.slice(0, 2)).map((a) => (
+                                <button
                                     key={a.id}
-                                    className="flex items-center justify-between text-sm p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+                                    onClick={() => {
+                                        setAtividadeSelecionada(a);
+                                        setModalAtividadeOpen(true);
+                                    }}
+                                    className="w-full text-left flex items-center justify-between text-sm p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:scale-[1.01] transition cursor-pointer"
                                 >
                                     <div className="flex flex-col">
-                                        <span className="font-bold">{a.materia}</span>
+                                        <span className="font-bold text-slate-900 dark:text-white">{a.materia}</span>
                                         <span className="text-xs text-slate-600 dark:text-slate-300">
                                             {a.tipo_estudo} • {new Date(a.inicio_em).toLocaleString()}
                                         </span>
-
-                                        {(a.tipo_estudo === "Exercícios" ||
-                                            a.tipo_estudo === "Simulado") && (
-                                                <span className="text-[11px] mt-1 text-slate-500 dark:text-slate-300">
-                                                    Q: {a.questoes_feitas || 0} • ✅ {a.questoes_acertos || 0}{" "}
-                                                    • ❌ {a.questoes_erros || 0}
-                                                </span>
-                                            )}
+                                        {(a.tipo_estudo === "Exercícios" || a.tipo_estudo === "Simulado") && (
+                                            <span className="text-[11px] mt-1 text-slate-500 dark:text-slate-300">
+                                                Q: {a.questoes_feitas || 0} • ✅ {a.questoes_acertos || 0} • ❌ {a.questoes_erros || 0}
+                                            </span>
+                                        )}
                                     </div>
 
                                     <span className="font-mono font-black text-slate-800 dark:text-slate-100">
                                         {formatarTempo(a.duracao_segundos || 0)}
                                     </span>
-                                </div>
+                                </button>
                             ))}
                         </div>
                     )}
@@ -817,8 +923,7 @@ const EstudarAgora = ({ user }) => {
                                 type="date"
                                 value={dataInicio}
                                 onChange={(e) => setDataInicio(e.target.value)}
-                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-sm
-                text-slate-900 dark:text-slate-100"
+                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white"
                             />
                         </div>
 
@@ -832,8 +937,7 @@ const EstudarAgora = ({ user }) => {
                                 type="time"
                                 value={horaInicio}
                                 onChange={(e) => setHoraInicio(e.target.value)}
-                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-sm
-                text-slate-900 dark:text-slate-100"
+                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white"
                             />
                         </div>
 
@@ -844,9 +948,7 @@ const EstudarAgora = ({ user }) => {
 
                             <button
                                 onClick={() => setDuracaoModalAberto(true)}
-                                className="w-full p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700
-                flex items-center justify-between font-black cursor-pointer"
-                                type="button"
+                                className="w-full p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 flex items-center justify-between font-black cursor-pointer"
                             >
                                 <span className="text-lg font-mono">{DuracaoTexto}</span>
                                 <span className="text-indigo-600 dark:text-indigo-400 text-sm font-black">
@@ -866,7 +968,6 @@ const EstudarAgora = ({ user }) => {
                                 onClick={iniciarOuPausar}
                                 className={`p-4 rounded-full text-white cursor-pointer transition-all active:scale-95
                   ${ativo ? "bg-amber-500" : "bg-indigo-600"}`}
-                                type="button"
                             >
                                 {ativo ? <Pause /> : <Play />}
                             </button>
@@ -874,7 +975,6 @@ const EstudarAgora = ({ user }) => {
                             <button
                                 onClick={resetarCronometro}
                                 className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer transition-all active:scale-95"
-                                type="button"
                             >
                                 <RotateCcw />
                             </button>
@@ -890,11 +990,21 @@ const EstudarAgora = ({ user }) => {
                                 <select
                                     value={alarmeTipo}
                                     onChange={(e) => setAlarmeTipo(e.target.value)}
-                                    className="bg-transparent text-sm outline-none font-black text-slate-900 dark:text-slate-100 cursor-pointer"
+                                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700
+             bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100
+             text-sm font-black outline-none cursor-pointer"
                                 >
-                                    <option value="nenhum">Nenhum</option>
-                                    <option value="duracao">Por duração</option>
-                                    <option value="horario">Por horário</option>
+
+                                    <option value="nenhum" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                        Nenhum
+                                    </option>
+                                    <option value="duracao" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                        Por duração
+                                    </option>
+                                    <option value="horario" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                        Por horário
+                                    </option>
+
                                 </select>
                             </div>
 
@@ -907,13 +1017,17 @@ const EstudarAgora = ({ user }) => {
                                     <select
                                         value={alarmeDuracaoMin}
                                         onChange={(e) => setAlarmeDuracaoMin(e.target.value)}
-                                        className="bg-transparent text-sm outline-none font-black text-slate-900 dark:text-slate-100 cursor-pointer"
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700
+             bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100
+             text-sm font-black outline-none cursor-pointer"
                                     >
-                                        <option value="15">15 min</option>
-                                        <option value="30">30 min</option>
-                                        <option value="45">45 min</option>
-                                        <option value="60">60 min</option>
-                                        <option value="90">90 min</option>
+
+                                        <option value="15" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">15 min</option>
+                                        <option value="30" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">30 min</option>
+                                        <option value="45" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">45 min</option>
+                                        <option value="60" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">60 min</option>
+                                        <option value="90" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">90 min</option>
+
                                     </select>
                                 </div>
                             )}
@@ -935,106 +1049,87 @@ const EstudarAgora = ({ user }) => {
                             )}
 
                             {(alarmeTipo === "duracao" || alarmeTipo === "horario") && (
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={criarAlarmeAtivo}
-                                        className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm cursor-pointer"
-                                        type="button"
-                                    >
-                                        Ativar Alarme
-                                    </button>
+                                <button
+                                    onClick={criarAlarmeAtivo}
+                                    className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm cursor-pointer"
+                                >
+                                    Ativar Alarme
+                                </button>
+                            )}
 
-                                    {/* ✅ Alarmes ativos */}
-                                    {alarmesAtivos.length > 0 && (
-                                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 space-y-2">
-                                            <p className="text-xs font-black text-slate-700 dark:text-slate-200">
-                                                Alarmes ativos
-                                            </p>
+                            {/* Alarmes ativos */}
+                            {alarmesAtivos.length > 0 && (
+                                <div className="mt-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 space-y-2">
+                                    <p className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                        Alarmes ativos
+                                    </p>
 
-                                            {alarmesAtivos.map((a) => (
-                                                <div
-                                                    key={a.id}
-                                                    className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2"
-                                                >
-                                                    <div className="flex flex-col text-left">
-                                                        <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                                                            {a.label}
-                                                        </span>
+                                    {alarmesAtivos.map((a) => (
+                                        <div
+                                            key={a.id}
+                                            className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2"
+                                        >
+                                            <div className="flex flex-col text-left">
+                                                <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                                                    {a.label}
+                                                </span>
 
-                                                        <span className="text-[11px] font-mono font-black text-indigo-600 dark:text-indigo-400">
-                                                            {formatarRestante(a.remaining)}
-                                                        </span>
-                                                    </div>
+                                                <span className="text-[11px] font-mono font-black text-indigo-600 dark:text-indigo-400">
+                                                    {formatarTempo(a.remaining)}
+                                                </span>
+                                            </div>
 
-                                                    <button
-                                                        onClick={() => cancelarAlarmeAtivo(a.id)}
-                                                        className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-                                                        title="Cancelar alarme"
-                                                        type="button"
-                                                    >
-                                                        <X size={16} className="text-slate-500 dark:text-slate-300" />
-                                                    </button>
-                                                </div>
-                                            ))}
+                                            <button
+                                                onClick={() => cancelarAlarmeAtivo(a.id)}
+                                                className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                                                title="Cancelar alarme"
+                                            >
+                                                <X size={16} className="text-slate-500 dark:text-slate-300" />
+                                            </button>
                                         </div>
-                                    )}
+                                    ))}
+                                </div>
+                            )}
 
-                                    {/* ✅ Alarmes concluídos */}
-                                    {alarmesConcluidos.length > 0 && (
-                                        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-950/15 p-3 space-y-2">
-                                            <p className="text-xs font-black text-emerald-800 dark:text-emerald-200">
-                                                Alarmes concluídos
-                                            </p>
+                            {/* Alarmes concluídos */}
+                            {alarmesConcluidos.length > 0 && (
+                                <div className="mt-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/20 p-3 space-y-2">
+                                    <p className="text-xs font-black text-emerald-700 dark:text-emerald-200">
+                                        Alarmes concluídos
+                                    </p>
 
-                                            {alarmesConcluidos.map((c) => (
-                                                <div
-                                                    key={c.id}
-                                                    className="flex items-center justify-between rounded-xl border border-emerald-200 dark:border-emerald-900/30 bg-white/60 dark:bg-slate-900/40 px-3 py-2"
+                                    {alarmesConcluidos.map((a) => (
+                                        <div
+                                            key={a.id}
+                                            className="flex items-center justify-between rounded-xl border border-emerald-200 dark:border-emerald-900/40 bg-white/70 dark:bg-slate-900 px-3 py-2"
+                                        >
+                                            <div className="flex flex-col text-left">
+                                                <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                                                    {a.label}
+                                                </span>
+
+                                                <span className="text-[11px] font-mono font-black text-emerald-700 dark:text-emerald-300">
+                                                    Tempo: {a.duracaoSegundos ? formatarTempo(a.duracaoSegundos) : "—"}
+                                                </span>
+                                            </div>
+
+                                            {a.duracaoSegundos > 0 && (
+                                                <button
+                                                    onClick={() => salvarSessao({ forceDuration: a.duracaoSegundos })}
+                                                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black cursor-pointer"
                                                 >
-                                                    <div className="flex flex-col text-left">
-                                                        <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                                                            {c.label}
-                                                        </span>
-
-                                                        <span className="text-[11px] font-mono font-black text-emerald-700 dark:text-emerald-300">
-                                                            {typeof c.duracaoSeg === "number"
-                                                                ? `Duração: ${formatarTempo(c.duracaoSeg)}`
-                                                                : `Concluído às: ${new Date(c.concluidoEm).toLocaleTimeString()}`}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2">
-                                                        {typeof c.duracaoSeg === "number" && (
-                                                            <button
-                                                                onClick={() => usarTempoConcluido(c)}
-                                                                className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black cursor-pointer"
-                                                                type="button"
-                                                                title="Aplicar essa duração no cronômetro para salvar"
-                                                            >
-                                                                Usar este tempo
-                                                            </button>
-                                                        )}
-
-                                                        <button
-                                                            onClick={() => removerConcluido(c.id)}
-                                                            className="p-2 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 cursor-pointer"
-                                                            type="button"
-                                                            title="Remover"
-                                                        >
-                                                            <X size={16} className="text-emerald-700 dark:text-emerald-200" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                    Salvar com esse tempo
+                                                </button>
+                                            )}
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
 
-                {/* Exercícios */}
+                {/* Questões */}
                 {(tipoEstudo === "Exercícios" || tipoEstudo === "Simulado") && (
                     <div className="rounded-2xl border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50 dark:bg-indigo-950/20 p-4 space-y-3">
                         <div className="grid grid-cols-3 gap-3 text-xs font-black text-slate-700 dark:text-slate-200">
@@ -1049,24 +1144,21 @@ const EstudarAgora = ({ user }) => {
                                 placeholder="0"
                                 value={questoes.feitas}
                                 onChange={(e) => setFeitas(e.target.value)}
-                                className="bg-white/70 dark:bg-slate-900 text-center outline-none font-black rounded-xl py-3
-                border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
+                                className="bg-white/70 dark:bg-slate-900 text-center outline-none font-black rounded-xl py-3 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
                             />
                             <input
                                 type="number"
                                 placeholder="0"
                                 value={questoes.acertos}
                                 onChange={(e) => setAcertos(e.target.value)}
-                                className="bg-white/70 dark:bg-slate-900 text-center outline-none font-black rounded-xl py-3
-                border border-slate-200 dark:border-slate-800 text-emerald-600"
+                                className="bg-white/70 dark:bg-slate-900 text-center outline-none font-black rounded-xl py-3 border border-slate-200 dark:border-slate-800 text-emerald-600"
                             />
                             <input
                                 type="number"
                                 placeholder="0"
                                 value={questoes.erros}
                                 onChange={(e) => setErros(e.target.value)}
-                                className="bg-white/70 dark:bg-slate-900 text-center outline-none font-black rounded-xl py-3
-                border border-slate-200 dark:border-slate-800 text-red-500"
+                                className="bg-white/70 dark:bg-slate-900 text-center outline-none font-black rounded-xl py-3 border border-slate-200 dark:border-slate-800 text-rose-500"
                             />
                         </div>
                     </div>
@@ -1077,17 +1169,17 @@ const EstudarAgora = ({ user }) => {
                     placeholder="Anotações..."
                     value={anotacao}
                     onChange={(e) => setAnotacao(e.target.value)}
-                    className="w-full p-4 h-24 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none border border-slate-200 dark:border-slate-700 text-sm
-          text-slate-900 dark:text-slate-100"
+                    className="w-full p-4 h-24 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white"
                 />
 
                 {/* Revisões */}
                 <div className="space-y-3">
                     <button
                         onClick={() => setAgendarRevisao((v) => !v)}
-                        className={`text-sm font-black flex items-center gap-2 cursor-pointer ${agendarRevisao ? "text-indigo-600" : "text-slate-500 dark:text-slate-300"
+                        className={`text-sm font-black flex items-center gap-2 cursor-pointer ${agendarRevisao
+                            ? "text-indigo-600"
+                            : "text-slate-500 dark:text-slate-300"
                             }`}
-                        type="button"
                     >
                         <Calendar size={16} className="text-indigo-600 dark:text-indigo-400" />
                         {agendarRevisao ? "Revisões serão agendadas ✅" : "Agendar revisões (espaçadas)?"}
@@ -1096,17 +1188,16 @@ const EstudarAgora = ({ user }) => {
                     {agendarRevisao && (
                         <div className="flex flex-wrap gap-2">
                             {revisoesPreset.map((opt) => {
-                                const ativoOpt = revisoesSelecionadas.includes(opt.days);
+                                const ativo = revisoesSelecionadas.includes(opt.days);
                                 return (
                                     <button
                                         key={opt.days}
                                         onClick={() => alternarDiaRevisao(opt.days)}
                                         className={`px-4 py-2 rounded-2xl text-sm font-black border transition-all active:scale-95 cursor-pointer
-                      ${ativoOpt
+                      ${ativo
                                                 ? "bg-indigo-600 text-white border-indigo-600"
                                                 : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800"
                                             }`}
-                                        type="button"
                                     >
                                         {opt.label}
                                     </button>
@@ -1118,16 +1209,14 @@ const EstudarAgora = ({ user }) => {
 
                 {/* Salvar */}
                 <button
-                    onClick={salvarSessao}
+                    onClick={() => salvarSessao()}
                     disabled={loading}
                     className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all cursor-pointer disabled:opacity-60"
-                    type="button"
                 >
                     {loading ? "SALVANDO..." : "SALVAR ATIVIDADE"}
                 </button>
             </div>
 
-            {/* Modal duração */}
             {duracaoModalAberto && (
                 <DuracaoModal
                     valorInicial={duracaoManual}
@@ -1142,6 +1231,9 @@ const EstudarAgora = ({ user }) => {
     );
 };
 
+/* ============================
+   MODAL DE DURAÇÃO
+============================ */
 const DuracaoModal = ({ valorInicial, onClose, onSave }) => {
     const [temp, setTemp] = useState(valorInicial);
 
@@ -1207,19 +1299,11 @@ const DuracaoModal = ({ valorInicial, onClose, onSave }) => {
                 </div>
 
                 <div className="flex justify-end gap-6 mt-8 text-sm font-black">
-                    <button
-                        onClick={onClose}
-                        className="text-rose-400 hover:text-rose-300 cursor-pointer"
-                        type="button"
-                    >
+                    <button onClick={onClose} className="text-rose-400 hover:text-rose-300 cursor-pointer">
                         CANCELAR
                     </button>
 
-                    <button
-                        onClick={() => onSave(temp)}
-                        className="text-rose-400 hover:text-rose-300 cursor-pointer"
-                        type="button"
-                    >
+                    <button onClick={() => onSave(temp)} className="text-emerald-400 hover:text-emerald-300 cursor-pointer">
                         SALVAR
                     </button>
                 </div>
