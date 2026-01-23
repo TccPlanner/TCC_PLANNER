@@ -299,11 +299,10 @@ const GerenciadorTarefas = ({ user }) => {
         buscarTarefas();
     };
 
+    // ✅ remover subtarefa
     const removerSubtarefa = async (tarefa, subId) => {
         const novasSubs = (tarefa.subtarefas || []).filter(s => s.id !== subId);
 
-        // se não sobrar nenhuma subtarefa, a tarefa principal NÃO precisa ficar concluída automaticamente
-        // mas se você quiser manter a concluída, deixa como está.
         await supabase.from('tarefas').update({
             subtarefas: novasSubs,
             concluida: novasSubs.length > 0 ? novasSubs.every(s => s.concluida) : tarefa.concluida
@@ -311,7 +310,6 @@ const GerenciadorTarefas = ({ user }) => {
 
         buscarTarefas();
     };
-
 
     // ✅ ao concluir a tarefa principal: se houver subtarefas pendentes, abrir modal
     const onToggleTarefaPrincipal = async (tarefa) => {
@@ -588,7 +586,7 @@ const GerenciadorTarefas = ({ user }) => {
                             </button>
                         </div>
 
-                        {/* ✅ Links múltiplos */}
+                        {/* Links múltiplos */}
                         <div className="space-y-2">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Links</p>
                             <div className="flex gap-2">
@@ -669,11 +667,16 @@ const GerenciadorTarefas = ({ user }) => {
                         key={t.id}
                         className="relative bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all"
                     >
+                        {/* faixa prioridade */}
                         <div className={`absolute left-0 top-0 bottom-0 w-2 ${corFaixaPrioridade(t.prioridade)}`} />
 
                         {/* Corpo */}
                         <div className="p-6 pl-7 flex items-center justify-between gap-4">
-                            <button type="button" onClick={() => onToggleTarefaPrincipal(t)} className="shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => onToggleTarefaPrincipal(t)}
+                                className="shrink-0"
+                            >
                                 {t.concluida ? (
                                     <CheckCircle className="text-emerald-500" size={30} />
                                 ) : (
@@ -683,8 +686,9 @@ const GerenciadorTarefas = ({ user }) => {
 
                             <div className="flex-1 min-w-0">
                                 {editandoId === t.id ? (
+                                    // ---- EDIÇÃO (mantida) ----
                                     <div className="space-y-4 p-2 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-indigo-500/20">
-
+                                        {/* ... (mantido igual ao que você já tem) ... */}
                                         <input
                                             value={editandoCampos.texto || ""}
                                             onChange={e => setEditandoCampos({ ...editandoCampos, texto: e.target.value })}
@@ -739,7 +743,7 @@ const GerenciadorTarefas = ({ user }) => {
                                             </button>
                                         </div>
 
-                                        {/* anexos edit */}
+                                        {/* anexos edit (mantido) */}
                                         <div className="space-y-2">
                                             <p className="text-[10px] font-black text-slate-400 uppercase">Gerenciar Anexos</p>
 
@@ -823,7 +827,6 @@ const GerenciadorTarefas = ({ user }) => {
                                                 ))}
                                             </div>
 
-                                            {/* adicionar novos */}
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
                                                 <div className="flex gap-2">
                                                     <input
@@ -883,7 +886,11 @@ const GerenciadorTarefas = ({ user }) => {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div onClick={() => setExpandida(expandida === t.id ? null : t.id)} className="cursor-pointer">
+                                    // ✅ VISUAL (sem expandir): tarefa + subtarefas SEMPRE
+                                    <div
+                                        onClick={() => setExpandida(expandida === t.id ? null : t.id)}
+                                        className="cursor-pointer"
+                                    >
                                         <h3 className={`text-xl font-black truncate dark:text-white ${t.concluida ? 'line-through opacity-40' : ''}`}>
                                             {t.texto}
                                         </h3>
@@ -901,28 +908,93 @@ const GerenciadorTarefas = ({ user }) => {
                                                 </span>
                                             )}
                                         </div>
+
+                                        {/* ✅ SUBTAREFAS SEMPRE APARECEM + 3 VISÍVEIS COM SCROLL */}
+                                        {t.subtarefas?.length > 0 && (
+                                            <div
+                                                className="mt-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                                                    Subtarefas
+                                                </p>
+
+                                                <div className="max-h-[96px] overflow-y-auto pr-2 space-y-2">
+                                                    {t.subtarefas.map((sub) => (
+                                                        <div key={sub.id} className="flex items-center justify-between gap-2 group/sub">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleSubtarefa(t, sub.id);
+                                                                    }}
+                                                                    className="shrink-0"
+                                                                >
+                                                                    {sub.concluida
+                                                                        ? <CheckCircle size={16} className="text-emerald-500" />
+                                                                        : <Circle size={16} className="text-slate-300" />
+                                                                    }
+                                                                </button>
+
+                                                                <span className={`text-xs font-bold truncate ${sub.concluida ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                                    {sub.texto}
+                                                                </span>
+                                                            </div>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    removerSubtarefa(t, sub.id);
+                                                                }}
+                                                                className="opacity-0 group-hover/sub:opacity-100 text-rose-300 hover:text-rose-600 transition-all p-1 shrink-0"
+                                                                title="Apagar subtarefa"
+                                                            >
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
                             {!editandoId && (
                                 <div className="flex items-center gap-2">
-                                    <button type="button" onClick={() => setExpandida(expandida === t.id ? null : t.id)} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpandida(expandida === t.id ? null : t.id)}
+                                        className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+                                    >
                                         <ListTree size={20} />
                                     </button>
-                                    <button type="button" onClick={() => iniciarEdicao(t)} className="p-2 text-slate-300 hover:text-amber-500 transition-colors">
+
+                                    <button
+                                        type="button"
+                                        onClick={() => iniciarEdicao(t)}
+                                        className="p-2 text-slate-300 hover:text-amber-500 transition-colors"
+                                    >
                                         <Edit3 size={20} />
                                     </button>
-                                    <button type="button" onClick={() => deletarTarefa(t.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+
+                                    <button
+                                        type="button"
+                                        onClick={() => deletarTarefa(t.id)}
+                                        className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                                    >
                                         <Trash2 size={20} />
                                     </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* Expansão */}
+                        {/* ✅ Expansão: mantém tudo + subtarefas completas + input adicionar */}
                         {expandida === t.id && !editandoId && (
                             <div className="px-16 pb-8 space-y-6 animate-in slide-in-from-top-2 duration-300">
+                                {/* anexos */}
                                 {t.anexos?.length > 0 && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {t.anexos.map((anexo, idx) => (
@@ -962,6 +1034,7 @@ const GerenciadorTarefas = ({ user }) => {
                                     </div>
                                 )}
 
+                                {/* subtarefas completas + apagar + adicionar */}
                                 <div className="border-l-2 border-slate-100 dark:border-slate-800 ml-2 pl-6 space-y-3">
                                     {t.subtarefas?.map(sub => (
                                         <div key={sub.id} className="flex items-center justify-between group/sub">
@@ -972,13 +1045,11 @@ const GerenciadorTarefas = ({ user }) => {
                                                         : <Circle size={18} className="text-slate-300" />
                                                     }
                                                 </button>
-
                                                 <span className={`text-sm font-bold ${sub.concluida ? 'line-through text-slate-400' : 'text-slate-600 dark:text-slate-300'}`}>
                                                     {sub.texto}
                                                 </span>
                                             </div>
 
-                                            {/* ✅ BOTÃO EXCLUIR SUBTAREFA */}
                                             <button
                                                 type="button"
                                                 onClick={() => removerSubtarefa(t, sub.id)}
@@ -989,7 +1060,6 @@ const GerenciadorTarefas = ({ user }) => {
                                             </button>
                                         </div>
                                     ))}
-
 
                                     <div className="flex gap-2 mt-4">
                                         <input
