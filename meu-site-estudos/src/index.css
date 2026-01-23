@@ -33,60 +33,60 @@
   animation: spin-slow 8s linear infinite;
 }
 
-/* Scrollbar bonita (só onde usar .custom-scroll) */
-.custom-scroll::-webkit-scrollbar {
-  width: 10px;
-}
+/* =========================================
+   SCROLLBAR (LIGHT + DARK)
+   ========================================= */
 
-.custom-scroll::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 999px;
-}
-
-.custom-scroll::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.45);
-  /* slate */
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.custom-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.65);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-/* Dark mode */
-.dark .custom-scroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.25);
-  /* slate-300 */
-}
-
-.dark .custom-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.45);
-}
-
-/* Firefox (geral) */
-.custom-scroll {
+/* Firefox */
+* {
   scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+  scrollbar-color: #94a3b8 #e2e8f0;
+  /* thumb / track (light) */
 }
 
-.dark .custom-scroll {
-  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+/* Chrome / Edge / Safari */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
 
-/* Corrige dropdown de SELECT no dark mode */
-select option {
-  background: white;
-  color: #0f172a;
-  /* slate-900 */
+::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  /* slate-200 */
+  border-radius: 999px;
 }
 
-.dark select option {
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  /* slate-400 */
+  border-radius: 999px;
+  border: 2px solid #e2e8f0;
+  /* “padding” do thumb */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+  /* slate-500 */
+}
+
+/* ================= DARK MODE ================= */
+.dark * {
+  scrollbar-color: #475569 #0f172a;
+  /* thumb / track (dark) */
+}
+
+.dark ::-webkit-scrollbar-track {
   background: #0f172a;
   /* slate-900 */
-  color: #f8fafc;
-  /* slate-50 */
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+  /* slate-600 */
+  border: 2px solid #0f172a;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+  /* slate-500 */
 }
