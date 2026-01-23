@@ -72,7 +72,8 @@ const GerenciadorTarefas = ({ user }) => {
     // Form criação
     const [novaTarefa, setNovaTarefa] = useState("");
     const [mostrarOpcoes, setMostrarOpcoes] = useState(false);
-    const [categoria, setCategoria] = useState("Geral");
+    const [categoria, setCategoria] = useState("Estudo");
+
     const [prioridade, setPrioridade] = useState("1");
     const [dataVencimento, setDataVencimento] = useState(
         new Date().toISOString().split("T")[0]
@@ -111,6 +112,12 @@ const GerenciadorTarefas = ({ user }) => {
     const [fCategoria, setFCategoria] = useState("todas"); // todas | ...
     const [fBusca, setFBusca] = useState("");
     const [ordenacao, setOrdenacao] = useState("vencimento_asc"); // vencimento_asc | vencimento_desc | prioridade_desc | created_desc
+
+    // Filtros avançados (Data personalizada)
+    const [mostrarFiltrosAvancados, setMostrarFiltrosAvancados] = useState(false);
+    const [fDataDe, setFDataDe] = useState("");   // YYYY-MM-DD
+    const [fDataAte, setFDataAte] = useState(""); // YYYY-MM-DD
+
 
     // Estatísticas: período
     const [periodoStats, setPeriodoStats] = useState("30d"); // 7d | 30d | 90d | 1y | tudo | custom
@@ -237,7 +244,7 @@ const GerenciadorTarefas = ({ user }) => {
         setNovaTarefa("");
         setNotas("");
         setMostrarOpcoes(false);
-        setCategoria("Geral");
+        setCategoria("Estudo");
         setPrioridade("1");
         setDataVencimento(new Date().toISOString().split("T")[0]);
         setRecorrente(false);
@@ -534,6 +541,21 @@ const GerenciadorTarefas = ({ user }) => {
             list = list.filter((t) => (t.texto || "").toLowerCase().includes(q));
         }
 
+        // ✅ Filtro avançado: Data personalizada (data_vencimento)
+        if (fDataDe || fDataAte) {
+            const de = fDataDe ? new Date(fDataDe + "T00:00:00") : null;
+            const ate = fDataAte ? new Date(fDataAte + "T23:59:59") : null;
+
+            list = list.filter((t) => {
+                if (!t.data_vencimento) return false;
+                const dv = new Date(t.data_vencimento + "T00:00:00");
+                if (de && dv < de) return false;
+                if (ate && dv > ate) return false;
+                return true;
+            });
+        }
+
+
         if (ordenacao === "vencimento_asc") {
             list.sort(
                 (a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime()
@@ -549,7 +571,7 @@ const GerenciadorTarefas = ({ user }) => {
         }
 
         return list;
-    }, [tarefas, fStatus, fPrioridade, fCategoria, fBusca, ordenacao]);
+    }, [tarefas, fStatus, fPrioridade, fCategoria, fBusca, ordenacao, fDataDe, fDataAte]);
 
     // =======================
     // ✅ ESTATÍSTICAS (FIXADAS)
@@ -777,8 +799,8 @@ const GerenciadorTarefas = ({ user }) => {
                     type="button"
                     onClick={() => setAba("todo")}
                     className={`flex-1 py-3 rounded-xl font-black uppercase text-sm transition-all ${aba === "todo"
-                            ? "bg-indigo-600 text-white"
-                            : "bg-transparent text-slate-200/80 hover:bg-white/5"
+                        ? "bg-indigo-600 text-white"
+                        : "bg-transparent text-slate-200/80 hover:bg-white/5"
                         }`}
                 >
                     To do list
@@ -788,8 +810,8 @@ const GerenciadorTarefas = ({ user }) => {
                     type="button"
                     onClick={() => setAba("stats")}
                     className={`flex-1 py-3 rounded-xl font-black uppercase text-sm transition-all flex items-center justify-center gap-2 ${aba === "stats"
-                            ? "bg-indigo-600 text-white"
-                            : "bg-transparent text-slate-200/80 hover:bg-white/5"
+                        ? "bg-indigo-600 text-white"
+                        : "bg-transparent text-slate-200/80 hover:bg-white/5"
                         }`}
                 >
                     <BarChart3 size={18} />
@@ -857,8 +879,9 @@ const GerenciadorTarefas = ({ user }) => {
                                         onChange={(e) => setCategoria(e.target.value)}
                                         className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 font-bold text-sm"
                                     >
-                                        <option value="Geral">📂 Geral</option>
                                         <option value="Estudo">📚 Estudo</option>
+                                        <option value="Geral">📂 Geral</option>
+
                                     </select>
 
                                     <select
@@ -1074,7 +1097,10 @@ const GerenciadorTarefas = ({ user }) => {
                     </form>
 
                     {/* Filtros */}
-                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+                    {/* Filtros */}
+                    <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-5
+                bg-white dark:bg-slate-900/70 dark:backdrop-blur-md">
+                        {/* Top bar */}
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
                                 <Filter size={18} className="text-indigo-500" />
@@ -1084,23 +1110,39 @@ const GerenciadorTarefas = ({ user }) => {
                             </div>
 
                             <div className="flex items-center gap-2 w-full md:w-auto">
-                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2 flex-1 md:flex-none">
+                                {/* Busca */}
+                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl px-3 py-2 flex-1 md:flex-none">
                                     <Search size={16} className="text-slate-400" />
                                     <input
                                         value={fBusca}
                                         onChange={(e) => setFBusca(e.target.value)}
                                         placeholder="Buscar tarefa..."
-                                        className="bg-transparent outline-none text-sm font-bold w-full md:w-[220px]"
+                                        className="bg-transparent outline-none text-sm font-bold w-full md:w-[220px] placeholder:text-slate-400/70"
                                     />
                                 </div>
+
+                                {/* Botão Avançado */}
+                                <button
+                                    type="button"
+                                    onClick={() => setMostrarFiltrosAvancados((v) => !v)}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                ${mostrarFiltrosAvancados
+                                            ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                                            : "bg-slate-900 text-white hover:opacity-90 dark:bg-indigo-600 dark:hover:bg-indigo-700"
+                                        }`}
+                                >
+                                    {mostrarFiltrosAvancados ? "OCULTAR AVANÇADOS" : "FILTROS AVANÇADOS"}
+                                </button>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
+                        {/* Linha principal (3 filtros) */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
                             <select
                                 value={fStatus}
                                 onChange={(e) => setFStatus(e.target.value)}
-                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 font-bold text-sm"
+                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 font-bold text-sm
+                       border border-transparent dark:border-slate-800/60"
                             >
                                 <option value="todas">Todas</option>
                                 <option value="pendentes">Pendentes</option>
@@ -1108,20 +1150,10 @@ const GerenciadorTarefas = ({ user }) => {
                             </select>
 
                             <select
-                                value={fPrioridade}
-                                onChange={(e) => setFPrioridade(e.target.value)}
-                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 font-bold text-sm"
-                            >
-                                <option value="todas">Todas prioridades</option>
-                                <option value="1">Baixa</option>
-                                <option value="2">Média</option>
-                                <option value="3">Alta</option>
-                            </select>
-
-                            <select
                                 value={fCategoria}
                                 onChange={(e) => setFCategoria(e.target.value)}
-                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 font-bold text-sm"
+                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 font-bold text-sm
+                       border border-transparent dark:border-slate-800/60"
                             >
                                 <option value="todas">Todas categorias</option>
                                 {categoriasDisponiveis.map((c) => (
@@ -1134,7 +1166,8 @@ const GerenciadorTarefas = ({ user }) => {
                             <select
                                 value={ordenacao}
                                 onChange={(e) => setOrdenacao(e.target.value)}
-                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 font-bold text-sm"
+                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 font-bold text-sm
+                       border border-transparent dark:border-slate-800/60"
                             >
                                 <option value="vencimento_asc">Data ↑</option>
                                 <option value="vencimento_desc">Data ↓</option>
@@ -1142,7 +1175,80 @@ const GerenciadorTarefas = ({ user }) => {
                                 <option value="created_desc">Mais recentes</option>
                             </select>
                         </div>
+
+                        {/* ✅ Avançados inline (igual print) */}
+                        {mostrarFiltrosAvancados && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                {/* Prioridades (esquerda grande) */}
+                                <div
+                                    className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/40
+                           border border-slate-200 dark:border-slate-800/60"
+                                >
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                                        Prioridades
+                                    </p>
+
+                                    <select
+                                        value={fPrioridade}
+                                        onChange={(e) => setFPrioridade(e.target.value)}
+                                        className="w-full p-3 rounded-xl bg-white dark:bg-slate-900/60 font-bold text-sm
+                               border border-slate-200 dark:border-slate-800/60"
+                                    >
+                                        <option value="todas">Todas prioridades</option>
+                                        <option value="1">Baixa</option>
+                                        <option value="2">Média</option>
+                                        <option value="3">Alta</option>
+                                    </select>
+                                </div>
+
+                                {/* Data personalizada (direita) */}
+                                <div
+                                    className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/40
+                           border border-slate-200 dark:border-slate-800/60"
+                                >
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                                        Filtro por data (personalizado)
+                                    </p>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input
+                                            type="date"
+                                            value={fDataDe}
+                                            onChange={(e) => setFDataDe(e.target.value)}
+                                            className="p-3 rounded-xl bg-white dark:bg-slate-900/60 font-bold text-sm
+                                   border border-slate-200 dark:border-slate-800/60"
+                                        />
+
+                                        <input
+                                            type="date"
+                                            value={fDataAte}
+                                            onChange={(e) => setFDataAte(e.target.value)}
+                                            className="p-3 rounded-xl bg-white dark:bg-slate-900/60 font-bold text-sm
+                                   border border-slate-200 dark:border-slate-800/60"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between mt-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFDataDe("");
+                                                setFDataAte("");
+                                            }}
+                                            className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-200 transition"
+                                        >
+                                            Limpar
+                                        </button>
+
+                                        <span className="text-[10px] font-bold text-slate-400">
+                                            * por vencimento
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
+
 
                     {/* Lista de Tarefas */}
                     <div className="space-y-4">
@@ -1193,8 +1299,9 @@ const GerenciadorTarefas = ({ user }) => {
                                                             }
                                                             className="p-2 rounded-lg bg-white dark:bg-slate-800 text-xs font-bold"
                                                         >
-                                                            <option value="Geral">📂 Geral</option>
                                                             <option value="Estudo">📚 Estudo</option>
+                                                            <option value="Geral">📂 Geral</option>
+
                                                         </select>
 
                                                         <select
@@ -1419,8 +1526,8 @@ const GerenciadorTarefas = ({ user }) => {
                                                                 onClick={addUploadsEdicao}
                                                                 disabled={!editNovosArquivos.length}
                                                                 className={`w-full p-3 rounded-xl text-[10px] font-black uppercase transition-all ${editNovosArquivos.length
-                                                                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                                                                        : "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
+                                                                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                                                                    : "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
                                                                     }`}
                                                             >
                                                                 Adicionar uploads na tarefa
@@ -1525,8 +1632,8 @@ const GerenciadorTarefas = ({ user }) => {
 
                                                                 <span
                                                                     className={`text-xs font-bold truncate ${sub.concluida
-                                                                            ? "line-through text-slate-400"
-                                                                            : "text-slate-700 dark:text-slate-200"
+                                                                        ? "line-through text-slate-400"
+                                                                        : "text-slate-700 dark:text-slate-200"
                                                                         }`}
                                                                 >
                                                                     {sub.texto}
@@ -1656,8 +1763,8 @@ const GerenciadorTarefas = ({ user }) => {
 
                                                                     <span
                                                                         className={`text-sm font-bold ${sub.concluida
-                                                                                ? "line-through text-slate-400"
-                                                                                : "text-slate-700 dark:text-slate-200"
+                                                                            ? "line-through text-slate-400"
+                                                                            : "text-slate-700 dark:text-slate-200"
                                                                             }`}
                                                                     >
                                                                         {sub.texto}
