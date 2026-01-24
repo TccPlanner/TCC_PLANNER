@@ -943,7 +943,55 @@ const EstudarAgora = ({ user }) => {
                     ],
                 });
                 return;
+
+
+
+
             }
+
+            // ✅ 1) garante que a matéria existe na tabela materias
+            const materiaNome = materia.trim();
+            const conteudoNome = conteudo.trim();
+
+            const { data: matData, error: errMat } = await supabase
+                .from("materias")
+                .upsert(
+                    [
+                        {
+                            user_id: user.id,
+                            nome: materiaNome,
+                            cor_hex: "#ec4899", // cor padrão, depois você edita na aba Matérias
+                        },
+                    ],
+                    { onConflict: "user_id,nome" }
+                )
+                .select("*")
+                .single();
+
+            if (errMat) {
+                console.log("Erro criando matéria:", errMat.message);
+            }
+
+            // ✅ 2) se digitou conteúdo, adiciona esse conteúdo na matéria
+            if (!errMat && matData?.id && conteudoNome) {
+                const { error: errCont } = await supabase
+                    .from("materia_conteudos")
+                    .upsert(
+                        [
+                            {
+                                user_id: user.id,
+                                materia_id: matData.id, // bigint ✅ compatível
+                                titulo: conteudoNome,
+                            },
+                        ],
+                        { onConflict: "materia_id,titulo" }
+                    );
+
+                if (errCont) {
+                    console.log("Erro criando conteúdo:", errCont.message);
+                }
+            }
+
 
             if (agendarRevisao) {
                 await criarRevisoes(materia.trim(), conteudo.trim(), tipoEstudo);
