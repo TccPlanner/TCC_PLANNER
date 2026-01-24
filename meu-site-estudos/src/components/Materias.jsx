@@ -50,15 +50,16 @@ const corBasePorTexto = (texto) => {
 };
 
 /* ==========================
-   ✅ TAGS VÁLIDAS (sem "Geral")
+   ✅ TIPOS VÁLIDOS (sem "Geral")
 ========================== */
 const TIPOS_VALIDOS = ["Teoria", "Exercícios", "Simulado", "Revisão"];
 
 /* ✅ label mais amigável */
 const labelTipoConteudo = (tipo) => {
-    if (!tipo || !TIPOS_VALIDOS.includes(tipo)) return "Teoria";
-    if (tipo === "Exercícios") return "Questões";
-    return tipo;
+    const t = String(tipo || "").trim();
+    if (!t || !TIPOS_VALIDOS.includes(t)) return "Teoria";
+    if (t === "Exercícios") return "Questões";
+    return t;
 };
 
 function Materias({ user }) {
@@ -81,9 +82,17 @@ function Materias({ user }) {
     const [verHistorico, setVerHistorico] = useState(true);
 
     /* ==========================
-       ✅ conteúdo selecionado (detalhes)
+       ✅ NOVO: múltiplos conteúdos expandidos
     ========================== */
-    const [conteudoSelecionado, setConteudoSelecionado] = useState(null);
+    const [conteudosExpandidos, setConteudosExpandidos] = useState([]); // array de IDs
+
+    const toggleExpandirConteudo = (conteudoId) => {
+        setConteudosExpandidos((prev) => {
+            const exists = prev.includes(conteudoId);
+            if (exists) return prev.filter((id) => id !== conteudoId); // fecha só este
+            return [...prev, conteudoId]; // abre este sem fechar os outros
+        });
+    };
 
     /* ==========================
        Buscar lista de matérias
@@ -162,7 +171,8 @@ function Materias({ user }) {
         setHistorico([]);
         setVerHistorico(true);
 
-        setConteudoSelecionado(null);
+        // ✅ reseta os expandidos ao entrar na matéria
+        setConteudosExpandidos([]);
 
         // conteúdos
         const { data: conts } = await supabase
@@ -192,7 +202,7 @@ function Materias({ user }) {
         setEditCor("#ec4899");
         setConteudos([]);
         setHistorico([]);
-        setConteudoSelecionado(null);
+        setConteudosExpandidos([]);
     };
 
     /* ==========================
@@ -220,7 +230,6 @@ function Materias({ user }) {
                 return;
             }
 
-            // ✅ Transferir conteúdos + histórico para a existente
             await transferirParaMateriaExistente({
                 materiaOrigem: materiaSelecionada,
                 materiaDestino: jaExiste,
@@ -232,7 +241,6 @@ function Materias({ user }) {
             return;
         }
 
-        // ✅ atualiza nome/cor
         const { error } = await supabase
             .from("materias")
             .update({ nome: nomeNovo, cor_hex: editCor })
@@ -243,7 +251,6 @@ function Materias({ user }) {
             return;
         }
 
-        // ✅ se mudou o nome, atualizar sessões antigas
         if (nomeNovo !== materiaSelecionada.nome) {
             await supabase
                 .from("sessoes_estudo")
@@ -254,7 +261,6 @@ function Materias({ user }) {
 
         await buscarMaterias();
 
-        // reabrir já atualizado
         abrirMateria({
             ...materiaSelecionada,
             nome: nomeNovo,
@@ -269,7 +275,6 @@ function Materias({ user }) {
     }) => {
         if (!materiaOrigem?.id || !materiaDestino?.id) return;
 
-        // 1) pegar conteúdos da origem
         const { data: contsOrigem, error: errCO } = await supabase
             .from("materia_conteudos")
             .select("*")
@@ -281,8 +286,6 @@ function Materias({ user }) {
             return;
         }
 
-        // 2) inserir conteúdos no destino (sem duplicar)
-        // ✅ OBS: a cor é calculada no front e agora não repete dentro da matéria (resolver único)
         if (contsOrigem?.length) {
             const payload = contsOrigem.map((c) => ({
                 user_id: user.id,
@@ -300,7 +303,6 @@ function Materias({ user }) {
             }
         }
 
-        // 3) apagar conteúdos da origem
         const { error: errDelOldCont } = await supabase
             .from("materia_conteudos")
             .delete()
@@ -312,7 +314,6 @@ function Materias({ user }) {
             return;
         }
 
-        // 4) transferir histórico (sessões)
         const { error: errSess } = await supabase
             .from("sessoes_estudo")
             .update({ materia: nomeDestino })
@@ -324,7 +325,6 @@ function Materias({ user }) {
             return;
         }
 
-        // 5) transferir cor (opcional)
         const { error: errCor } = await supabase
             .from("materias")
             .update({ cor_hex: editCor })
@@ -334,7 +334,6 @@ function Materias({ user }) {
             console.log("Aviso: não foi possível transferir cor:", errCor.message);
         }
 
-        // 6) apagar matéria antiga
         const { error: errDelMat } = await supabase
             .from("materias")
             .delete()
@@ -376,7 +375,6 @@ function Materias({ user }) {
 
         setNovoConteudo("");
 
-        // recarrega conteúdos
         const { data: conts } = await supabase
             .from("materia_conteudos")
             .select("*")
@@ -436,6 +434,9 @@ function Materias({ user }) {
             return;
         }
 
+        // fecha o painel se o conteúdo estava expandido
+        setConteudosExpandidos((prev) => prev.filter((id) => id !== conteudo.id));
+
         const { data: conts, error: errLoad } = await supabase
             .from("materia_conteudos")
             .select("*")
@@ -445,10 +446,6 @@ function Materias({ user }) {
 
         if (!errLoad) {
             setConteudos(conts || []);
-        }
-
-        if (conteudoSelecionado?.id === conteudo.id) {
-            setConteudoSelecionado(null);
         }
 
         buscarMaterias();
@@ -511,7 +508,6 @@ function Materias({ user }) {
 
     /* ==========================
        tipo mais recente por conteúdo
-       (para tag Teoria/Questões/Revisão/Simulado)
     ========================== */
     const tipoMaisRecentePorConteudo = useMemo(() => {
         const map = {};
@@ -528,9 +524,7 @@ function Materias({ user }) {
     }, [historico]);
 
     /* ==========================
-       ✅ NOVO: mapa de cores ÚNICAS dentro da matéria
-       - evita repetir cor entre conteúdos
-       - após MERGE, se algum conteúdo "entrar" e bater cor, ele ganha outra automaticamente
+       ✅ mapa de cores ÚNICAS dentro da matéria
     ========================== */
     const mapaCoresConteudos = useMemo(() => {
         const used = new Set();
@@ -543,18 +537,14 @@ function Materias({ user }) {
         titulos.forEach((titulo) => {
             let cor = corBasePorTexto(titulo);
 
-            // pega HUE do HSL para poder deslocar se colidir
             const match = String(cor).match(/hsl\((\d+)\s/i);
             let hue = match ? Number(match[1]) : 220;
 
-            // normaliza chave de cor (pra evitar colidir em HSL idêntico)
             let key = `hsl(${hue})`;
 
-            // ✅ se já existe cor igual, vai girando o hue até achar uma livre
-            // (assim o conteúdo que entra do merge sempre acha uma cor diferente)
             let tentativas = 0;
             while (used.has(key) && tentativas < 40) {
-                hue = (hue + 29) % 360; // passo fixo => gera cores bem diferentes
+                hue = (hue + 29) % 360;
                 key = `hsl(${hue})`;
                 tentativas += 1;
             }
@@ -572,63 +562,68 @@ function Materias({ user }) {
     };
 
     /* ==========================
-       stats do conteúdo selecionado
+       ✅ stats por conteúdo (mapa)
+       - otimiza: calcula 1x e cada painel pega só o que precisa
     ========================== */
-    const statsConteudoSelecionado = useMemo(() => {
-        if (!conteudoSelecionado?.titulo) return null;
+    const statsPorConteudoTitulo = useMemo(() => {
+        const map = {};
 
-        const titulo = conteudoSelecionado.titulo.trim();
-        const sessoesDoConteudo = (historico || []).filter(
-            (h) => (h.conteudo || "").trim() === titulo
-        );
+        const historicoOrdenado = [...(historico || [])]; // já vem desc
 
-        const ultima = sessoesDoConteudo[0] || null;
+        historicoOrdenado.forEach((s) => {
+            const titulo = (s.conteudo || "").trim();
+            if (!titulo) return;
 
-        const feitas = sessoesDoConteudo.reduce(
-            (acc, s) => acc + (Number(s.questoes_feitas) || 0),
-            0
-        );
-        const acertos = sessoesDoConteudo.reduce(
-            (acc, s) => acc + (Number(s.questoes_acertos) || 0),
-            0
-        );
-        const erros = sessoesDoConteudo.reduce(
-            (acc, s) => acc + (Number(s.questoes_erros) || 0),
-            0
-        );
+            if (!map[titulo]) {
+                map[titulo] = {
+                    ultimaData: s.inicio_em
+                        ? new Date(s.inicio_em).toLocaleString("pt-BR")
+                        : null,
+                    tipoRecenteRaw: (s.tipo_estudo || "").trim(),
+                    feitas: 0,
+                    acertos: 0,
+                    erros: 0,
+                };
+            }
 
-        const temQuestoes = feitas > 0 || acertos > 0 || erros > 0;
-        const precisao = feitas > 0 ? Math.round((acertos / feitas) * 100) : 0;
+            map[titulo].feitas += Number(s.questoes_feitas) || 0;
+            map[titulo].acertos += Number(s.questoes_acertos) || 0;
+            map[titulo].erros += Number(s.questoes_erros) || 0;
+        });
 
-        const ultimaData = ultima?.inicio_em
-            ? new Date(ultima.inicio_em).toLocaleString("pt-BR")
-            : null;
+        // pós-processamento
+        Object.keys(map).forEach((titulo) => {
+            const item = map[titulo];
 
-        const tipoRecenteRaw =
-            (ultima?.tipo_estudo || "").trim() ||
-            tipoMaisRecentePorConteudo[titulo] ||
-            "Teoria";
+            const tipoRaw =
+                item.tipoRecenteRaw ||
+                tipoMaisRecentePorConteudo[titulo] ||
+                "Teoria";
 
-        const tipoRecente = TIPOS_VALIDOS.includes(tipoRecenteRaw)
-            ? tipoRecenteRaw
-            : "Teoria";
+            const tipoRecente = TIPOS_VALIDOS.includes(tipoRaw) ? tipoRaw : "Teoria";
+            const tipoLabel = labelTipoConteudo(tipoRecente);
 
-        const tipoLabel = labelTipoConteudo(tipoRecente);
-        const tipoEhQuestoesOuSimulado =
-            tipoLabel === "Questões" || tipoLabel === "Simulado";
+            const temQuestoes =
+                item.feitas > 0 || item.acertos > 0 || item.erros > 0;
 
-        return {
-            ultimaData,
-            tipoRecente,
-            tipoLabel,
-            tipoEhQuestoesOuSimulado,
-            temQuestoes,
-            feitas,
-            acertos,
-            erros,
-            precisao,
-        };
-    }, [conteudoSelecionado, historico, tipoMaisRecentePorConteudo]);
+            const precisao =
+                item.feitas > 0 ? Math.round((item.acertos / item.feitas) * 100) : 0;
+
+            const tipoEhQuestoesOuSimulado =
+                tipoLabel === "Questões" || tipoLabel === "Simulado";
+
+            map[titulo] = {
+                ...item,
+                tipoRecente,
+                tipoLabel,
+                temQuestoes,
+                precisao,
+                tipoEhQuestoesOuSimulado,
+            };
+        });
+
+        return map;
+    }, [historico, tipoMaisRecentePorConteudo]);
 
     /* ==========================
        UI
@@ -754,21 +749,19 @@ function Materias({ user }) {
                     </label>
 
                     <div className="mt-3 flex items-center gap-4">
-                        {/* preview */}
                         <div
                             className="w-20 h-20 rounded-full border-4 border-white dark:border-slate-900 shadow"
                             style={{ backgroundColor: editCor }}
                         />
 
-                        {/* presets + seletor */}
                         <div className="flex flex-wrap gap-2">
                             {coresPreset.map((c) => (
                                 <button
                                     key={c}
                                     onClick={() => setEditCor(c)}
                                     className={`w-9 h-9 rounded-full border-2 transition ${editCor === c
-                                            ? "border-white shadow-[0_0_0_4px_rgba(99,102,241,0.35)]"
-                                            : "border-slate-200 dark:border-slate-700"
+                                        ? "border-white shadow-[0_0_0_4px_rgba(99,102,241,0.35)]"
+                                        : "border-slate-200 dark:border-slate-700"
                                         }`}
                                     style={{ backgroundColor: c }}
                                     title={c}
@@ -856,137 +849,138 @@ function Materias({ user }) {
                         ) : (
                             conteudos.map((c) => {
                                 const corConteudo = getCorDoConteudo(c.titulo);
+
                                 const tipoRaw = tipoMaisRecentePorConteudo[c.titulo] || "Teoria";
                                 const tipoLabel = labelTipoConteudo(tipoRaw);
 
+                                const expanded = conteudosExpandidos.includes(c.id);
+                                const stats = statsPorConteudoTitulo[c.titulo?.trim?.() || ""] || null;
+
                                 return (
-                                    <button
-                                        key={c.id}
-                                        onClick={() =>
-                                            setConteudoSelecionado((prev) =>
-                                                prev?.id === c.id ? null : c
-                                            )
-                                        }
-                                        className={`w-full flex items-center justify-between p-3 rounded-2xl border transition text-left
-                                            ${conteudoSelecionado?.id === c.id
-                                                ? "border-indigo-400/60 bg-indigo-50/40 dark:bg-indigo-900/10"
-                                                : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/40"
-                                            }`}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div
-                                                className="w-2 h-10 rounded-full"
-                                                style={{ backgroundColor: corConteudo }}
-                                            />
+                                    <div key={c.id} className="space-y-2">
+                                        {/* CARD DO CONTEÚDO */}
+                                        <button
+                                            onClick={() => toggleExpandirConteudo(c.id)}
+                                            className={`w-full flex items-center justify-between p-3 rounded-2xl border transition text-left
+                                                ${expanded
+                                                    ? "border-indigo-400/60 bg-indigo-50/40 dark:bg-indigo-900/10"
+                                                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                                                }`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div
+                                                    className="w-2 h-10 rounded-full"
+                                                    style={{ backgroundColor: corConteudo }}
+                                                />
 
-                                            <div>
-                                                <p className="font-black text-sm text-slate-900 dark:text-white">
-                                                    {c.titulo}
-                                                </p>
+                                                <div>
+                                                    <p className="font-black text-sm text-slate-900 dark:text-white">
+                                                        {c.titulo}
+                                                    </p>
 
-                                                {/* ✅ TAG neutra (mesma cor para todas) */}
-                                                <span
-                                                    className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
-                                                    bg-slate-100 text-slate-600 border-slate-200
-                                                    dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
-                                                >
-                                                    {tipoLabel}
-                                                </span>
+                                                    {/* TAG neutra */}
+                                                    <span
+                                                        className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
+                                                        bg-slate-100 text-slate-600 border-slate-200
+                                                        dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+                                                    >
+                                                        {tipoLabel}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <ChevronRight className="text-slate-400" />
-                                    </button>
+                                            <ChevronRight className="text-slate-400" />
+                                        </button>
+
+                                        {/* ✅ EXPANDIDO LOGO ABAIXO DO ITEM */}
+                                        {expanded && (
+                                            <div className="p-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="font-black text-base text-slate-900 dark:text-white">
+                                                            {c.titulo}
+                                                        </p>
+
+                                                        <div className="mt-1 flex flex-wrap gap-2 items-center">
+                                                            <span
+                                                                className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
+                                                                bg-slate-100 text-slate-600 border-slate-200
+                                                                dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+                                                            >
+                                                                {stats?.tipoLabel || tipoLabel}
+                                                            </span>
+
+                                                            {!!stats?.ultimaData && (
+                                                                <span className="text-xs text-slate-500 dark:text-slate-300 font-bold">
+                                                                    Última sessão: {stats.ultimaData}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={() => excluirConteudo(c)}
+                                                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs transition"
+                                                    >
+                                                        <Trash2 size={16} /> Excluir
+                                                    </button>
+                                                </div>
+
+                                                {/* Stats SOMENTE Questões/Simulado */}
+                                                {!!stats?.tipoEhQuestoesOuSimulado && (
+                                                    <>
+                                                        {stats.temQuestoes ? (
+                                                            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                                        Feitas
+                                                                    </p>
+                                                                    <p className="font-black text-lg text-slate-900 dark:text-white">
+                                                                        {stats.feitas}
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                                        Acertos
+                                                                    </p>
+                                                                    <p className="font-black text-lg text-slate-900 dark:text-white">
+                                                                        {stats.acertos}
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                                        Erros
+                                                                    </p>
+                                                                    <p className="font-black text-lg text-slate-900 dark:text-white">
+                                                                        {stats.erros}
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                                        Precisão
+                                                                    </p>
+                                                                    <p className="font-black text-lg text-slate-900 dark:text-white">
+                                                                        {stats.precisao}%
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="mt-3 text-xs text-slate-500 dark:text-slate-300 font-bold">
+                                                                Nenhuma estatística registrada ainda neste conteúdo.
+                                                            </p>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 );
                             })
                         )}
                     </div>
-
-                    {/* painel do conteúdo selecionado */}
-                    {conteudoSelecionado && statsConteudoSelecionado && (
-                        <div className="mt-4 p-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <p className="font-black text-base text-slate-900 dark:text-white">
-                                        {conteudoSelecionado.titulo}
-                                    </p>
-
-                                    <div className="mt-1 flex flex-wrap gap-2 items-center">
-                                        {/* ✅ TAG neutra também no painel */}
-                                        <span
-                                            className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
-                                            bg-slate-100 text-slate-600 border-slate-200
-                                            dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
-                                        >
-                                            {statsConteudoSelecionado.tipoLabel}
-                                        </span>
-
-                                        {statsConteudoSelecionado.ultimaData && (
-                                            <span className="text-xs text-slate-500 dark:text-slate-300 font-bold">
-                                                Última sessão: {statsConteudoSelecionado.ultimaData}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => excluirConteudo(conteudoSelecionado)}
-                                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs transition"
-                                >
-                                    <Trash2 size={16} /> Excluir
-                                </button>
-                            </div>
-
-                            {/* ✅ Stats SOMENTE se for Questões/Simulado */}
-                            {statsConteudoSelecionado.tipoEhQuestoesOuSimulado && (
-                                <>
-                                    {statsConteudoSelecionado.temQuestoes ? (
-                                        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
-                                            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                    Feitas
-                                                </p>
-                                                <p className="font-black text-lg text-slate-900 dark:text-white">
-                                                    {statsConteudoSelecionado.feitas}
-                                                </p>
-                                            </div>
-
-                                            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                    Acertos
-                                                </p>
-                                                <p className="font-black text-lg text-slate-900 dark:text-white">
-                                                    {statsConteudoSelecionado.acertos}
-                                                </p>
-                                            </div>
-
-                                            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                    Erros
-                                                </p>
-                                                <p className="font-black text-lg text-slate-900 dark:text-white">
-                                                    {statsConteudoSelecionado.erros}
-                                                </p>
-                                            </div>
-
-                                            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                    Precisão
-                                                </p>
-                                                <p className="font-black text-lg text-slate-900 dark:text-white">
-                                                    {statsConteudoSelecionado.precisao}%
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-300 font-bold">
-                                            Nenhuma estatística registrada ainda neste conteúdo.
-                                        </p>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 {/* histórico */}
