@@ -429,8 +429,8 @@ function Materias({ user }) {
                                     key={c}
                                     onClick={() => setEditCor(c)}
                                     className={`w-9 h-9 rounded-full border-2 transition ${editCor === c
-                                            ? "border-white shadow-[0_0_0_4px_rgba(99,102,241,0.35)]"
-                                            : "border-slate-200 dark:border-slate-700"
+                                        ? "border-white shadow-[0_0_0_4px_rgba(99,102,241,0.35)]"
+                                        : "border-slate-200 dark:border-slate-700"
                                         }`}
                                     style={{ backgroundColor: c }}
                                     title={c}
@@ -506,7 +506,7 @@ function Materias({ user }) {
                             value={novoConteudo}
                             onChange={(e) => setNovoConteudo(e.target.value)}
                             className="flex-1 px-4 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold outline-none"
-                            placeholder="Ex: Objetivos da auditoria"
+                            placeholder="Ex: Objetivos"
                         />
                     </div>
 

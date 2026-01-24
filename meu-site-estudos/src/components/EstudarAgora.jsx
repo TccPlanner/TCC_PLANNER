@@ -297,6 +297,13 @@ const EstudarAgora = ({ user }) => {
     const [anotacao, setAnotacao] = useState("");
     const [verMaisAtividades, setVerMaisAtividades] = useState(false);
 
+    // ✅ Matérias recentes (dropdown ao clicar)
+    const [materiasRecentes, setMateriasRecentes] = useState([]);
+    const [mostrarSugestoesMateria, setMostrarSugestoesMateria] = useState(false);
+    const [materiaBusca, setMateriaBusca] = useState(""); // usado para filtrar sugestões
+    const blurMateriaTimeoutRef = useRef(null);
+
+
     // Revisões
     const [agendarRevisao, setAgendarRevisao] = useState(false);
     const revisoesPreset = useMemo(
@@ -797,34 +804,27 @@ const EstudarAgora = ({ user }) => {
         });
     };
 
-    // ✅ SUBSTITUA SUA FUNÇÃO criarRevisoes POR ESTA:
+    const mapTipoRevisao = (tipo) => {
+        // AgendaRevisoes usa: Teoria | Questões | Simulado
+        if (tipo === "Exercícios") return "Questões";
+        if (tipo === "Simulado") return "Simulado";
+        return "Teoria";
+    };
 
-    const criarRevisoes = async (materiaBase, conteudoBase, tipoEstudoBase) => {
-        const tipoRevisao =
-            tipoEstudoBase === "Simulado"
-                ? "Simulado"
-                : tipoEstudoBase === "Exercícios"
-                    ? "Questões"
-                    : "Teoria";
-
-        const meta =
-            tipoRevisao === "Questões" || tipoRevisao === "Simulado"
-                ? Number(questoes.feitas || 0)
-                : 0;
-
+    const criarRevisoes = async (materiaBase, conteudoBase, tipoBase, metaQuestoesBase = 0) => {
         const inserts = revisoesSelecionadas.map((dias) => {
             const dataRev = new Date();
             dataRev.setDate(dataRev.getDate() + dias);
 
             return {
                 user_id: user.id,
-                titulo: materiaBase,               // ✅ matéria real (sem "Revisar: ...")
-                conteudo: conteudoBase || "",      // ✅ aparece na lista de Revisões
+                titulo: materiaBase,
+                conteudo: conteudoBase || "",
                 data_revisao: dataRev.toISOString().split("T")[0],
-                tipo_revisao: tipoRevisao,         // ✅ Teoria / Questões / Simulado
-                meta_questoes: meta,               // ✅ útil pra estatísticas
-                origem: `Estudar Agora (+${dias}d)`,
-                executada: false,                  // ✅ começa em Pendentes
+                tipo_revisao: mapTipoRevisao(tipoBase),
+                meta_questoes: Number(metaQuestoesBase) || 0,
+                origem: "Estudar Agora",
+                executada: false,
             };
         });
 
@@ -844,9 +844,41 @@ const EstudarAgora = ({ user }) => {
 
         if (!error && data) setUltimasAtividades(data);
     };
+    // ✅ Matérias recentes: pega do histórico (últimas que você digitou)
+    const buscarMateriasRecentes = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("sessoes_estudo")
+                .select("materia")
+                .eq("user_id", user.id)
+                .order("inicio_em", { ascending: false })
+                .limit(30);
+
+            if (error) return;
+
+            const unicas = [];
+            const seen = new Set();
+
+            (data || []).forEach((row) => {
+                const nome = (row.materia || "").trim();
+                if (!nome) return;
+                const key = nome.toLowerCase();
+                if (seen.has(key)) return;
+                seen.add(key);
+                unicas.push(nome);
+            });
+
+            setMateriasRecentes(unicas.slice(0, 12));
+        } catch (e) {
+            // silencioso
+        }
+    };
+
+
 
     useEffect(() => {
         buscarUltimasAtividades();
+        buscarMateriasRecentes();
         // eslint-disable-next-line
     }, []);
 
@@ -903,6 +935,29 @@ const EstudarAgora = ({ user }) => {
 
             const duracao_hms = formatarTempo(duracao_segundos);
 
+            // ✅ NÃO salva se não marcou tempo nenhum
+            if (duracao_segundos <= 0) {
+                setLoading(false);
+
+                setModalCentral({
+                    open: true,
+                    variant: "info",
+                    title: "⏱️ Nenhum tempo foi marcado",
+                    message:
+                        "Para salvar uma atividade, inicie o cronômetro ou conclua pelo menos 1 alarme. (Tempo atual: 00:00:00)",
+                    actions: [
+                        {
+                            label: "Entendi",
+                            kind: "primary",
+                            onClick: () =>
+                                setModalCentral((m) => ({ ...m, open: false })),
+                        },
+                    ],
+                });
+                return;
+            }
+
+
             const payload = {
                 user_id: user.id,
                 materia: materia.trim(),
@@ -943,58 +998,105 @@ const EstudarAgora = ({ user }) => {
                     ],
                 });
                 return;
-
-
-
-
             }
+            // ✅ GARANTIR que Matérias e Conteúdos existam (para aba Matérias preencher automaticamente)
+            // ✅ GARANTIR que Matérias e Conteúdos existam (para aba Matérias preencher automaticamente)
+            const materiaNome = (materia || "").trim();
+            const conteudoNome = (conteudo || "").trim();
 
-            // ✅ 1) garante que a matéria existe na tabela materias
-            const materiaNome = materia.trim();
-            const conteudoNome = conteudo.trim();
+            // Paleta de cores (cada matéria nova ganha uma diferente)
+            const PALETA_CORES = [
+                "#ef4444", // vermelho
+                "#3b82f6", // azul
+                "#22c55e", // verde
+                "#facc15", // amarelo
+                "#a855f7", // roxo
+                "#fb923c", // laranja
+                "#94a3b8", // cinza
+                "#ec4899", // rosa
+            ];
 
-            const { data: matData, error: errMat } = await supabase
+            // Gera cor estável pelo nome, mas tenta evitar repetir cor já usada
+            const gerarCorParaMateria = (nome, coresUsadas) => {
+                let hash = 0;
+                for (let i = 0; i < nome.length; i++) {
+                    hash = (hash * 31 + nome.charCodeAt(i)) >>> 0;
+                }
+
+                let cor = PALETA_CORES[hash % PALETA_CORES.length];
+
+                // Se já tiver sendo usada, tenta pegar outra livre
+                if (coresUsadas.includes(cor)) {
+                    const livre = PALETA_CORES.find((c) => !coresUsadas.includes(c));
+                    if (livre) cor = livre;
+                }
+
+                return cor;
+            };
+
+            // 1) ver se matéria já existe
+            const { data: materiaExistente, error: errFindMat } = await supabase
                 .from("materias")
-                .upsert(
-                    [
+                .select("id, nome, cor_hex")
+                .eq("user_id", user.id)
+                .eq("nome", materiaNome)
+                .maybeSingle();
+
+            let materiaRowFinal = materiaExistente;
+
+            // 2) se não existe, cria com uma cor automática diferente
+            if (!materiaExistente) {
+                // pega cores já usadas pelo usuário
+                const { data: matsCores } = await supabase
+                    .from("materias")
+                    .select("cor_hex")
+                    .eq("user_id", user.id);
+
+                const coresUsadas = (matsCores || [])
+                    .map((m) => (m.cor_hex || "").toLowerCase())
+                    .filter(Boolean);
+
+                const corEscolhida = gerarCorParaMateria(materiaNome.toLowerCase(), coresUsadas);
+
+                const { data: criada, error: errInsert } = await supabase
+                    .from("materias")
+                    .insert([
                         {
                             user_id: user.id,
                             nome: materiaNome,
-                            cor_hex: "#ec4899", // cor padrão, depois você edita na aba Matérias
+                            cor_hex: corEscolhida,
                         },
-                    ],
-                    { onConflict: "user_id,nome" }
-                )
-                .select("*")
-                .single();
+                    ])
+                    .select("*")
+                    .single();
 
-            if (errMat) {
-                console.log("Erro criando matéria:", errMat.message);
+                if (!errInsert) materiaRowFinal = criada;
             }
 
-            // ✅ 2) se digitou conteúdo, adiciona esse conteúdo na matéria
-            if (!errMat && matData?.id && conteudoNome) {
-                const { error: errCont } = await supabase
+            // 3) adiciona conteúdo se tiver
+            if (materiaRowFinal?.id && conteudoNome) {
+                await supabase
                     .from("materia_conteudos")
                     .upsert(
                         [
                             {
                                 user_id: user.id,
-                                materia_id: matData.id, // bigint ✅ compatível
+                                materia_id: materiaRowFinal.id, // bigint ✅
                                 titulo: conteudoNome,
                             },
                         ],
                         { onConflict: "materia_id,titulo" }
                     );
-
-                if (errCont) {
-                    console.log("Erro criando conteúdo:", errCont.message);
-                }
             }
 
 
+            // ✅ Se marcou agendar revisão, cria revisões completas para aparecer em Revisões + Calendário
             if (agendarRevisao) {
-                await criarRevisoes(materia.trim(), conteudo.trim(), tipoEstudo);
+                const meta =
+                    tipoEstudo === "Exercícios" || tipoEstudo === "Simulado"
+                        ? Number(questoes.feitas || 0)
+                        : 0;
+                await criarRevisoes(materiaNome, conteudoNome, tipoEstudo, meta);
             }
 
             setAlarmesConcluidos([]);
@@ -1003,7 +1105,8 @@ const EstudarAgora = ({ user }) => {
                 open: true,
                 variant: "info",
                 title: "✅ Atividade registrada!",
-                message: `Salvo com duração ${formatarTempo(duracao_segundos)}.`,
+                message: `📚 ${materiaNome}${conteudoNome ? ` — ${conteudoNome}` : ""}\n⏱️ ${formatarTempo(duracao_segundos)} registrado com sucesso.`,
+
                 actions: [{ label: "Fechar", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
             });
 
@@ -1018,6 +1121,7 @@ const EstudarAgora = ({ user }) => {
             if (abaAtiva === "manual") setDuracaoManual({ h: 0, m: 0, s: 0 });
 
             await buscarUltimasAtividades();
+            await buscarMateriasRecentes();
         } finally {
             setLoading(false);
         }
@@ -1084,13 +1188,63 @@ const EstudarAgora = ({ user }) => {
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xl">
                 {/* Inputs Base */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input
-                        type="text"
-                        placeholder="Matéria"
-                        value={materia}
-                        onChange={(e) => setMateria(e.target.value)}
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
-                    />
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Matéria"
+                            value={materia}
+                            onChange={(e) => {
+                                setMateria(e.target.value);
+                                setMateriaBusca(e.target.value);
+                                setMostrarSugestoesMateria(true);
+                            }}
+                            onFocus={() => {
+                                if (blurMateriaTimeoutRef.current) clearTimeout(blurMateriaTimeoutRef.current);
+                                setMateriaBusca(materia);
+                                setMostrarSugestoesMateria(true);
+                            }}
+                            onBlur={() => {
+                                // dá tempo de clicar na sugestão sem fechar antes
+                                blurMateriaTimeoutRef.current = setTimeout(() => {
+                                    setMostrarSugestoesMateria(false);
+                                }, 150);
+                            }}
+                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+                        />
+
+                        {mostrarSugestoesMateria && materiasRecentes?.length > 0 && (
+                            <div className="absolute left-0 right-0 mt-2 z-50 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden">
+                                <div className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40">
+                                    Recentes
+                                </div>
+
+                                <div className="max-h-56 overflow-auto">
+                                    {materiasRecentes
+                                        .filter((m) => {
+                                            const q = (materiaBusca || "").trim().toLowerCase();
+                                            if (!q) return true;
+                                            return m.toLowerCase().includes(q);
+                                        })
+                                        .map((m) => (
+                                            <button
+                                                type="button"
+                                                key={m}
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => {
+                                                    setMateria(m);
+                                                    setMateriaBusca(m);
+                                                    setMostrarSugestoesMateria(false);
+                                                }}
+                                                className="w-full text-left px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-sm font-bold text-slate-900 dark:text-white"
+                                            >
+                                                {m}
+                                            </button>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
 
                     <input
                         type="text"
