@@ -58,6 +58,50 @@ const addDays = (date, days) => {
     return d;
 };
 
+// ✅ máscara de data (só 6 dígitos): dd/mm/aa
+const maskDateBR6 = (value) => {
+    const only = String(value || "").replace(/\D/g, "").slice(0, 6);
+    const dd = only.slice(0, 2);
+    const mm = only.slice(2, 4);
+    const yy = only.slice(4, 6);
+
+    if (only.length <= 2) return dd;
+    if (only.length <= 4) return `${dd}/${mm}`;
+    return `${dd}/${mm}/${yy}`;
+};
+
+// ✅ parseia dd/mm/aa (6 dígitos) OU dd/mm/aaaa (8 dígitos) se algum dia você quiser trocar
+const parseBRDateFlexible = (br, { end = false } = {}) => {
+    if (!br) return null;
+    const only = String(br).replace(/\D/g, "");
+
+    if (only.length !== 6 && only.length !== 8) return null;
+
+    const dd = parseInt(only.slice(0, 2), 10);
+    const mm = parseInt(only.slice(2, 4), 10);
+    let yyyy = 0;
+
+    if (only.length === 6) {
+        const yy = parseInt(only.slice(4, 6), 10);
+        // assume 20xx (prático pra filtro rápido)
+        yyyy = 2000 + yy;
+    } else {
+        yyyy = parseInt(only.slice(4, 8), 10);
+    }
+
+    if (!dd || !mm || mm < 1 || mm > 12) return null;
+
+    const dt = new Date(yyyy, mm - 1, dd);
+    // validação básica (ex: 31/02)
+    if (dt.getFullYear() !== yyyy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return null;
+
+    if (end) return endOfDay(dt);
+    return startOfDay(dt);
+};
+
+// ✅ Persistência simples (somente some da lista / não altera estatísticas)
+const HIDDEN_KEY = "tarefas_hidden_ids_v1";
+
 const GerenciadorTarefas = ({ user }) => {
     const [tarefas, setTarefas] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -113,11 +157,22 @@ const GerenciadorTarefas = ({ user }) => {
     const [fBusca, setFBusca] = useState("");
     const [ordenacao, setOrdenacao] = useState("vencimento_asc"); // vencimento_asc | vencimento_desc | prioridade_desc | created_desc
 
-    // Filtros avançados (Data personalizada)
+    // Filtros avançados (Data personalizada) ✅ agora DD/MM/AA (6 dígitos)
     const [mostrarFiltrosAvancados, setMostrarFiltrosAvancados] = useState(false);
-    const [fDataDe, setFDataDe] = useState("");   // YYYY-MM-DD
-    const [fDataAte, setFDataAte] = useState(""); // YYYY-MM-DD
+    const [fDataDe, setFDataDe] = useState(""); // DD/MM/AA
+    const [fDataAte, setFDataAte] = useState(""); // DD/MM/AA
 
+    // ✅ ocultar registros só da lista (sem mexer nas estatísticas)
+    const [hiddenIds, setHiddenIds] = useState([]);
+
+    // ✅ “ver mais”
+    const [limiteLista, setLimiteLista] = useState(10);
+
+    // ✅ Limpeza (popover discreto)
+    const [mostrarLimpeza, setMostrarLimpeza] = useState(false);
+    const [limpezaEscopo, setLimpezaEscopo] = useState("concluidas"); // concluidas | nao_concluidas | todas
+    const [limpezaAtingeStats, setLimpezaAtingeStats] = useState("nao"); // sim | nao
+    const limpezaRef = useRef(null);
 
     // Estatísticas: período
     const [periodoStats, setPeriodoStats] = useState("30d"); // 7d | 30d | 90d | 1y | tudo | custom
@@ -133,6 +188,19 @@ const GerenciadorTarefas = ({ user }) => {
     }, [user]);
 
     useEffect(() => {
+        // carrega hidden ids
+        try {
+            const raw = localStorage.getItem(HIDDEN_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) setHiddenIds(parsed);
+            }
+        } catch (e) {
+            // ignore
+        }
+    }, []);
+
+    useEffect(() => {
         const handler = (e) => {
             if (!formRef.current) return;
             if (mostrarOpcoes && !formRef.current.contains(e.target)) {
@@ -143,6 +211,24 @@ const GerenciadorTarefas = ({ user }) => {
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
     }, [mostrarOpcoes]);
+
+    // ✅ fecha popover “Limpeza” no clique fora
+    useEffect(() => {
+        const handler = (e) => {
+            if (!mostrarLimpeza) return;
+            if (!limpezaRef.current) return;
+            if (!limpezaRef.current.contains(e.target)) {
+                setMostrarLimpeza(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [mostrarLimpeza]);
+
+    // ✅ ao mudar filtros, volta para 10 (não polui)
+    useEffect(() => {
+        setLimiteLista(10);
+    }, [fStatus, fPrioridade, fCategoria, fBusca, ordenacao, fDataDe, fDataAte, hiddenIds]);
 
     const buscarTarefas = async () => {
         const { data, error } = await supabase
@@ -372,7 +458,9 @@ const GerenciadorTarefas = ({ user }) => {
         const { error } = await supabase.from("tarefas").update(updatePayload).eq("id", tarefa.id);
 
         if (!error) {
-            setTarefas((prev) => prev.map((t) => (t.id === tarefa.id ? { ...t, ...updatePayload } : t)));
+            setTarefas((prev) =>
+                prev.map((t) => (t.id === tarefa.id ? { ...t, ...updatePayload } : t))
+            );
         }
     };
 
@@ -436,9 +524,7 @@ const GerenciadorTarefas = ({ user }) => {
         const updatePayload = {
             subtarefas: novas,
             concluida: todasConcluidas ? true : tarefa.concluida,
-            concluida_em: todasConcluidas
-                ? tarefa.concluida_em || new Date().toISOString()
-                : tarefa.concluida_em,
+            concluida_em: todasConcluidas ? tarefa.concluida_em || new Date().toISOString() : tarefa.concluida_em,
         };
 
         if (!todasConcluidas && tarefa.concluida) {
@@ -515,7 +601,8 @@ const GerenciadorTarefas = ({ user }) => {
 
     // ---------- Filtros + Ordenação ----------
     const categoriasDisponiveis = useMemo(() => {
-        const set = new Set(["Geral"]);
+        // ✅ agora SEMPRE mostra Estudo e Geral
+        const set = new Set(["Estudo", "Geral"]);
         tarefas.forEach((t) => {
             if (t.categoria) set.add(t.categoria);
         });
@@ -524,6 +611,11 @@ const GerenciadorTarefas = ({ user }) => {
 
     const tarefasFiltradas = useMemo(() => {
         let list = [...tarefas];
+
+        // ✅ some só da lista (não mexe stats)
+        if (hiddenIds?.length) {
+            list = list.filter((t) => !hiddenIds.includes(t.id));
+        }
 
         if (fStatus === "pendentes") list = list.filter((t) => !t.concluida);
         if (fStatus === "concluidas") list = list.filter((t) => t.concluida);
@@ -541,10 +633,10 @@ const GerenciadorTarefas = ({ user }) => {
             list = list.filter((t) => (t.texto || "").toLowerCase().includes(q));
         }
 
-        // ✅ Filtro avançado: Data personalizada (data_vencimento)
+        // ✅ Filtro avançado: Data personalizada (DD/MM/AA)
         if (fDataDe || fDataAte) {
-            const de = fDataDe ? new Date(fDataDe + "T00:00:00") : null;
-            const ate = fDataAte ? new Date(fDataAte + "T23:59:59") : null;
+            const de = fDataDe ? parseBRDateFlexible(fDataDe, { end: false }) : null;
+            const ate = fDataAte ? parseBRDateFlexible(fDataAte, { end: true }) : null;
 
             list = list.filter((t) => {
                 if (!t.data_vencimento) return false;
@@ -554,7 +646,6 @@ const GerenciadorTarefas = ({ user }) => {
                 return true;
             });
         }
-
 
         if (ordenacao === "vencimento_asc") {
             list.sort(
@@ -571,7 +662,12 @@ const GerenciadorTarefas = ({ user }) => {
         }
 
         return list;
-    }, [tarefas, fStatus, fPrioridade, fCategoria, fBusca, ordenacao, fDataDe, fDataAte]);
+    }, [tarefas, fStatus, fPrioridade, fCategoria, fBusca, ordenacao, fDataDe, fDataAte, hiddenIds]);
+
+    // ✅ lista “visível” com ver mais
+    const tarefasVisiveis = useMemo(() => {
+        return tarefasFiltradas.slice(0, limiteLista);
+    }, [tarefasFiltradas, limiteLista]);
 
     // =======================
     // ✅ ESTATÍSTICAS (FIXADAS)
@@ -723,6 +819,61 @@ const GerenciadorTarefas = ({ user }) => {
             {children}
         </button>
     );
+
+    // ✅ limpar filtros (sem apagar nada)
+    const limparFiltros = () => {
+        setFStatus("todas");
+        setFPrioridade("todas");
+        setFCategoria("todas");
+        setFBusca("");
+        setOrdenacao("vencimento_asc");
+        setFDataDe("");
+        setFDataAte("");
+        setMostrarFiltrosAvancados(false);
+    };
+
+    // ✅ executar limpeza (funcional)
+    const confirmarLimpeza = async () => {
+        try {
+            const alvo = tarefasFiltradas; // respeita filtros atuais na hora de limpar
+            let ids = [];
+
+            if (limpezaEscopo === "concluidas") {
+                ids = alvo.filter((t) => t.concluida).map((t) => t.id);
+            } else if (limpezaEscopo === "nao_concluidas") {
+                ids = alvo.filter((t) => !t.concluida).map((t) => t.id);
+            } else {
+                ids = alvo.map((t) => t.id);
+            }
+
+            if (!ids.length) {
+                setMostrarLimpeza(false);
+                return;
+            }
+
+            if (limpezaAtingeStats === "sim") {
+                // ✅ apaga do banco (afeta stats)
+                const { error } = await supabase
+                    .from("tarefas")
+                    .delete()
+                    .in("id", ids)
+                    .eq("user_id", user.id);
+
+                if (error) throw error;
+
+                setTarefas((prev) => prev.filter((t) => !ids.includes(t.id)));
+            } else {
+                // ✅ só some da lista (não afeta stats)
+                const novo = Array.from(new Set([...(hiddenIds || []), ...ids]));
+                setHiddenIds(novo);
+                localStorage.setItem(HIDDEN_KEY, JSON.stringify(novo));
+            }
+
+            setMostrarLimpeza(false);
+        } catch (err) {
+            alert("Falha ao limpar: " + err.message);
+        }
+    };
 
     // ---------- Modal ----------
     const ModalConfirmarSubs = ({ open, onClose, tarefa }) => {
@@ -881,7 +1032,6 @@ const GerenciadorTarefas = ({ user }) => {
                                     >
                                         <option value="Estudo">📚 Estudo</option>
                                         <option value="Geral">📂 Geral</option>
-
                                     </select>
 
                                     <select
@@ -1097,16 +1247,15 @@ const GerenciadorTarefas = ({ user }) => {
                     </form>
 
                     {/* Filtros */}
-                    {/* Filtros */}
-                    <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-5
-                bg-white dark:bg-slate-900/70 dark:backdrop-blur-md">
+                    <div
+                        className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-5
+                bg-white dark:bg-slate-900/70 dark:backdrop-blur-md relative z-20 overflow-visible"
+                    >
                         {/* Top bar */}
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
                                 <Filter size={18} className="text-indigo-500" />
-                                <p className="font-black uppercase tracking-widest text-xs text-slate-500">
-                                    Filtros
-                                </p>
+                                <p className="font-black uppercase tracking-widest text-xs text-slate-500">Filtros</p>
                             </div>
 
                             <div className="flex items-center gap-2 w-full md:w-auto">
@@ -1121,17 +1270,100 @@ const GerenciadorTarefas = ({ user }) => {
                                     />
                                 </div>
 
+                                {/* ✅ Botão discreto de limpeza (popover) */}
+                                <div className="relative" ref={limpezaRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrarLimpeza((v) => !v)}
+                                        className="h-10 w-10 rounded-xl bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center border border-slate-200 dark:border-slate-800 hover:opacity-90 transition"
+                                        title="Limpeza"
+                                    >
+                                        <Trash2 size={18} className="text-slate-400" />
+                                    </button>
+
+                                    {/* ✅ só muda o z-index pra ficar acima dos cards */}
+                                    {mostrarLimpeza && (
+                                        <div className="absolute right-0 mt-2 w-[320px] rounded-3xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 space-y-3 z-[9999]">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Limpeza
+                                            </p>
+
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    Apagar:
+                                                </p>
+                                                <select
+                                                    value={limpezaEscopo}
+                                                    onChange={(e) => setLimpezaEscopo(e.target.value)}
+                                                    className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 font-bold text-sm border border-slate-200 dark:border-slate-800/60"
+                                                >
+                                                    <option value="concluidas">Concluídas</option>
+                                                    <option value="nao_concluidas">Não concluídas</option>
+                                                    <option value="todas">Todas</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    Apagar também das estatísticas?
+                                                </p>
+                                                <select
+                                                    value={limpezaAtingeStats}
+                                                    onChange={(e) => setLimpezaAtingeStats(e.target.value)}
+                                                    className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 font-bold text-sm border border-slate-200 dark:border-slate-800/60"
+                                                >
+                                                    <option value="nao">Não (apenas some da lista)</option>
+                                                    <option value="sim">Sim (apagar das estatísticas)</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="flex items-center justify-end gap-2 pt-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMostrarLimpeza(false)}
+                                                    className="px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase hover:opacity-90"
+                                                >
+                                                    Fechar
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={confirmarLimpeza}
+                                                    className="px-4 py-2 rounded-2xl bg-rose-600 text-white text-[10px] font-black uppercase hover:bg-rose-700"
+                                                >
+                                                    Confirmar
+                                                </button>
+                                            </div>
+
+                                            <p className="text-[10px] font-bold text-slate-400 leading-snug">
+                                                * “Apenas some da lista” fica salvo no seu navegador (localStorage) e não altera estatísticas.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* Botão Avançado */}
                                 <button
                                     type="button"
                                     onClick={() => setMostrarFiltrosAvancados((v) => !v)}
                                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
-                ${mostrarFiltrosAvancados
+                    ${mostrarFiltrosAvancados
                                             ? "bg-indigo-600 text-white hover:bg-indigo-700"
                                             : "bg-slate-900 text-white hover:opacity-90 dark:bg-indigo-600 dark:hover:bg-indigo-700"
                                         }`}
                                 >
                                     {mostrarFiltrosAvancados ? "OCULTAR AVANÇADOS" : "FILTROS AVANÇADOS"}
+                                </button>
+
+                                {/* ✅ Limpar filtros (novo) */}
+                                <button
+                                    type="button"
+                                    onClick={limparFiltros}
+                                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                    bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:opacity-90"
+                                    title="Limpar filtros"
+                                >
+                                    Limpar
                                 </button>
                             </div>
                         </div>
@@ -1180,10 +1412,7 @@ const GerenciadorTarefas = ({ user }) => {
                         {mostrarFiltrosAvancados && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                                 {/* Prioridades (esquerda grande) */}
-                                <div
-                                    className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/40
-                           border border-slate-200 dark:border-slate-800/60"
-                                >
+                                <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800/60">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
                                         Prioridades
                                     </p>
@@ -1202,27 +1431,28 @@ const GerenciadorTarefas = ({ user }) => {
                                 </div>
 
                                 {/* Data personalizada (direita) */}
-                                <div
-                                    className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/40
-                           border border-slate-200 dark:border-slate-800/60"
-                                >
+                                <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800/60">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
                                         Filtro por data (personalizado)
                                     </p>
 
                                     <div className="grid grid-cols-2 gap-3">
                                         <input
-                                            type="date"
+                                            type="text"
+                                            inputMode="numeric"
                                             value={fDataDe}
-                                            onChange={(e) => setFDataDe(e.target.value)}
+                                            onChange={(e) => setFDataDe(maskDateBR6(e.target.value))}
+                                            placeholder="dd/mm/aa"
                                             className="p-3 rounded-xl bg-white dark:bg-slate-900/60 font-bold text-sm
                                    border border-slate-200 dark:border-slate-800/60"
                                         />
 
                                         <input
-                                            type="date"
+                                            type="text"
+                                            inputMode="numeric"
                                             value={fDataAte}
-                                            onChange={(e) => setFDataAte(e.target.value)}
+                                            onChange={(e) => setFDataAte(maskDateBR6(e.target.value))}
+                                            placeholder="dd/mm/aa"
                                             className="p-3 rounded-xl bg-white dark:bg-slate-900/60 font-bold text-sm
                                    border border-slate-200 dark:border-slate-800/60"
                                         />
@@ -1240,19 +1470,16 @@ const GerenciadorTarefas = ({ user }) => {
                                             Limpar
                                         </button>
 
-                                        <span className="text-[10px] font-bold text-slate-400">
-                                            * por vencimento
-                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-400">* por vencimento</span>
                                     </div>
                                 </div>
                             </div>
                         )}
                     </div>
 
-
                     {/* Lista de Tarefas */}
                     <div className="space-y-4">
-                        {tarefasFiltradas.map((t) => {
+                        {tarefasVisiveis.map((t) => {
                             const stripeClass = PRIORITY_STRIPE[t.prioridade] || "bg-slate-300";
                             const temSubs = (t.subtarefas || []).length > 0;
 
@@ -1301,7 +1528,6 @@ const GerenciadorTarefas = ({ user }) => {
                                                         >
                                                             <option value="Estudo">📚 Estudo</option>
                                                             <option value="Geral">📂 Geral</option>
-
                                                         </select>
 
                                                         <select
@@ -1537,9 +1763,7 @@ const GerenciadorTarefas = ({ user }) => {
 
                                                     <textarea
                                                         value={editandoCampos.notas || ""}
-                                                        onChange={(e) =>
-                                                            setEditandoCampos({ ...editandoCampos, notas: e.target.value })
-                                                        }
+                                                        onChange={(e) => setEditandoCampos({ ...editandoCampos, notas: e.target.value })}
                                                         className="w-full p-4 bg-white dark:bg-slate-800 rounded-2xl text-xs font-bold outline-none"
                                                         placeholder="Notas..."
                                                     />
@@ -1581,8 +1805,7 @@ const GerenciadorTarefas = ({ user }) => {
                                                         <Badge>{t.categoria}</Badge>
 
                                                         <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                                                            <Calendar size={12} />{" "}
-                                                            {new Date(t.data_vencimento).toLocaleDateString()}
+                                                            <Calendar size={12} /> {new Date(t.data_vencimento).toLocaleDateString()}
                                                         </span>
 
                                                         {t.anexos?.length > 0 && (
@@ -1824,6 +2047,17 @@ const GerenciadorTarefas = ({ user }) => {
                                 </div>
                             );
                         })}
+
+                        {/* ✅ Ver mais (sem poluir) */}
+                        {tarefasFiltradas.length > limiteLista && (
+                            <button
+                                type="button"
+                                onClick={() => setLimiteLista((v) => v + 10)}
+                                className="w-full p-4 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase hover:opacity-90"
+                            >
+                                Ver mais
+                            </button>
+                        )}
 
                         {tarefasFiltradas.length === 0 && (
                             <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-10 text-center">

@@ -461,7 +461,7 @@ const EstudarAgora = ({ user }) => {
         return alarmesConcluidos.reduce((acc, a) => acc + (Number(a.duracaoSegundos) || 0), 0);
     }, [alarmesConcluidos]);
 
-    // ✅ total que será salvo (prévia) — IMPORTANTE: se cronômetro tem valor, ele manda (não soma alarmes)
+    // ✅ total que será salvo (prévia)
     const duracaoTotalParaSalvar = useMemo(() => {
         if (abaAtiva === "manual") return duracaoManualEmSegundos();
         if (segundos > 0) return segundos;
@@ -490,15 +490,33 @@ const EstudarAgora = ({ user }) => {
         setAtivo((v) => !v);
     };
 
+    /* =========================================================
+       ✅ RESET: NÃO APAGA ALARMES CONFIGURADOS
+       - reseta apenas o cronômetro
+       - mantém alarmes ativos visíveis
+       - recalibra alarmes de duração para reiniciarem do zero
+       - NÃO mexe nos timeouts de horário (continuam existindo)
+    ========================================================== */
     const resetarCronometro = () => {
         setSegundos(0);
         setAtivo(false);
         setInicioCronometroEm(null);
 
-        // remove apenas alarmes ativos
-        setAlarmesAtivos([]);
-        alarmesTimeoutsRef.current.forEach((t) => clearTimeout(t));
-        alarmesTimeoutsRef.current.clear();
+        // ✅ NÃO remove alarmes ativos
+        // ✅ Apenas reinicia "duração" para contar do zero de novo
+        setAlarmesAtivos((prev) =>
+            prev.map((a) => {
+                if (a.tipo === "duracao") {
+                    return {
+                        ...a,
+                        startSeconds: 0,
+                        remaining: a.targetSeconds,
+                    };
+                }
+                // horário continua como está (fireAt permanece)
+                return a;
+            })
+        );
 
         // NÃO apaga concluídos (pra você poder salvar só eles)
     };
@@ -540,7 +558,7 @@ const EstudarAgora = ({ user }) => {
                         const alarme = alarmesConcluidos.find((a) => a.id === id);
                         const tempo = Number(alarme?.duracaoSegundos || 0);
 
-                        // ✅ subtrai do cronômetro (e automaticamente do total a salvar)
+                        // ✅ subtrai do cronômetro
                         setSegundos((s) => Math.max(0, s - tempo));
 
                         // remove da lista
@@ -560,10 +578,10 @@ const EstudarAgora = ({ user }) => {
         vibrar();
         dispararNotificacao();
 
-        // ✅ pausa o cronômetro, mas NÃO zera (você pode dar play e continuar)
+        // ✅ pausa o cronômetro, mas NÃO zera
         setAtivo(false);
 
-        // ✅ adiciona concluído COM duração (nunca mais aparece "---")
+        // ✅ adiciona concluído COM duração
         setAlarmesConcluidos((prev) => [
             ...prev,
             {
@@ -602,15 +620,26 @@ const EstudarAgora = ({ user }) => {
         return false;
     };
 
-    /* ========= CRIAR ALARME ATIVO ========= */
+    /* =========================================================
+       ✅ CRIAR ALARME ATIVO
+       REGRA NOVA:
+       - Só liga automaticamente se o cronômetro NUNCA foi iniciado.
+       - Se você deu pause manualmente, NÃO dá play sozinho.
+    ========================================================== */
     const criarAlarmeAtivo = async () => {
         if (alarmeTipo === "nenhum") {
             showToast("Selecione um tipo", "Escolha 'Por duração' ou 'Por horário'.");
             return;
         }
 
-        // ✅ ao ativar alarme, inicia automaticamente o cronômetro (como você pediu)
-        iniciarCronometroSePrecisar();
+        // ✅ Auto-play SOMENTE se nunca iniciou (parado desde sempre)
+        const cronometroNuncaIniciado =
+            !inicioCronometroEm && segundosRef.current === 0 && !ativo;
+
+        if (cronometroNuncaIniciado) {
+            iniciarCronometroSePrecisar();
+        }
+
         await pedirPermissaoNotificacao();
 
         if (alarmeTipo === "duracao") {
@@ -632,7 +661,7 @@ const EstudarAgora = ({ user }) => {
                 valorRaw: alarmeDuracaoMin,
                 label: `Duração • ${alarmeDuracaoMin} min`,
                 targetSeconds: alvoSeg,
-                startSeconds: segundosRef.current, // ✅ base: tempo atual do cronômetro
+                startSeconds: segundosRef.current,
                 remaining: alvoSeg,
             };
 
@@ -669,7 +698,6 @@ const EstudarAgora = ({ user }) => {
 
             // ✅ por horário: continua regressiva mesmo com cronômetro pausado
             const t = setTimeout(() => {
-                // duração concluída = tempo de estudo acumulado (segundos do cronômetro), mesmo se estiver pausado
                 dispararAlarme(alarmeData, segundosRef.current);
                 removerAlarmeAtivo(id);
             }, ms);
@@ -681,8 +709,6 @@ const EstudarAgora = ({ user }) => {
     };
 
     /* ========= COUNTDOWN (UI) ========= */
-    // Duração: NÃO usa timeout — só depende do cronômetro (pausou, congela).
-    // Horário: depende do relógio (continua).
     useEffect(() => {
         if (alarmesAtivos.length === 0) return;
 
@@ -708,7 +734,6 @@ const EstudarAgora = ({ user }) => {
     }, [alarmesAtivos.length]);
 
     /* ========= DISPARO POR DURAÇÃO ========= */
-    // ✅ dispara somente quando o cronômetro (segundos) atingir o alvo (se pausar, não dispara).
     useEffect(() => {
         const duracaoAlarmes = alarmesAtivos.filter((a) => a.tipo === "duracao");
         if (duracaoAlarmes.length === 0) return;
@@ -718,7 +743,7 @@ const EstudarAgora = ({ user }) => {
             const remaining = Math.max(0, a.targetSeconds - passado);
 
             if (remaining === 0) {
-                dispararAlarme(a, a.targetSeconds); // ✅ concluído mostra a duração do alarme
+                dispararAlarme(a, a.targetSeconds);
                 removerAlarmeAtivo(a.id);
             }
         });
@@ -853,9 +878,6 @@ const EstudarAgora = ({ user }) => {
             } else {
                 inicio_em_iso = inicioCronometroEm ?? new Date().toISOString();
 
-                // ✅ regra final:
-                // - se o cronômetro tem tempo (segundos > 0): salva o valor do cronômetro (não soma alarmes concluídos)
-                // - se cronômetro foi resetado (segundos = 0): salva somente a soma dos alarmes concluídos
                 duracao_segundos = segundos > 0 ? segundos : totalAlarmesConcluidosSeg;
             }
 
@@ -905,7 +927,6 @@ const EstudarAgora = ({ user }) => {
 
             if (agendarRevisao) await criarRevisoes(materia.trim());
 
-            // ✅ limpa alarmes concluídos após registrar
             setAlarmesConcluidos([]);
 
             setModalCentral({
@@ -916,7 +937,6 @@ const EstudarAgora = ({ user }) => {
                 actions: [{ label: "Fechar", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
             });
 
-            // reset inputs
             setMateria("");
             setConteudo("");
             setAnotacao("");
@@ -933,7 +953,6 @@ const EstudarAgora = ({ user }) => {
         }
     };
 
-    /* ========= UI: duração manual texto ========= */
     const DuracaoTexto = useMemo(() => {
         const hh = String(duracaoManual.h).padStart(2, "0");
         const mm = String(duracaoManual.m).padStart(2, "0");
@@ -1124,7 +1143,7 @@ const EstudarAgora = ({ user }) => {
                             {formatarTempo(segundos)}
                         </div>
 
-                        {/* ✅ Total a salvar (em cima do botão salvar) */}
+                        {/* ✅ Total a salvar */}
                         <div className="text-xs font-black text-slate-600 dark:text-slate-300 text-center">
                             <span className="text-slate-500 dark:text-slate-400">Total a salvar: </span>
                             <span className="text-indigo-600 dark:text-indigo-400 font-mono">
