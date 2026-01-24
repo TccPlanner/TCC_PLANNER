@@ -9,12 +9,15 @@ import {
     History,
     LogOut,
     Menu,
+    ListTree,
 } from "lucide-react";
 
 import EstudarAgora from "./EstudarAgora";
 import Calendario from "./Calendario";
-import Workspace from "./Workspace"; // ✅ IMPORTA O WORKSPACE
-import GerenciadorTarefas from "./GerenciadorTarefas"; // O nome que demos ao novo arquivo
+import Workspace from "./Workspace";
+import GerenciadorTarefas from "./GerenciadorTarefas";
+import AgendaRevisoes from "./AgendaRevisoes";
+import Materias from "./Materias"; // ✅ IMPORTA A TELA DE MATÉRIAS
 
 function Dashboard({ user }) {
     const [abaAtiva, setAbaAtiva] = useState("inicio");
@@ -30,13 +33,16 @@ function Dashboard({ user }) {
                 }`}
         >
             <Icon size={20} className="min-w-[20px]" />
-            {menuAberto && <span className="font-medium whitespace-nowrap">{label}</span>}
+            {menuAberto && (
+                <span className="font-medium whitespace-nowrap">{label}</span>
+            )}
         </button>
     );
 
     const titulo = (() => {
         if (abaAtiva === "inicio") return "Workspace";
         if (abaAtiva === "cronometro") return "Estudar Agora";
+        if (abaAtiva === "materias") return "Matérias"; // ✅
         if (abaAtiva === "calendario") return "Calendário";
         if (abaAtiva === "tarefas") return "To-do list";
         if (abaAtiva === "revisoes") return "Revisões";
@@ -52,7 +58,10 @@ function Dashboard({ user }) {
         ${menuAberto ? "w-64" : "w-20"}
         bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800`}
             >
-                <div className={`flex items-center mb-8 ${menuAberto ? "justify-between" : "justify-center"}`}>
+                <div
+                    className={`flex items-center mb-8 ${menuAberto ? "justify-between" : "justify-center"
+                        }`}
+                >
                     {menuAberto && (
                         <h2 className="text-xl font-bold px-2 tracking-tight text-cyan-600 dark:text-cyan-400">
                             PLANNER PRO
@@ -69,6 +78,10 @@ function Dashboard({ user }) {
                 <nav className="flex-1 flex flex-col gap-2">
                     <MenuLink id="inicio" icon={LayoutDashboard} label="Workspace" />
                     <MenuLink id="cronometro" icon={Timer} label="Estudar Agora" />
+
+                    {/* ✅ NOVO ITEM NO MENU */}
+                    <MenuLink id="materias" icon={ListTree} label="Matérias" />
+
                     <MenuLink id="calendario" icon={Calendar} label="Calendário" />
                     <MenuLink id="tarefas" icon={CheckSquare} label="To-Do List" />
                     <MenuLink id="revisoes" icon={BookOpen} label="Revisões" />
@@ -79,7 +92,8 @@ function Dashboard({ user }) {
                     onClick={() => supabase.auth.signOut()}
                     className="mt-auto flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 rounded-lg transition-all mb-4 cursor-pointer"
                 >
-                    <LogOut size={20} /> {menuAberto && <span className="font-medium">Sair</span>}
+                    <LogOut size={20} />{" "}
+                    {menuAberto && <span className="font-medium">Sair</span>}
                 </button>
             </aside>
 
@@ -93,23 +107,20 @@ function Dashboard({ user }) {
                 </header>
 
                 <section className="rounded-2xl p-6 min-h-[500px] shadow-xl border bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800">
-                    {/* ✅ AQUI FICA APENAS 1 WORKSPACE */}
                     {abaAtiva === "inicio" && <Workspace user={user} />}
-
                     {abaAtiva === "cronometro" && <EstudarAgora user={user} />}
 
+                    {/* ✅ Matérias aqui */}
+                    {abaAtiva === "materias" && <Materias user={user} />}
+
                     {abaAtiva === "calendario" && <Calendario user={user} />}
-
-                    {/* placeholders para depois */}
-                    {/* Onde estava: {abaAtiva === "tarefas" && <div>...</div>} */}
                     {abaAtiva === "tarefas" && <GerenciadorTarefas user={user} />}
-
-                    {abaAtiva === "revisoes" && (
-                        <div className="text-center py-20 text-slate-500">Revisões (em breve)</div>
-                    )}
+                    {abaAtiva === "revisoes" && <AgendaRevisoes user={user} />}
 
                     {abaAtiva === "historico" && (
-                        <div className="text-center py-20 text-slate-500">Histórico (em breve)</div>
+                        <div className="text-center py-20 text-slate-500">
+                            Histórico (em breve)
+                        </div>
                     )}
                 </section>
             </main>

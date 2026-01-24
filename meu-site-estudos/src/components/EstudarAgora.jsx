@@ -797,21 +797,41 @@ const EstudarAgora = ({ user }) => {
         });
     };
 
-    const criarRevisoes = async (materiaBase) => {
+    // ✅ SUBSTITUA SUA FUNÇÃO criarRevisoes POR ESTA:
+
+    const criarRevisoes = async (materiaBase, conteudoBase, tipoEstudoBase) => {
+        const tipoRevisao =
+            tipoEstudoBase === "Simulado"
+                ? "Simulado"
+                : tipoEstudoBase === "Exercícios"
+                    ? "Questões"
+                    : "Teoria";
+
+        const meta =
+            tipoRevisao === "Questões" || tipoRevisao === "Simulado"
+                ? Number(questoes.feitas || 0)
+                : 0;
+
         const inserts = revisoesSelecionadas.map((dias) => {
             const dataRev = new Date();
             dataRev.setDate(dataRev.getDate() + dias);
 
             return {
                 user_id: user.id,
-                titulo: `Revisar: ${materiaBase} (+${dias}d)`,
+                titulo: materiaBase,               // ✅ matéria real (sem "Revisar: ...")
+                conteudo: conteudoBase || "",      // ✅ aparece na lista de Revisões
                 data_revisao: dataRev.toISOString().split("T")[0],
+                tipo_revisao: tipoRevisao,         // ✅ Teoria / Questões / Simulado
+                meta_questoes: meta,               // ✅ útil pra estatísticas
+                origem: `Estudar Agora (+${dias}d)`,
+                executada: false,                  // ✅ começa em Pendentes
             };
         });
 
         const { error } = await supabase.from("revisoes_agendadas").insert(inserts);
         if (error) showToast("Erro ao agendar", error.message);
     };
+
 
     /* ========= SUPABASE: últimas atividades ========= */
     const buscarUltimasAtividades = async () => {
@@ -925,7 +945,9 @@ const EstudarAgora = ({ user }) => {
                 return;
             }
 
-            if (agendarRevisao) await criarRevisoes(materia.trim());
+            if (agendarRevisao) {
+                await criarRevisoes(materia.trim(), conteudo.trim(), tipoEstudo);
+            }
 
             setAlarmesConcluidos([]);
 
