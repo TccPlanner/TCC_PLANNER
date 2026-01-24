@@ -33,6 +33,34 @@ const coresPreset = [
     "#ec4899", // rosa
 ];
 
+/* ==========================
+   ✅ NOVO: cor base pelo texto
+========================== */
+const corBasePorTexto = (texto) => {
+    const str = String(texto || "").trim().toLowerCase();
+    if (!str) return `hsl(220 85% 55%)`;
+
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    const hue = Math.abs(hash) % 360;
+    return `hsl(${hue} 85% 55%)`;
+};
+
+/* ==========================
+   ✅ TAGS VÁLIDAS (sem "Geral")
+========================== */
+const TIPOS_VALIDOS = ["Teoria", "Exercícios", "Simulado", "Revisão"];
+
+/* ✅ label mais amigável */
+const labelTipoConteudo = (tipo) => {
+    if (!tipo || !TIPOS_VALIDOS.includes(tipo)) return "Teoria";
+    if (tipo === "Exercícios") return "Questões";
+    return tipo;
+};
+
 function Materias({ user }) {
     const [loading, setLoading] = useState(true);
 
@@ -51,6 +79,11 @@ function Materias({ user }) {
     // historico
     const [historico, setHistorico] = useState([]);
     const [verHistorico, setVerHistorico] = useState(true);
+
+    /* ==========================
+       ✅ conteúdo selecionado (detalhes)
+    ========================== */
+    const [conteudoSelecionado, setConteudoSelecionado] = useState(null);
 
     /* ==========================
        Buscar lista de matérias
@@ -129,6 +162,8 @@ function Materias({ user }) {
         setHistorico([]);
         setVerHistorico(true);
 
+        setConteudoSelecionado(null);
+
         // conteúdos
         const { data: conts } = await supabase
             .from("materia_conteudos")
@@ -157,6 +192,7 @@ function Materias({ user }) {
         setEditCor("#ec4899");
         setConteudos([]);
         setHistorico([]);
+        setConteudoSelecionado(null);
     };
 
     /* ==========================
@@ -166,6 +202,35 @@ function Materias({ user }) {
         if (!materiaSelecionada?.id) return;
         const nomeNovo = editNome.trim();
         if (!nomeNovo) return;
+
+        // ✅ Se tentar renomear para uma que já existe
+        const jaExiste = materias.find(
+            (m) =>
+                m.id !== materiaSelecionada.id &&
+                (m.nome || "").trim().toLowerCase() === nomeNovo.toLowerCase()
+        );
+
+        if (jaExiste) {
+            const querTransferir = window.confirm(
+                `Já existe uma matéria chamada "${nomeNovo}".\n\nDeseja transferir conteúdos e histórico dessa matéria para a já existente?`
+            );
+
+            if (!querTransferir) {
+                alert("Já existe uma matéria com esse nome.");
+                return;
+            }
+
+            // ✅ Transferir conteúdos + histórico para a existente
+            await transferirParaMateriaExistente({
+                materiaOrigem: materiaSelecionada,
+                materiaDestino: jaExiste,
+                nomeDestino: nomeNovo,
+            });
+
+            voltarLista();
+            buscarMaterias();
+            return;
+        }
 
         // ✅ atualiza nome/cor
         const { error } = await supabase
@@ -178,7 +243,7 @@ function Materias({ user }) {
             return;
         }
 
-        // ✅ se mudou o nome, atualizar sessões antigas (pra manter tudo conectado)
+        // ✅ se mudou o nome, atualizar sessões antigas
         if (nomeNovo !== materiaSelecionada.nome) {
             await supabase
                 .from("sessoes_estudo")
@@ -195,6 +260,92 @@ function Materias({ user }) {
             nome: nomeNovo,
             cor_hex: editCor,
         });
+    };
+
+    const transferirParaMateriaExistente = async ({
+        materiaOrigem,
+        materiaDestino,
+        nomeDestino,
+    }) => {
+        if (!materiaOrigem?.id || !materiaDestino?.id) return;
+
+        // 1) pegar conteúdos da origem
+        const { data: contsOrigem, error: errCO } = await supabase
+            .from("materia_conteudos")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("materia_id", materiaOrigem.id);
+
+        if (errCO) {
+            alert("Erro ao buscar conteúdos da matéria antiga: " + errCO.message);
+            return;
+        }
+
+        // 2) inserir conteúdos no destino (sem duplicar)
+        // ✅ OBS: a cor é calculada no front e agora não repete dentro da matéria (resolver único)
+        if (contsOrigem?.length) {
+            const payload = contsOrigem.map((c) => ({
+                user_id: user.id,
+                materia_id: materiaDestino.id,
+                titulo: c.titulo,
+            }));
+
+            const { error: errUp } = await supabase
+                .from("materia_conteudos")
+                .upsert(payload, { onConflict: "materia_id,titulo" });
+
+            if (errUp) {
+                alert("Erro ao transferir conteúdos: " + errUp.message);
+                return;
+            }
+        }
+
+        // 3) apagar conteúdos da origem
+        const { error: errDelOldCont } = await supabase
+            .from("materia_conteudos")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("materia_id", materiaOrigem.id);
+
+        if (errDelOldCont) {
+            alert("Erro ao limpar conteúdos antigos: " + errDelOldCont.message);
+            return;
+        }
+
+        // 4) transferir histórico (sessões)
+        const { error: errSess } = await supabase
+            .from("sessoes_estudo")
+            .update({ materia: nomeDestino })
+            .eq("user_id", user.id)
+            .eq("materia", materiaOrigem.nome);
+
+        if (errSess) {
+            alert("Erro ao transferir histórico: " + errSess.message);
+            return;
+        }
+
+        // 5) transferir cor (opcional)
+        const { error: errCor } = await supabase
+            .from("materias")
+            .update({ cor_hex: editCor })
+            .eq("id", materiaDestino.id);
+
+        if (errCor) {
+            console.log("Aviso: não foi possível transferir cor:", errCor.message);
+        }
+
+        // 6) apagar matéria antiga
+        const { error: errDelMat } = await supabase
+            .from("materias")
+            .delete()
+            .eq("id", materiaOrigem.id);
+
+        if (errDelMat) {
+            alert("Erro ao apagar matéria antiga: " + errDelMat.message);
+            return;
+        }
+
+        alert("Transferência concluída ✅");
     };
 
     /* ==========================
@@ -234,6 +385,72 @@ function Materias({ user }) {
             .order("created_at", { ascending: true });
 
         setConteudos(conts || []);
+        buscarMaterias();
+    };
+
+    /* ==========================
+       ✅ Excluir conteúdo
+       - Se for o ÚLTIMO conteúdo, confirma e também exclui a matéria
+    ========================== */
+    const excluirConteudo = async (conteudo) => {
+        if (!conteudo?.id) return;
+
+        const vaiApagarMateriaTambem = conteudos.length === 1;
+
+        const ok = window.confirm(
+            vaiApagarMateriaTambem
+                ? `Este é o ÚLTIMO conteúdo da matéria.\n\nSe você excluir "${conteudo.titulo}", a matéria "${materiaSelecionada?.nome}" também será excluída.\n\nDeseja continuar?`
+                : `Excluir o conteúdo "${conteudo.titulo}"?`
+        );
+
+        if (!ok) return;
+
+        const { error: errDelConteudo } = await supabase
+            .from("materia_conteudos")
+            .delete()
+            .eq("id", conteudo.id);
+
+        if (errDelConteudo) {
+            alert("Erro ao excluir conteúdo: " + errDelConteudo.message);
+            return;
+        }
+
+        if (vaiApagarMateriaTambem && materiaSelecionada?.id) {
+            const { error: errDelMat } = await supabase
+                .from("materias")
+                .delete()
+                .eq("id", materiaSelecionada.id);
+
+            if (errDelMat) {
+                alert(
+                    "O conteúdo foi excluído, mas deu erro ao excluir a matéria: " +
+                    errDelMat.message
+                );
+                return;
+            }
+
+            alert("Conteúdo excluído ✅\nMatéria excluída também (não havia mais conteúdos).");
+
+            voltarLista();
+            buscarMaterias();
+            return;
+        }
+
+        const { data: conts, error: errLoad } = await supabase
+            .from("materia_conteudos")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("materia_id", materiaSelecionada.id)
+            .order("created_at", { ascending: true });
+
+        if (!errLoad) {
+            setConteudos(conts || []);
+        }
+
+        if (conteudoSelecionado?.id === conteudo.id) {
+            setConteudoSelecionado(null);
+        }
+
         buscarMaterias();
     };
 
@@ -293,6 +510,127 @@ function Materias({ user }) {
     }, [materiaSelecionada, materias]);
 
     /* ==========================
+       tipo mais recente por conteúdo
+       (para tag Teoria/Questões/Revisão/Simulado)
+    ========================== */
+    const tipoMaisRecentePorConteudo = useMemo(() => {
+        const map = {};
+        (historico || []).forEach((h) => {
+            const titulo = (h.conteudo || "").trim();
+            if (!titulo) return;
+
+            if (!map[titulo]) {
+                const tipo = (h.tipo_estudo || "").trim();
+                map[titulo] = TIPOS_VALIDOS.includes(tipo) ? tipo : "Teoria";
+            }
+        });
+        return map;
+    }, [historico]);
+
+    /* ==========================
+       ✅ NOVO: mapa de cores ÚNICAS dentro da matéria
+       - evita repetir cor entre conteúdos
+       - após MERGE, se algum conteúdo "entrar" e bater cor, ele ganha outra automaticamente
+    ========================== */
+    const mapaCoresConteudos = useMemo(() => {
+        const used = new Set();
+        const map = {};
+
+        const titulos = (conteudos || [])
+            .map((c) => String(c.titulo || "").trim())
+            .filter(Boolean);
+
+        titulos.forEach((titulo) => {
+            let cor = corBasePorTexto(titulo);
+
+            // pega HUE do HSL para poder deslocar se colidir
+            const match = String(cor).match(/hsl\((\d+)\s/i);
+            let hue = match ? Number(match[1]) : 220;
+
+            // normaliza chave de cor (pra evitar colidir em HSL idêntico)
+            let key = `hsl(${hue})`;
+
+            // ✅ se já existe cor igual, vai girando o hue até achar uma livre
+            // (assim o conteúdo que entra do merge sempre acha uma cor diferente)
+            let tentativas = 0;
+            while (used.has(key) && tentativas < 40) {
+                hue = (hue + 29) % 360; // passo fixo => gera cores bem diferentes
+                key = `hsl(${hue})`;
+                tentativas += 1;
+            }
+
+            used.add(key);
+            map[titulo] = `hsl(${hue} 85% 55%)`;
+        });
+
+        return map;
+    }, [conteudos]);
+
+    const getCorDoConteudo = (titulo) => {
+        const t = String(titulo || "").trim();
+        return mapaCoresConteudos[t] || corBasePorTexto(t);
+    };
+
+    /* ==========================
+       stats do conteúdo selecionado
+    ========================== */
+    const statsConteudoSelecionado = useMemo(() => {
+        if (!conteudoSelecionado?.titulo) return null;
+
+        const titulo = conteudoSelecionado.titulo.trim();
+        const sessoesDoConteudo = (historico || []).filter(
+            (h) => (h.conteudo || "").trim() === titulo
+        );
+
+        const ultima = sessoesDoConteudo[0] || null;
+
+        const feitas = sessoesDoConteudo.reduce(
+            (acc, s) => acc + (Number(s.questoes_feitas) || 0),
+            0
+        );
+        const acertos = sessoesDoConteudo.reduce(
+            (acc, s) => acc + (Number(s.questoes_acertos) || 0),
+            0
+        );
+        const erros = sessoesDoConteudo.reduce(
+            (acc, s) => acc + (Number(s.questoes_erros) || 0),
+            0
+        );
+
+        const temQuestoes = feitas > 0 || acertos > 0 || erros > 0;
+        const precisao = feitas > 0 ? Math.round((acertos / feitas) * 100) : 0;
+
+        const ultimaData = ultima?.inicio_em
+            ? new Date(ultima.inicio_em).toLocaleString("pt-BR")
+            : null;
+
+        const tipoRecenteRaw =
+            (ultima?.tipo_estudo || "").trim() ||
+            tipoMaisRecentePorConteudo[titulo] ||
+            "Teoria";
+
+        const tipoRecente = TIPOS_VALIDOS.includes(tipoRecenteRaw)
+            ? tipoRecenteRaw
+            : "Teoria";
+
+        const tipoLabel = labelTipoConteudo(tipoRecente);
+        const tipoEhQuestoesOuSimulado =
+            tipoLabel === "Questões" || tipoLabel === "Simulado";
+
+        return {
+            ultimaData,
+            tipoRecente,
+            tipoLabel,
+            tipoEhQuestoesOuSimulado,
+            temQuestoes,
+            feitas,
+            acertos,
+            erros,
+            precisao,
+        };
+    }, [conteudoSelecionado, historico, tipoMaisRecentePorConteudo]);
+
+    /* ==========================
        UI
     ========================== */
     if (loading) {
@@ -306,7 +644,7 @@ function Materias({ user }) {
     }
 
     // =============================
-    // TELA LISTA (igual imagem 1)
+    // TELA LISTA
     // =============================
     if (!materiaSelecionada) {
         return (
@@ -369,7 +707,7 @@ function Materias({ user }) {
     }
 
     // =============================
-    // TELA EDITAR (igual imagem 2/3)
+    // TELA EDITAR
     // =============================
     return (
         <div className="w-full max-w-3xl mx-auto">
@@ -429,8 +767,8 @@ function Materias({ user }) {
                                     key={c}
                                     onClick={() => setEditCor(c)}
                                     className={`w-9 h-9 rounded-full border-2 transition ${editCor === c
-                                        ? "border-white shadow-[0_0_0_4px_rgba(99,102,241,0.35)]"
-                                        : "border-slate-200 dark:border-slate-700"
+                                            ? "border-white shadow-[0_0_0_4px_rgba(99,102,241,0.35)]"
+                                            : "border-slate-200 dark:border-slate-700"
                                         }`}
                                     style={{ backgroundColor: c }}
                                     title={c}
@@ -516,24 +854,139 @@ function Materias({ user }) {
                                 Ainda sem conteúdos. Ao salvar no cronômetro, ele também adiciona aqui.
                             </p>
                         ) : (
-                            conteudos.map((c) => (
-                                <div
-                                    key={c.id}
-                                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div
-                                            className="w-2 h-10 rounded-full"
-                                            style={{ backgroundColor: editCor }}
-                                        />
-                                        <p className="font-black text-sm text-slate-900 dark:text-white">
-                                            {c.titulo}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))
+                            conteudos.map((c) => {
+                                const corConteudo = getCorDoConteudo(c.titulo);
+                                const tipoRaw = tipoMaisRecentePorConteudo[c.titulo] || "Teoria";
+                                const tipoLabel = labelTipoConteudo(tipoRaw);
+
+                                return (
+                                    <button
+                                        key={c.id}
+                                        onClick={() =>
+                                            setConteudoSelecionado((prev) =>
+                                                prev?.id === c.id ? null : c
+                                            )
+                                        }
+                                        className={`w-full flex items-center justify-between p-3 rounded-2xl border transition text-left
+                                            ${conteudoSelecionado?.id === c.id
+                                                ? "border-indigo-400/60 bg-indigo-50/40 dark:bg-indigo-900/10"
+                                                : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                                            }`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div
+                                                className="w-2 h-10 rounded-full"
+                                                style={{ backgroundColor: corConteudo }}
+                                            />
+
+                                            <div>
+                                                <p className="font-black text-sm text-slate-900 dark:text-white">
+                                                    {c.titulo}
+                                                </p>
+
+                                                {/* ✅ TAG neutra (mesma cor para todas) */}
+                                                <span
+                                                    className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
+                                                    bg-slate-100 text-slate-600 border-slate-200
+                                                    dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+                                                >
+                                                    {tipoLabel}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <ChevronRight className="text-slate-400" />
+                                    </button>
+                                );
+                            })
                         )}
                     </div>
+
+                    {/* painel do conteúdo selecionado */}
+                    {conteudoSelecionado && statsConteudoSelecionado && (
+                        <div className="mt-4 p-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="font-black text-base text-slate-900 dark:text-white">
+                                        {conteudoSelecionado.titulo}
+                                    </p>
+
+                                    <div className="mt-1 flex flex-wrap gap-2 items-center">
+                                        {/* ✅ TAG neutra também no painel */}
+                                        <span
+                                            className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
+                                            bg-slate-100 text-slate-600 border-slate-200
+                                            dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+                                        >
+                                            {statsConteudoSelecionado.tipoLabel}
+                                        </span>
+
+                                        {statsConteudoSelecionado.ultimaData && (
+                                            <span className="text-xs text-slate-500 dark:text-slate-300 font-bold">
+                                                Última sessão: {statsConteudoSelecionado.ultimaData}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => excluirConteudo(conteudoSelecionado)}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs transition"
+                                >
+                                    <Trash2 size={16} /> Excluir
+                                </button>
+                            </div>
+
+                            {/* ✅ Stats SOMENTE se for Questões/Simulado */}
+                            {statsConteudoSelecionado.tipoEhQuestoesOuSimulado && (
+                                <>
+                                    {statsConteudoSelecionado.temQuestoes ? (
+                                        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    Feitas
+                                                </p>
+                                                <p className="font-black text-lg text-slate-900 dark:text-white">
+                                                    {statsConteudoSelecionado.feitas}
+                                                </p>
+                                            </div>
+
+                                            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    Acertos
+                                                </p>
+                                                <p className="font-black text-lg text-slate-900 dark:text-white">
+                                                    {statsConteudoSelecionado.acertos}
+                                                </p>
+                                            </div>
+
+                                            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    Erros
+                                                </p>
+                                                <p className="font-black text-lg text-slate-900 dark:text-white">
+                                                    {statsConteudoSelecionado.erros}
+                                                </p>
+                                            </div>
+
+                                            <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    Precisão
+                                                </p>
+                                                <p className="font-black text-lg text-slate-900 dark:text-white">
+                                                    {statsConteudoSelecionado.precisao}%
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-300 font-bold">
+                                            Nenhuma estatística registrada ainda neste conteúdo.
+                                        </p>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* histórico */}
@@ -572,6 +1025,8 @@ function Materias({ user }) {
                                         ? new Date(h.inicio_em).toLocaleString("pt-BR")
                                         : "Sem data";
 
+                                    const tipoLabel = labelTipoConteudo(h.tipo_estudo);
+
                                     return (
                                         <div
                                             key={h.id}
@@ -586,7 +1041,7 @@ function Materias({ user }) {
                                                 </p>
                                             </div>
                                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-bold">
-                                                {data} • {h.tipo_estudo}
+                                                {data} • {tipoLabel}
                                             </p>
                                         </div>
                                     );

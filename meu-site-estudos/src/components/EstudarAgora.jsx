@@ -297,11 +297,74 @@ const EstudarAgora = ({ user }) => {
     const [anotacao, setAnotacao] = useState("");
     const [verMaisAtividades, setVerMaisAtividades] = useState(false);
 
+    const buscarSugestoesConteudo = async () => {
+        if (!user?.id) return;
+
+        // Se você tiver materiaNome no seu cronômetro:
+        const materiaAtual = (materia || "").trim();
+
+        // 1) tenta puxar da tabela materia_conteudos usando o nome da matéria
+        // primeiro precisamos achar a matéria no banco
+        if (materiaAtual) {
+            const { data: matData, error: matErr } = await supabase
+                .from("materias")
+                .select("id")
+                .eq("user_id", user.id)
+                .eq("nome", materiaAtual)
+                .maybeSingle();
+
+            if (!matErr && matData?.id) {
+                const { data: conts } = await supabase
+                    .from("materia_conteudos")
+                    .select("titulo")
+                    .eq("user_id", user.id)
+                    .eq("materia_id", matData.id)
+                    .order("created_at", { ascending: false })
+                    .limit(8);
+
+                const lista = (conts || [])
+                    .map((c) => c.titulo)
+                    .filter(Boolean);
+
+                setConteudoSugestoes(lista);
+                return;
+            }
+        }
+
+        // 2) fallback: pega conteúdos recentes digitados nas sessões
+        const { data: ultimos } = await supabase
+            .from("sessoes_estudo")
+            .select("conteudo")
+            .eq("user_id", user.id)
+            .order("inicio_em", { ascending: false })
+            .limit(20);
+
+        // remove repetidos
+        const unicos = [];
+        const seen = new Set();
+        (ultimos || []).forEach((u) => {
+            const t = (u.conteudo || "").trim();
+            if (!t) return;
+            const key = t.toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            unicos.push(t);
+        });
+
+        setConteudoSugestoes(unicos.slice(0, 8));
+    };
+
+
     // ✅ Matérias recentes (dropdown ao clicar)
     const [materiasRecentes, setMateriasRecentes] = useState([]);
     const [mostrarSugestoesMateria, setMostrarSugestoesMateria] = useState(false);
     const [materiaBusca, setMateriaBusca] = useState(""); // usado para filtrar sugestões
     const blurMateriaTimeoutRef = useRef(null);
+    const [conteudoSugestoes, setConteudoSugestoes] = useState([]);
+    const [showSugestoesConteudo, setShowSugestoesConteudo] = useState(false);
+    const [conteudoBusca, setConteudoBusca] = useState("");
+    const blurConteudoTimeoutRef = useRef(null);
+
 
 
     // Revisões
@@ -476,6 +539,14 @@ const EstudarAgora = ({ user }) => {
     }, [abaAtiva, segundos, totalAlarmesConcluidosSeg]);
 
     /* ========= CRONÔMETRO ========= */
+    useEffect(() => {
+        if (showSugestoesConteudo) {
+            buscarSugestoesConteudo();
+        }
+        // eslint-disable-next-line
+    }, [showSugestoesConteudo, materia]);
+
+
     useEffect(() => {
         let intervalo = null;
         if (ativo) intervalo = setInterval(() => setSegundos((s) => s + 1), 1000);
@@ -1246,13 +1317,62 @@ const EstudarAgora = ({ user }) => {
                     </div>
 
 
-                    <input
-                        type="text"
-                        placeholder="Conteúdo"
-                        value={conteudo}
-                        onChange={(e) => setConteudo(e.target.value)}
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
-                    />
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Conteúdo"
+                            value={conteudo}
+                            onChange={(e) => {
+                                setConteudo(e.target.value);
+                                setConteudoBusca(e.target.value);
+                                setShowSugestoesConteudo(true);
+                            }}
+                            onFocus={() => {
+                                if (blurConteudoTimeoutRef.current) clearTimeout(blurConteudoTimeoutRef.current);
+                                setConteudoBusca(conteudo);
+                                setShowSugestoesConteudo(true);
+                            }}
+                            onBlur={() => {
+                                blurConteudoTimeoutRef.current = setTimeout(() => {
+                                    setShowSugestoesConteudo(false);
+                                }, 150);
+                            }}
+                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+                        />
+
+                        {showSugestoesConteudo && conteudoSugestoes?.length > 0 && (
+                            <div className="absolute left-0 right-0 mt-2 z-50 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden">
+                                <div className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40">
+                                    Recentes
+                                </div>
+
+                                <div className="max-h-56 overflow-auto">
+                                    {conteudoSugestoes
+                                        .filter((c) => {
+                                            const q = (conteudoBusca || "").trim().toLowerCase();
+                                            if (!q) return true;
+                                            return c.toLowerCase().includes(q);
+                                        })
+                                        .map((c) => (
+                                            <button
+                                                type="button"
+                                                key={c}
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => {
+                                                    setConteudo(c);
+                                                    setConteudoBusca(c);
+                                                    setShowSugestoesConteudo(false);
+                                                }}
+                                                className="w-full text-left px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-sm font-bold text-slate-900 dark:text-white"
+                                            >
+                                                {c}
+                                            </button>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
 
                     <select
                         value={tipoEstudo}
