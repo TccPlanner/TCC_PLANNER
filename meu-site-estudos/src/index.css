@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
+@import "katex/dist/katex.min.css";
+
 
 @keyframes float {
   0% {

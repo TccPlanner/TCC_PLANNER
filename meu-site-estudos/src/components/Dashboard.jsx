@@ -10,6 +10,7 @@ import {
     LogOut,
     Menu,
     Repeat,
+    Layers,
     ListTree,
 } from "lucide-react";
 
@@ -20,6 +21,8 @@ import GerenciadorTarefas from "./GerenciadorTarefas";
 import AgendaRevisoes from "./AgendaRevisoes";
 import Materias from "./Materias"; // ✅ IMPORTA A TELA DE MATÉRIAS
 import CicloEstudos from "./CicloEstudos";
+import Flashcards from "./Flashcards";
+
 
 function Dashboard({ user }) {
     const [abaAtiva, setAbaAtiva] = useState("inicio");
@@ -46,6 +49,8 @@ function Dashboard({ user }) {
         if (abaAtiva === "cronometro") return "Estudar Agora";
         if (abaAtiva === "materias") return "Matérias"; // ✅
         if (abaAtiva === "ciclo") return "Ciclo de Estudos";
+        if (abaAtiva === "flashcards") return "Flashcards";
+
 
         if (abaAtiva === "calendario") return "Calendário";
         if (abaAtiva === "tarefas") return "To-do list";
@@ -86,6 +91,7 @@ function Dashboard({ user }) {
                     {/* ✅ NOVO ITEM NO MENU */}
                     <MenuLink id="materias" icon={ListTree} label="Matérias" />
                     <MenuLink id="ciclo" icon={Repeat} label="Ciclo de Estudos" />
+                    <MenuLink id="flashcards" icon={Layers} label="Flashcards" />
 
                     <MenuLink id="calendario" icon={Calendar} label="Calendário" />
                     <MenuLink id="tarefas" icon={CheckSquare} label="To-Do List" />
@@ -118,6 +124,7 @@ function Dashboard({ user }) {
                     {/* ✅ Matérias aqui */}
                     {abaAtiva === "materias" && <Materias user={user} />}
                     {abaAtiva === "ciclo" && <CicloEstudos user={user} />}
+                    {abaAtiva === "flashcards" && <Flashcards user={user} />}
 
 
                     {abaAtiva === "calendario" && <Calendario user={user} />}

@@ -1,0 +1,6 @@
+﻿'{
+    "qtd": 5,
+    "aggressiveness": "medio",
+    "text": "SQL, ACID e normalização.",
+    "save": true
+}' | Out-File -Encoding utf8 body.json
