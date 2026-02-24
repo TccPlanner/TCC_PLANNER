@@ -136,7 +136,13 @@ export default function Flashcards({ user }) {
         erros: 0,
         duvidas: 0,
         favoritos: 0,
+        taxaAcerto: 0,
+        cardsComErro1x: 0,
+        cardsComErro2x: 0,
     });
+
+    const [reviewCounts, setReviewCounts] = useState({});
+    const [creatingErrorDeck, setCreatingErrorDeck] = useState(false);
 
 
 
@@ -201,28 +207,19 @@ export default function Flashcards({ user }) {
     }, [subjectId]);
 
     useEffect(() => {
-        (async () => {
-            const { data, error } = await supabase.auth.getUser();
-            if (error) {
-                console.error("Erro getUser:", error);
-                return;
-            }
-            console.log("USER ID:", data?.user?.id);
-        })();
-    }, []);
-
-    useEffect(() => {
-        (async () => {
-            const { data: sessionData } = await supabase.auth.getSession();
-            console.log("ACCESS TOKEN:", sessionData?.session?.access_token);
-            console.log("USER ID:", sessionData?.session?.user?.id);
-        })();
-    }, []);
-
-    useEffect(() => {
         if (!deckId) {
             setCards([]);
-            setStats({ total: 0, acertos: 0, erros: 0, duvidas: 0, favoritos: 0 });
+            setStats({
+                total: 0,
+                acertos: 0,
+                erros: 0,
+                duvidas: 0,
+                favoritos: 0,
+                taxaAcerto: 0,
+                cardsComErro1x: 0,
+                cardsComErro2x: 0,
+            });
+            setReviewCounts({});
             return;
         }
         fetchCards(deckId);
@@ -331,7 +328,7 @@ export default function Flashcards({ user }) {
         try {
             const { data, error } = await supabase
                 .from("flash_card_reviews")
-                .select("resultado")
+                .select("card_id, resultado")
                 .eq("user_id", user.id)
                 .eq("deck_id", deck_id);
 
@@ -340,6 +337,22 @@ export default function Flashcards({ user }) {
             const acertos = (data || []).filter((x) => x.resultado === "acertou").length;
             const erros = (data || []).filter((x) => x.resultado === "errou").length;
             const duvidas = (data || []).filter((x) => x.resultado === "duvida").length;
+
+            const byCard = {};
+            for (const item of data || []) {
+                const current = byCard[item.card_id] || { acertou: 0, errou: 0, duvida: 0 };
+                if (item.resultado === "acertou") current.acertou += 1;
+                if (item.resultado === "errou") current.errou += 1;
+                if (item.resultado === "duvida") current.duvida += 1;
+                byCard[item.card_id] = current;
+            }
+
+            setReviewCounts(byCard);
+
+            const cardsComErro1x = Object.values(byCard).filter((x) => x.errou >= 1).length;
+            const cardsComErro2x = Object.values(byCard).filter((x) => x.errou >= 2).length;
+            const totalRespondidas = acertos + erros + duvidas;
+            const taxaAcerto = totalRespondidas ? Math.round((acertos / totalRespondidas) * 100) : 0;
             const favoritos = (cards || []).filter((c) => !!c.favoritos).length;
 
             setStats({
@@ -348,8 +361,11 @@ export default function Flashcards({ user }) {
                 erros,
                 duvidas,
                 favoritos,
+                taxaAcerto,
+                cardsComErro1x,
+                cardsComErro2x,
             });
-        } catch (e) {
+        } catch {
             // ok
         }
     }
@@ -549,6 +565,94 @@ export default function Flashcards({ user }) {
         }
     }
 
+    async function ensureDeckExists(nome) {
+        const { data: existing } = await supabase
+            .from("flash_decks")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("subject_id", subjectId)
+            .eq("nome", nome)
+            .maybeSingle();
+
+        if (existing?.id) return existing.id;
+
+        const { data: created, error: createErr } = await supabase
+            .from("flash_decks")
+            .insert({ user_id: user.id, subject_id: subjectId, nome })
+            .select("id")
+            .single();
+
+        if (createErr) throw createErr;
+        await fetchDecks(subjectId);
+        return created.id;
+    }
+
+    function sameCard(a, b) {
+        return (
+            a.tipo === b.tipo
+            && String(a.pergunta || "") === String(b.pergunta || "")
+            && String(a.resposta || "") === String(b.resposta || "")
+            && String(a.cloze_text || "") === String(b.cloze_text || "")
+            && String(a.cloze_answer || "") === String(b.cloze_answer || "")
+        );
+    }
+
+    async function criarDeckComErros({ minErros = 1, automatico = false } = {}) {
+        try {
+            if (!subjectId || !deckId) return alert("Selecione um deck para montar os erros.");
+
+            const cardsComErros = cards.filter((card) => (reviewCounts[card.id]?.errou || 0) >= minErros);
+            if (!cardsComErros.length) {
+                return alert(`Nenhum card com ${minErros} erro(s) ainda.`);
+            }
+
+            setCreatingErrorDeck(true);
+
+            const nomeDeckErro =
+                minErros >= 2
+                    ? `Erros recorrentes • ${deckSelecionado?.nome || "Deck"}`
+                    : `Erros (>=1) • ${deckSelecionado?.nome || "Deck"}`;
+
+            const deckErroId = await ensureDeckExists(nomeDeckErro);
+
+            const { data: jaNoDeck, error: existingErr } = await supabase
+                .from("flash_cards")
+                .select("tipo, pergunta, resposta, cloze_text, cloze_answer")
+                .eq("user_id", user.id)
+                .eq("deck_id", deckErroId);
+
+            if (existingErr) throw existingErr;
+
+            const novos = cardsComErros
+                .filter((card) => !(jaNoDeck || []).some((x) => sameCard(card, x)))
+                .map((card) => ({
+                    user_id: user.id,
+                    deck_id: deckErroId,
+                    tipo: card.tipo,
+                    pergunta: card.pergunta,
+                    resposta: card.resposta,
+                    cloze_text: card.cloze_text,
+                    cloze_answer: card.cloze_answer,
+                    tags: Array.isArray(card.tags) ? card.tags : [],
+                    favoritos: false,
+                }));
+
+            if (novos.length) {
+                const { error: insErr } = await supabase.from("flash_cards").insert(novos);
+                if (insErr) throw insErr;
+            }
+
+            if (!automatico) {
+                alert(`Deck criado/atualizado com ${novos.length} nova(s) questão(ões).`);
+            }
+        } catch (e) {
+            console.error(e);
+            if (!automatico) alert("Não foi possível criar o deck de erros.");
+        } finally {
+            setCreatingErrorDeck(false);
+        }
+    }
+
     /* =========================================================
        IA - Geração de cards
     ========================================================= */
@@ -716,7 +820,6 @@ export default function Flashcards({ user }) {
         try {
             if (!currentCard) return;
 
-            // Nota: No seu SQL está 'acertou', 'errou', 'duvida'. Mantendo compatível:
             const statusFinal = resultado === "acerto" ? "acertou" : resultado;
 
             await supabase.from("flash_card_reviews").insert({
@@ -726,17 +829,40 @@ export default function Flashcards({ user }) {
                 resultado: statusFinal,
             });
 
+            const contagemAtual = reviewCounts[currentCard.id] || { acertou: 0, errou: 0, duvida: 0 };
+            const novaContagem = {
+                ...contagemAtual,
+                acertou: statusFinal === "acertou" ? contagemAtual.acertou + 1 : contagemAtual.acertou,
+                errou: statusFinal === "errou" ? contagemAtual.errou + 1 : contagemAtual.errou,
+                duvida: statusFinal === "duvida" ? contagemAtual.duvida + 1 : contagemAtual.duvida,
+            };
+
+            setReviewCounts((prev) => ({ ...prev, [currentCard.id]: novaContagem }));
+
+            setStats((s) => {
+                const acertos = statusFinal === "acertou" ? s.acertos + 1 : s.acertos;
+                const erros = statusFinal === "errou" ? s.erros + 1 : s.erros;
+                const duvidas = statusFinal === "duvida" ? s.duvidas + 1 : s.duvidas;
+                const totalRespondidas = acertos + erros + duvidas;
+                return {
+                    ...s,
+                    acertos,
+                    erros,
+                    duvidas,
+                    cardsComErro1x: statusFinal === "errou" && novaContagem.errou === 1 ? s.cardsComErro1x + 1 : s.cardsComErro1x,
+                    cardsComErro2x: statusFinal === "errou" && novaContagem.errou === 2 ? s.cardsComErro2x + 1 : s.cardsComErro2x,
+                    taxaAcerto: totalRespondidas ? Math.round((acertos / totalRespondidas) * 100) : 0,
+                };
+            });
+
+            if (statusFinal === "errou" && novaContagem.errou === 2) {
+                await criarDeckComErros({ minErros: 2, automatico: true });
+            }
+
             setShowAnswer(false);
             if (studyIndex < cards.length - 1) {
                 setStudyIndex((i) => i + 1);
             }
-
-            setStats((s) => ({
-                ...s,
-                acertos: statusFinal === "acertou" ? s.acertos + 1 : s.acertos,
-                erros: statusFinal === "errou" ? s.erros + 1 : s.erros,
-                duvidas: statusFinal === "duvida" ? s.duvidas + 1 : s.duvidas,
-            }));
         } catch (e) {
             console.error(e);
         }
@@ -780,7 +906,7 @@ export default function Flashcards({ user }) {
                                 : "bg-slate-200/60 text-slate-700 dark:bg-slate-800 dark:text-slate-200 hover:bg-slate-200"
                         )}
                     >
-                        Estudar
+                        Practice Mode
                     </button>
                 </div>
             </div>
@@ -792,7 +918,7 @@ export default function Flashcards({ user }) {
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow transition"
                 >
                     <Sparkles size={18} />
-                    Gerar com IA
+                    AI Create
                 </button>
 
                 <button
@@ -931,10 +1057,11 @@ export default function Flashcards({ user }) {
                                         await fetchDeckStats(deckId);
                                     }
                                 }}
-                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition"
+                                disabled={loading}
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-60"
                             >
-                                <RefreshCw size={18} />
-                                Atualizar
+                                <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                                {loading ? "Atualizando..." : "Atualizar"}
                             </button>
                         </div>
                     </div>
@@ -1019,6 +1146,16 @@ export default function Flashcards({ user }) {
                                                 <div className="text-xs text-slate-400">Erros</div>
                                                 <div className="text-2xl font-black">{stats.erros}</div>
                                             </div>
+
+                                            <div className="rounded-xl p-3 bg-slate-900/50 border border-slate-800">
+                                                <div className="text-xs text-slate-400">Taxa de acerto</div>
+                                                <div className="text-2xl font-black">{stats.taxaAcerto}%</div>
+                                            </div>
+
+                                            <div className="rounded-xl p-3 bg-slate-900/50 border border-slate-800">
+                                                <div className="text-xs text-slate-400">Erradas (1x+)</div>
+                                                <div className="text-2xl font-black">{stats.cardsComErro1x}</div>
+                                            </div>
                                         </div>
 
                                         <div className="mt-4">
@@ -1034,6 +1171,23 @@ export default function Flashcards({ user }) {
                                             <div className="text-xs text-slate-400 mt-1">
                                                 {cards.length ? `${progresso}%` : "0%"}
                                             </div>
+                                        </div>
+
+                                        <div className="mt-4 grid grid-cols-1 gap-2">
+                                            <button
+                                                onClick={() => criarDeckComErros({ minErros: 2 })}
+                                                disabled={creatingErrorDeck}
+                                                className="px-3 py-2 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-sm font-semibold disabled:opacity-60"
+                                            >
+                                                Criar deck de erros recorrentes (2x)
+                                            </button>
+                                            <button
+                                                onClick={() => criarDeckComErros({ minErros: 1 })}
+                                                disabled={creatingErrorDeck}
+                                                className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-sm font-semibold disabled:opacity-60"
+                                            >
+                                                Criar deck com erradas ao menos 1x
+                                            </button>
                                         </div>
                                     </>
                                 )}
