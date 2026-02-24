@@ -374,24 +374,28 @@ export default function Flashcards({ user }) {
        ✅ CRIAR Curso / Disciplina / Assunto
     ========================================================= */
 
+    async function invokeFlashcardsWrite(payload) {
+        const { data, error } = await supabase.functions.invoke("flashcards-write", {
+            body: payload,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || "Erro ao gravar no Supabase.");
+        return data;
+    }
+
     async function criarCurso() {
         try {
             const nome = newCourseName.trim();
             if (!nome) return alert("Digite o nome do curso.");
 
-            const { data, error } = await supabase
-                .from("flash_courses")
-                .insert({ user_id: user.id, nome: nome })
-                .select("id")
-                .single();
-
-            if (error) throw error;
+            const data = await invokeFlashcardsWrite({ action: "create_course", nome });
 
             setOpenCourseModal(false);
             setNewCourseName("");
 
             await fetchCourses();
-            setCourseId(data.id);
+            setCourseId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar curso. Verifique RLS/tabelas no Supabase.");
@@ -405,19 +409,17 @@ export default function Flashcards({ user }) {
             const nome = newDisciplineName.trim();
             if (!nome) return alert("Digite o nome da disciplina.");
 
-            const { data, error } = await supabase
-                .from("flash_disciplines")
-                .insert({ user_id: user.id, course_id: courseId, nome: nome })
-                .select("id")
-                .single();
-
-            if (error) throw error;
+            const data = await invokeFlashcardsWrite({
+                action: "create_discipline",
+                course_id: courseId,
+                nome,
+            });
 
             setOpenDisciplineModal(false);
             setNewDisciplineName("");
 
             await fetchDisciplines(courseId);
-            setDisciplineId(data.id);
+            setDisciplineId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar disciplina. Verifique RLS/tabelas no Supabase.");
@@ -431,19 +433,17 @@ export default function Flashcards({ user }) {
             const nome = newSubjectName.trim();
             if (!nome) return alert("Digite o nome do assunto.");
 
-            const { data, error } = await supabase
-                .from("flash_subjects")
-                .insert({ user_id: user.id, discipline_id: disciplineId, nome: nome })
-                .select("id")
-                .single();
-
-            if (error) throw error;
+            const data = await invokeFlashcardsWrite({
+                action: "create_subject",
+                discipline_id: disciplineId,
+                nome,
+            });
 
             setOpenSubjectModal(false);
             setNewSubjectName("");
 
             await fetchSubjects(disciplineId);
-            setSubjectId(data.id);
+            setSubjectId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar assunto. Verifique RLS/tabelas no Supabase.");
@@ -460,23 +460,17 @@ export default function Flashcards({ user }) {
             const nome = newDeckName.trim();
             if (!nome) return alert("Digite um nome para o Deck.");
 
-            const { data, error } = await supabase
-                .from("flash_decks")
-                .insert({
-                    user_id: user.id,
-                    subject_id: subjectId,
-                    nome: nome,
-                })
-                .select("id")
-                .single();
-
-            if (error) throw error;
+            const data = await invokeFlashcardsWrite({
+                action: "create_deck",
+                subject_id: subjectId,
+                nome,
+            });
 
             setOpenDeckModal(false);
             setNewDeckName("");
 
             await fetchDecks(subjectId);
-            setDeckId(data.id);
+            setDeckId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar deck. Verifique RLS/tabelas no Supabase.");
@@ -521,8 +515,7 @@ export default function Flashcards({ user }) {
                         favoritos: false,
                     };
 
-            const { error } = await supabase.from("flash_cards").insert(payload);
-            if (error) throw error;
+            await invokeFlashcardsWrite({ action: "create_card", ...payload });
 
             setOpenCardModal(false);
             resetCardForm();

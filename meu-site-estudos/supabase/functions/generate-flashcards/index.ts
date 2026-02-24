@@ -245,9 +245,7 @@ ${baseText}
     let saved = 0;
 
     if (save && validCards.length) {
-      const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-      });
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
       const rows = validCards.map((c) => ({
         user_id,
@@ -268,7 +266,7 @@ ${baseText}
         due_date: null,
       }));
 
-      const { error: insErr } = await supabaseUser.from("flash_cards").insert(rows);
+      const { error: insErr } = await supabaseAdmin.from("flash_cards").insert(rows);
       if (insErr) throw new Error(`Erro ao salvar flashcards: ${insErr.message}`);
 
       saved = rows.length;

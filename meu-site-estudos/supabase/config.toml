@@ -1,3 +1,5 @@
 [functions.generate-flashcards]
 verify_jwt = false
 
+[functions.flashcards-write]
+verify_jwt = false
