@@ -50,6 +50,137 @@ function json(status: number, body: unknown) {
   });
 }
 
+
+async function handleWriteAction(
+  action: string,
+  body: Record<string, unknown>,
+  user_id: string,
+  supabaseAdmin: ReturnType<typeof createClient>
+) {
+  const nome = String(body.nome || "").trim();
+
+  if (["create_course", "create_discipline", "create_subject", "create_deck"].includes(action) && !nome) {
+    return json(400, { ok: false, error: "Nome é obrigatório." });
+  }
+
+  if (action === "create_course") {
+    const { data, error } = await supabaseAdmin
+      .from("flash_courses")
+      .insert({ user_id, nome })
+      .select("id")
+      .single();
+    if (error) throw error;
+    return json(200, { ok: true, data });
+  }
+
+  if (action === "create_discipline") {
+    const course_id = String(body.course_id || "");
+    if (!course_id) return json(400, { ok: false, error: "course_id é obrigatório." });
+
+    const { data: course } = await supabaseAdmin
+      .from("flash_courses")
+      .select("id")
+      .eq("id", course_id)
+      .eq("user_id", user_id)
+      .maybeSingle();
+
+    if (!course) return json(403, { ok: false, error: "Curso inválido para este usuário." });
+
+    const { data, error } = await supabaseAdmin
+      .from("flash_disciplines")
+      .insert({ user_id, course_id, nome })
+      .select("id")
+      .single();
+    if (error) throw error;
+    return json(200, { ok: true, data });
+  }
+
+  if (action === "create_subject") {
+    const discipline_id = String(body.discipline_id || "");
+    if (!discipline_id) return json(400, { ok: false, error: "discipline_id é obrigatório." });
+
+    const { data: discipline } = await supabaseAdmin
+      .from("flash_disciplines")
+      .select("id")
+      .eq("id", discipline_id)
+      .eq("user_id", user_id)
+      .maybeSingle();
+
+    if (!discipline) return json(403, { ok: false, error: "Disciplina inválida para este usuário." });
+
+    const { data, error } = await supabaseAdmin
+      .from("flash_subjects")
+      .insert({ user_id, discipline_id, nome })
+      .select("id")
+      .single();
+    if (error) throw error;
+    return json(200, { ok: true, data });
+  }
+
+  if (action === "create_deck") {
+    const subject_id = String(body.subject_id || "");
+    if (!subject_id) return json(400, { ok: false, error: "subject_id é obrigatório." });
+
+    const { data: subject } = await supabaseAdmin
+      .from("flash_subjects")
+      .select("id")
+      .eq("id", subject_id)
+      .eq("user_id", user_id)
+      .maybeSingle();
+
+    if (!subject) return json(403, { ok: false, error: "Assunto inválido para este usuário." });
+
+    const { data, error } = await supabaseAdmin
+      .from("flash_decks")
+      .insert({ user_id, subject_id, nome })
+      .select("id")
+      .single();
+    if (error) throw error;
+    return json(200, { ok: true, data });
+  }
+
+  if (action === "create_card") {
+    const deck_id = String(body.deck_id || "");
+    if (!deck_id) return json(400, { ok: false, error: "deck_id é obrigatório." });
+
+    const { data: deck } = await supabaseAdmin
+      .from("flash_decks")
+      .select("id")
+      .eq("id", deck_id)
+      .eq("user_id", user_id)
+      .maybeSingle();
+
+    if (!deck) return json(403, { ok: false, error: "Deck inválido para este usuário." });
+
+    const payload = {
+      user_id,
+      deck_id,
+      tipo: body.tipo === "cloze" ? "cloze" : "normal",
+      pergunta: body.pergunta ? String(body.pergunta).trim() : null,
+      resposta: body.resposta ? String(body.resposta).trim() : null,
+      cloze_text: body.cloze_text ? String(body.cloze_text).trim() : null,
+      cloze_answer: body.cloze_answer ? String(body.cloze_answer).trim() : null,
+      tags: Array.isArray(body.tags) ? body.tags.map((tag) => String(tag)) : [],
+      favoritos: false,
+    };
+
+    if (payload.tipo === "normal" && (!payload.pergunta || !payload.resposta)) {
+      return json(400, { ok: false, error: "pergunta/resposta são obrigatórias para tipo normal." });
+    }
+
+    if (payload.tipo === "cloze" && (!payload.cloze_text || !payload.cloze_answer)) {
+      return json(400, { ok: false, error: "cloze_text/cloze_answer são obrigatórias para tipo cloze." });
+    }
+
+    const { error } = await supabaseAdmin.from("flash_cards").insert(payload);
+    if (error) throw error;
+    return json(200, { ok: true });
+  }
+
+  return json(400, { ok: false, error: "action inválida." });
+}
+
+
 Deno.serve(async (req) => {
   // ✅ preflight (CORS)
   if (req.method === "OPTIONS") {
@@ -67,7 +198,6 @@ Deno.serve(async (req) => {
     if (!SUPABASE_ANON_KEY) throw new Error("Missing SUPABASE_ANON_KEY secret");
     if (!SUPABASE_SERVICE_ROLE_KEY)
       throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY secret");
-    if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY secret");
 
     // ✅ 1) Validar usuário via Auth (verify_jwt=false no config)
     const authHeader = req.headers.get("Authorization") || "";
@@ -103,6 +233,14 @@ Deno.serve(async (req) => {
         raw: rawBody,
       });
     }
+
+    const action = String(body?.action || "").trim();
+    if (action) {
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      return await handleWriteAction(action, body, user_id, supabaseAdmin);
+    }
+
+    if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY secret");
 
     const {
       qtd = 20,
@@ -245,9 +383,7 @@ ${baseText}
     let saved = 0;
 
     if (save && validCards.length) {
-      const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-      });
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
       const rows = validCards.map((c) => ({
         user_id,
@@ -268,7 +404,7 @@ ${baseText}
         due_date: null,
       }));
 
-      const { error: insErr } = await supabaseUser.from("flash_cards").insert(rows);
+      const { error: insErr } = await supabaseAdmin.from("flash_cards").insert(rows);
       if (insErr) throw new Error(`Erro ao salvar flashcards: ${insErr.message}`);
 
       saved = rows.length;
