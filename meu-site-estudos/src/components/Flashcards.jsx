@@ -375,13 +375,22 @@ export default function Flashcards({ user }) {
     ========================================================= */
 
     async function invokeFlashcardsWrite(payload) {
-        const { data, error } = await supabase.functions.invoke("flashcards-write", {
-            body: payload,
-        });
+        async function invoke(functionName) {
+            const { data, error } = await supabase.functions.invoke(functionName, {
+                body: payload,
+            });
 
-        if (error) throw error;
-        if (!data?.ok) throw new Error(data?.error || "Erro ao gravar no Supabase.");
-        return data;
+            if (error) throw error;
+            if (!data?.ok) throw new Error(data?.error || `Erro ao gravar no Supabase (${functionName}).`);
+            return data;
+        }
+
+        try {
+            return await invoke("flashcards-write");
+        } catch (firstError) {
+            console.warn("flashcards-write indisponível, tentando fallback generate-flashcards", firstError);
+            return await invoke("generate-flashcards");
+        }
     }
 
     async function criarCurso() {
