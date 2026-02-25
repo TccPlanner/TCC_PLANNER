@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
 
       const { data, error } = await supabaseAdmin
         .from("flash_courses")
-        .insert({ user_id: user.id, name: nome })
+        .insert({ user_id: user.id, nome })
         .select("id")
         .single();
 
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
 
       const { data, error } = await supabaseAdmin
         .from("flash_disciplines")
-        .insert({ user_id: user.id, course_id, name: nome })
+        .insert({ user_id: user.id, course_id, nome })
         .select("id")
         .single();
 
@@ -154,8 +154,8 @@ Deno.serve(async (req) => {
         });
 
       const { data, error } = await supabaseAdmin
-        .from("flash_topics")
-        .insert({ user_id: user.id, discipline_id, name: nome })
+        .from("flash_subjects")
+        .insert({ user_id: user.id, discipline_id, nome })
         .select("id")
         .single();
 
@@ -168,14 +168,14 @@ Deno.serve(async (req) => {
     // CREATE DECK
     // =========================
     if (action === "create_deck") {
-      const topic_id = String(body.topic_id || "");
-      if (!topic_id)
-        return json(400, { ok: false, error: "topic_id é obrigatório." });
+      const subject_id = String(body.subject_id || "");
+      if (!subject_id)
+        return json(400, { ok: false, error: "subject_id é obrigatório." });
 
       const { data: topic } = await supabaseAdmin
-        .from("flash_topics")
+        .from("flash_subjects")
         .select("id")
-        .eq("id", topic_id)
+        .eq("id", subject_id)
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
 
       const { data, error } = await supabaseAdmin
         .from("flash_decks")
-        .insert({ user_id: user.id, topic_id, name: nome })
+        .insert({ user_id: user.id, subject_id, nome })
         .select("id")
         .single();
 
@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
         tags: Array.isArray(body.tags)
           ? body.tags.map((t) => String(t))
           : [],
-        is_favorite: false,
+        favoritos: false,
       };
 
       const { error } = await supabaseAdmin
