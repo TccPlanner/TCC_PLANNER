@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -14,7 +15,11 @@ function json(status: number, body: unknown) {
   });
 }
 
-async function getUserFromAuthHeader(req: Request, supabaseUrl: string, anonKey: string) {
+async function getUserFromAuthHeader(
+  req: Request,
+  supabaseUrl: string,
+  anonKey: string
+) {
   const authHeader = req.headers.get("Authorization") || "";
   const token = authHeader.replace("Bearer ", "").trim();
 
@@ -36,19 +41,29 @@ async function getUserFromAuthHeader(req: Request, supabaseUrl: string, anonKey:
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS")
+    return new Response("ok", { headers: corsHeaders });
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
+      "SUPABASE_SERVICE_ROLE_KEY"
+    );
 
-    if (!SUPABASE_URL) throw new Error("Missing SUPABASE_URL secret");
-    if (!SUPABASE_ANON_KEY) throw new Error("Missing SUPABASE_ANON_KEY secret");
-    if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY secret");
+    if (!SUPABASE_URL) throw new Error("Missing SUPABASE_URL");
+    if (!SUPABASE_ANON_KEY) throw new Error("Missing SUPABASE_ANON_KEY");
+    if (!SUPABASE_SERVICE_ROLE_KEY)
+      throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
 
-    const { user, error: authError } = await getUserFromAuthHeader(req, SUPABASE_URL, SUPABASE_ANON_KEY);
-    if (authError || !user) return json(401, { ok: false, error: authError });
+    const { user, error: authError } = await getUserFromAuthHeader(
+      req,
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY
+    );
+
+    if (authError || !user)
+      return json(401, { ok: false, error: authError });
 
     const rawBody = await req.text();
     let body: Record<string, unknown> = {};
@@ -56,33 +71,42 @@ Deno.serve(async (req) => {
     try {
       body = rawBody ? JSON.parse(rawBody) : {};
     } catch {
-      return json(400, { ok: false, error: "Body inválido. Envie JSON válido." });
+      return json(400, { ok: false, error: "Body inválido." });
     }
 
     const action = String(body.action || "");
     const nome = String(body.nome || "").trim();
-    const deck_id = body.deck_id ? String(body.deck_id) : null;
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabaseAdmin = createClient(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY
+    );
 
-    if (["create_course", "create_discipline", "create_subject", "create_deck"].includes(action) && !nome) {
-      return json(400, { ok: false, error: "Nome é obrigatório." });
-    }
-
+    // =========================
+    // CREATE COURSE
+    // =========================
     if (action === "create_course") {
+      if (!nome)
+        return json(400, { ok: false, error: "Nome é obrigatório." });
+
       const { data, error } = await supabaseAdmin
         .from("flash_courses")
-        .insert({ user_id: user.id, nome })
+        .insert({ user_id: user.id, name: nome })
         .select("id")
         .single();
 
       if (error) throw error;
+
       return json(200, { ok: true, data });
     }
 
+    // =========================
+    // CREATE DISCIPLINE
+    // =========================
     if (action === "create_discipline") {
       const course_id = String(body.course_id || "");
-      if (!course_id) return json(400, { ok: false, error: "course_id é obrigatório." });
+      if (!course_id)
+        return json(400, { ok: false, error: "course_id é obrigatório." });
 
       const { data: course } = await supabaseAdmin
         .from("flash_courses")
@@ -91,21 +115,30 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!course) return json(403, { ok: false, error: "Curso inválido para este usuário." });
+      if (!course)
+        return json(403, {
+          ok: false,
+          error: "Curso inválido para este usuário.",
+        });
 
       const { data, error } = await supabaseAdmin
         .from("flash_disciplines")
-        .insert({ user_id: user.id, course_id, nome })
+        .insert({ user_id: user.id, course_id, name: nome })
         .select("id")
         .single();
 
       if (error) throw error;
+
       return json(200, { ok: true, data });
     }
 
+    // =========================
+    // CREATE TOPIC
+    // =========================
     if (action === "create_subject") {
       const discipline_id = String(body.discipline_id || "");
-      if (!discipline_id) return json(400, { ok: false, error: "discipline_id é obrigatório." });
+      if (!discipline_id)
+        return json(400, { ok: false, error: "discipline_id é obrigatório." });
 
       const { data: discipline } = await supabaseAdmin
         .from("flash_disciplines")
@@ -114,74 +147,99 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!discipline) return json(403, { ok: false, error: "Disciplina inválida para este usuário." });
+      if (!discipline)
+        return json(403, {
+          ok: false,
+          error: "Disciplina inválida para este usuário.",
+        });
 
       const { data, error } = await supabaseAdmin
-        .from("flash_subjects")
-        .insert({ user_id: user.id, discipline_id, nome })
+        .from("flash_topics")
+        .insert({ user_id: user.id, discipline_id, name: nome })
         .select("id")
         .single();
 
       if (error) throw error;
+
       return json(200, { ok: true, data });
     }
 
+    // =========================
+    // CREATE DECK
+    // =========================
     if (action === "create_deck") {
-      const subject_id = String(body.subject_id || "");
-      if (!subject_id) return json(400, { ok: false, error: "subject_id é obrigatório." });
+      const topic_id = String(body.topic_id || "");
+      if (!topic_id)
+        return json(400, { ok: false, error: "topic_id é obrigatório." });
 
-      const { data: subject } = await supabaseAdmin
-        .from("flash_subjects")
+      const { data: topic } = await supabaseAdmin
+        .from("flash_topics")
         .select("id")
-        .eq("id", subject_id)
+        .eq("id", topic_id)
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!subject) return json(403, { ok: false, error: "Assunto inválido para este usuário." });
+      if (!topic)
+        return json(403, {
+          ok: false,
+          error: "Assunto inválido para este usuário.",
+        });
 
       const { data, error } = await supabaseAdmin
         .from("flash_decks")
-        .insert({ user_id: user.id, subject_id, nome })
+        .insert({ user_id: user.id, topic_id, name: nome })
         .select("id")
         .single();
 
       if (error) throw error;
+
       return json(200, { ok: true, data });
     }
 
+    // =========================
+    // CREATE CARD
+    // =========================
     if (action === "create_card") {
-      if (!deck_id) return json(400, { ok: false, error: "deck_id é obrigatório." });
+      const deck_id = String(body.deck_id || "");
+      if (!deck_id)
+        return json(400, { ok: false, error: "deck_id é obrigatório." });
 
-      const { data: deck } = await supabaseAdmin
-        .from("flash_decks")
-        .select("id")
-        .eq("id", deck_id)
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const tipo = body.tipo === "cloze" ? "cloze" : "normal";
 
-      if (!deck) return json(403, { ok: false, error: "Deck inválido para este usuário." });
+      const pergunta =
+        tipo === "cloze"
+          ? String(body.cloze_text || "").trim()
+          : String(body.pergunta || "").trim();
+
+      const resposta =
+        tipo === "cloze"
+          ? String(body.cloze_answer || "").trim()
+          : String(body.resposta || "").trim();
+
+      if (!pergunta || !resposta)
+        return json(400, {
+          ok: false,
+          error: "pergunta/resposta são obrigatórias.",
+        });
 
       const payload = {
         user_id: user.id,
         deck_id,
-        tipo: body.tipo === "cloze" ? "cloze" : "normal",
-        pergunta: body.pergunta ? String(body.pergunta).trim() : null,
-        resposta: body.resposta ? String(body.resposta).trim() : null,
-        cloze_text: body.cloze_text ? String(body.cloze_text).trim() : null,
-        cloze_answer: body.cloze_answer ? String(body.cloze_answer).trim() : null,
-        tags: Array.isArray(body.tags) ? body.tags.map((tag) => String(tag)) : [],
-        favoritos: false,
+        tipo,
+        pergunta,
+        resposta,
+        cloze_text: tipo === "cloze" ? pergunta : null,
+        cloze_answer: tipo === "cloze" ? resposta : null,
+        tags: Array.isArray(body.tags)
+          ? body.tags.map((t) => String(t))
+          : [],
+        is_favorite: false,
       };
 
-      if (payload.tipo === "normal" && (!payload.pergunta || !payload.resposta)) {
-        return json(400, { ok: false, error: "pergunta/resposta são obrigatórias para tipo normal." });
-      }
+      const { error } = await supabaseAdmin
+        .from("flash_cards")
+        .insert(payload);
 
-      if (payload.tipo === "cloze" && (!payload.cloze_text || !payload.cloze_answer)) {
-        return json(400, { ok: false, error: "cloze_text/cloze_answer são obrigatórias para tipo cloze." });
-      }
-
-      const { error } = await supabaseAdmin.from("flash_cards").insert(payload);
       if (error) throw error;
 
       return json(200, { ok: true });
@@ -189,6 +247,9 @@ Deno.serve(async (req) => {
 
     return json(400, { ok: false, error: "action inválida." });
   } catch (e) {
-    return json(400, { ok: false, error: String(e instanceof Error ? e.message : e) });
+    return json(400, {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 });

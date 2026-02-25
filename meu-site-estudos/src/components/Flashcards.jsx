@@ -45,6 +45,7 @@ async function extractTextFromPDF(file) {
         // ok
     }
 
+
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
@@ -80,6 +81,7 @@ export default function Flashcards({ user }) {
     const [disciplines, setDisciplines] = useState([]);
     const [subjects, setSubjects] = useState([]);
     const [decks, setDecks] = useState([]);
+
 
     const [courseId, setCourseId] = useState("");
     const [disciplineId, setDisciplineId] = useState("");
