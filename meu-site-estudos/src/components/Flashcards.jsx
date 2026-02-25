@@ -231,14 +231,26 @@ export default function Flashcards({ user }) {
     async function fetchCourses() {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const query = supabase
                 .from("flash_courses")
+                .eq("user_id", user.id);
+
+            const { data, error } = await query
                 .select("id, nome")
-                .eq("user_id", user.id)
                 .order("nome", { ascending: true });
 
-            if (error) throw error;
-            setCourses(data || []);
+            if (!error) {
+                setCourses(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await query
+                .select("id, name")
+                .order("name", { ascending: true });
+
+            if (legacyError) throw error;
+
+            setCourses((legacyData || []).map((c) => ({ id: c.id, nome: c.name || "" })));
         } catch (e) {
             console.error(e);
         } finally {
@@ -249,15 +261,31 @@ export default function Flashcards({ user }) {
     async function fetchDisciplines(course_id) {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const query = supabase
                 .from("flash_disciplines")
-                .select("id, nome, course_id")
                 .eq("user_id", user.id)
-                .eq("course_id", course_id)
+                .eq("course_id", course_id);
+
+            const { data, error } = await query
+                .select("id, nome, course_id")
                 .order("nome", { ascending: true });
 
-            if (error) throw error;
-            setDisciplines(data || []);
+            if (!error) {
+                setDisciplines(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await query
+                .select("id, name, course_id")
+                .order("name", { ascending: true });
+
+            if (legacyError) throw error;
+
+            setDisciplines((legacyData || []).map((d) => ({
+                id: d.id,
+                nome: d.name || "",
+                course_id: d.course_id,
+            })));
         } catch (e) {
             console.error(e);
         } finally {
@@ -268,15 +296,34 @@ export default function Flashcards({ user }) {
     async function fetchSubjects(discipline_id) {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const subjectQuery = supabase
                 .from("flash_subjects")
-                .select("id, nome, discipline_id")
                 .eq("user_id", user.id)
-                .eq("discipline_id", discipline_id)
+                .eq("discipline_id", discipline_id);
+
+            const { data, error } = await subjectQuery
+                .select("id, nome, discipline_id")
                 .order("nome", { ascending: true });
 
-            if (error) throw error;
-            setSubjects(data || []);
+            if (!error) {
+                setSubjects(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_topics")
+                .select("id, name, discipline_id")
+                .eq("user_id", user.id)
+                .eq("discipline_id", discipline_id)
+                .order("name", { ascending: true });
+
+            if (legacyError) throw error;
+
+            setSubjects((legacyData || []).map((s) => ({
+                id: s.id,
+                nome: s.name || "",
+                discipline_id: s.discipline_id,
+            })));
         } catch (e) {
             console.error(e);
         } finally {
@@ -294,8 +341,26 @@ export default function Flashcards({ user }) {
                 .eq("subject_id", subject_id)
                 .order("created_at", { ascending: false });
 
-            if (error) throw error;
-            setDecks(data || []);
+            if (!error) {
+                setDecks(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_decks")
+                .select("id, name, topic_id, created_at")
+                .eq("user_id", user.id)
+                .eq("topic_id", subject_id)
+                .order("created_at", { ascending: false });
+
+            if (legacyError) throw error;
+
+            setDecks((legacyData || []).map((d) => ({
+                id: d.id,
+                nome: d.name || "",
+                subject_id: d.topic_id,
+                created_at: d.created_at,
+            })));
         } catch (e) {
             console.error(e);
         } finally {
@@ -402,11 +467,18 @@ export default function Flashcards({ user }) {
 
             const data = await invokeFlashcardsWrite({ action: "create_course", nome });
 
+            const createdId = data?.data?.id;
+
             setOpenCourseModal(false);
             setNewCourseName("");
+            if (createdId) {
+                setCourses((prev) => (prev.some((c) => c.id === createdId)
+                    ? prev
+                    : [{ id: createdId, nome }, ...prev]));
+                setCourseId(createdId);
+            }
 
             await fetchCourses();
-            setCourseId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar curso. Verifique RLS/tabelas no Supabase.");
@@ -426,11 +498,18 @@ export default function Flashcards({ user }) {
                 nome,
             });
 
+            const createdId = data?.data?.id;
+
             setOpenDisciplineModal(false);
             setNewDisciplineName("");
+            if (createdId) {
+                setDisciplines((prev) => (prev.some((d) => d.id === createdId)
+                    ? prev
+                    : [{ id: createdId, nome, course_id: courseId }, ...prev]));
+                setDisciplineId(createdId);
+            }
 
             await fetchDisciplines(courseId);
-            setDisciplineId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar disciplina. Verifique RLS/tabelas no Supabase.");
@@ -450,11 +529,18 @@ export default function Flashcards({ user }) {
                 nome,
             });
 
+            const createdId = data?.data?.id;
+
             setOpenSubjectModal(false);
             setNewSubjectName("");
+            if (createdId) {
+                setSubjects((prev) => (prev.some((s) => s.id === createdId)
+                    ? prev
+                    : [{ id: createdId, nome, discipline_id: disciplineId }, ...prev]));
+                setSubjectId(createdId);
+            }
 
             await fetchSubjects(disciplineId);
-            setSubjectId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar assunto. Verifique RLS/tabelas no Supabase.");
@@ -474,14 +560,22 @@ export default function Flashcards({ user }) {
             const data = await invokeFlashcardsWrite({
                 action: "create_deck",
                 subject_id: subjectId,
+                topic_id: subjectId,
                 nome,
             });
 
+            const createdId = data?.data?.id;
+
             setOpenDeckModal(false);
             setNewDeckName("");
+            if (createdId) {
+                setDecks((prev) => (prev.some((d) => d.id === createdId)
+                    ? prev
+                    : [{ id: createdId, nome, subject_id: subjectId }, ...prev]));
+                setDeckId(createdId);
+            }
 
             await fetchDecks(subjectId);
-            setDeckId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar deck. Verifique RLS/tabelas no Supabase.");
