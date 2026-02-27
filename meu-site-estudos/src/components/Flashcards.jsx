@@ -237,8 +237,20 @@ export default function Flashcards({ user }) {
                 .eq("user_id", user.id)
                 .order("nome", { ascending: true });
 
-            if (error) throw error;
-            setCourses(data || []);
+            if (!error) {
+                setCourses(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_courses")
+                .select("id, name")
+                .eq("user_id", user.id)
+                .order("name", { ascending: true });
+
+            if (legacyError) throw error;
+
+            setCourses((legacyData || []).map((c) => ({ id: c.id, nome: c.name || "" })));
         } catch (e) {
             console.error(e);
         } finally {
@@ -256,8 +268,25 @@ export default function Flashcards({ user }) {
                 .eq("course_id", course_id)
                 .order("nome", { ascending: true });
 
-            if (error) throw error;
-            setDisciplines(data || []);
+            if (!error) {
+                setDisciplines(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_disciplines")
+                .select("id, name, course_id")
+                .eq("user_id", user.id)
+                .eq("course_id", course_id)
+                .order("name", { ascending: true });
+
+            if (legacyError) throw error;
+
+            setDisciplines((legacyData || []).map((d) => ({
+                id: d.id,
+                nome: d.name || "",
+                course_id: d.course_id,
+            })));
         } catch (e) {
             console.error(e);
         } finally {
@@ -268,15 +297,34 @@ export default function Flashcards({ user }) {
     async function fetchSubjects(discipline_id) {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const subjectQuery = supabase
                 .from("flash_subjects")
-                .select("id, nome, discipline_id")
                 .eq("user_id", user.id)
-                .eq("discipline_id", discipline_id)
+                .eq("discipline_id", discipline_id);
+
+            const { data, error } = await subjectQuery
+                .select("id, nome, discipline_id")
                 .order("nome", { ascending: true });
 
-            if (error) throw error;
-            setSubjects(data || []);
+            if (!error) {
+                setSubjects(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_topics")
+                .select("id, name, discipline_id")
+                .eq("user_id", user.id)
+                .eq("discipline_id", discipline_id)
+                .order("name", { ascending: true });
+
+            if (legacyError) throw error;
+
+            setSubjects((legacyData || []).map((s) => ({
+                id: s.id,
+                nome: s.name || "",
+                discipline_id: s.discipline_id,
+            })));
         } catch (e) {
             console.error(e);
         } finally {
@@ -294,13 +342,80 @@ export default function Flashcards({ user }) {
                 .eq("subject_id", subject_id)
                 .order("created_at", { ascending: false });
 
-            if (error) throw error;
-            setDecks(data || []);
+            if (!error) {
+                setDecks(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_decks")
+                .select("id, name, topic_id, created_at")
+                .eq("user_id", user.id)
+                .eq("topic_id", subject_id)
+                .order("created_at", { ascending: false });
+
+            if (legacyError) throw error;
+
+            setDecks((legacyData || []).map((d) => ({
+                id: d.id,
+                nome: d.name || "",
+                subject_id: d.topic_id,
+                created_at: d.created_at,
+            })));
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
         }
+    }
+
+    function normalizeCardLegacy(card) {
+        return {
+            ...card,
+            favoritos: Boolean(card?.favoritos ?? card?.is_favorite),
+        };
+    }
+
+    async function insertCardsWithSchemaFallback(payload) {
+        if (!Array.isArray(payload) || payload.length === 0) return;
+
+        const { error } = await supabase.from("flash_cards").insert(payload);
+        if (!error) return;
+
+        const legacyPayload = payload.map((card) => {
+            const { favoritos, ...rest } = card;
+            return { ...rest, is_favorite: Boolean(favoritos) };
+        });
+
+        const { error: legacyError } = await supabase.from("flash_cards").insert(legacyPayload);
+        if (legacyError) throw error;
+    }
+
+    async function createDeckWithSchemaFallback(nome) {
+        const { data, error } = await supabase
+            .from("flash_decks")
+            .insert({
+                user_id: user.id,
+                subject_id: subjectId,
+                nome,
+            })
+            .select("id")
+            .single();
+
+        if (!error) return data;
+
+        const { data: legacyData, error: legacyError } = await supabase
+            .from("flash_decks")
+            .insert({
+                user_id: user.id,
+                topic_id: subjectId,
+                name: nome,
+            })
+            .select("id")
+            .single();
+
+        if (legacyError) throw error;
+        return legacyData;
     }
 
     async function fetchCards(deck_id) {
@@ -315,8 +430,25 @@ export default function Flashcards({ user }) {
                 .eq("deck_id", deck_id)
                 .order("created_at", { ascending: true });
 
-            if (error) throw error;
-            setCards(data || []);
+            if (!error) {
+                setCards((data || []).map(normalizeCardLegacy));
+                setStudyIndex(0);
+                setShowAnswer(false);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_cards")
+                .select(
+                    "id, deck_id, tipo, pergunta, resposta, cloze_text, cloze_answer, tags, is_favorite, created_at"
+                )
+                .eq("user_id", user.id)
+                .eq("deck_id", deck_id)
+                .order("created_at", { ascending: true });
+
+            if (legacyError) throw error;
+
+            setCards((legacyData || []).map(normalizeCardLegacy));
             setStudyIndex(0);
             setShowAnswer(false);
         } catch (e) {
@@ -401,12 +533,19 @@ export default function Flashcards({ user }) {
             if (!nome) return alert("Digite o nome do curso.");
 
             const data = await invokeFlashcardsWrite({ action: "create_course", nome });
+            const createdCourseId = data?.data?.id;
+            if (!createdCourseId) throw new Error("Curso criado sem id.");
 
             setOpenCourseModal(false);
             setNewCourseName("");
+            if (createdCourseId) {
+                setCourses((prev) => (prev.some((c) => c.id === createdCourseId)
+                    ? prev
+                    : [{ id: createdCourseId, nome }, ...prev]));
+                setCourseId(createdCourseId);
+            }
 
             await fetchCourses();
-            setCourseId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar curso. Verifique RLS/tabelas no Supabase.");
@@ -426,11 +565,19 @@ export default function Flashcards({ user }) {
                 nome,
             });
 
+            const createdDisciplineId = data?.data?.id;
+            if (!createdDisciplineId) throw new Error("Disciplina criada sem id.");
+
             setOpenDisciplineModal(false);
             setNewDisciplineName("");
+            if (createdDisciplineId) {
+                setDisciplines((prev) => (prev.some((d) => d.id === createdDisciplineId)
+                    ? prev
+                    : [{ id: createdDisciplineId, nome, course_id: courseId }, ...prev]));
+                setDisciplineId(createdDisciplineId);
+            }
 
             await fetchDisciplines(courseId);
-            setDisciplineId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar disciplina. Verifique RLS/tabelas no Supabase.");
@@ -450,11 +597,19 @@ export default function Flashcards({ user }) {
                 nome,
             });
 
+            const createdSubjectId = data?.data?.id;
+            if (!createdSubjectId) throw new Error("Assunto criado sem id.");
+
             setOpenSubjectModal(false);
             setNewSubjectName("");
+            if (createdSubjectId) {
+                setSubjects((prev) => (prev.some((s) => s.id === createdSubjectId)
+                    ? prev
+                    : [{ id: createdSubjectId, nome, discipline_id: disciplineId }, ...prev]));
+                setSubjectId(createdSubjectId);
+            }
 
             await fetchSubjects(disciplineId);
-            setSubjectId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar assunto. Verifique RLS/tabelas no Supabase.");
@@ -474,14 +629,23 @@ export default function Flashcards({ user }) {
             const data = await invokeFlashcardsWrite({
                 action: "create_deck",
                 subject_id: subjectId,
+                topic_id: subjectId,
                 nome,
             });
 
+            const createdDeckId = data?.data?.id;
+            if (!createdDeckId) throw new Error("Deck criado sem id.");
+
             setOpenDeckModal(false);
             setNewDeckName("");
+            if (createdDeckId) {
+                setDecks((prev) => (prev.some((d) => d.id === createdDeckId)
+                    ? prev
+                    : [{ id: createdDeckId, nome, subject_id: subjectId }, ...prev]));
+                setDeckId(createdDeckId);
+            }
 
             await fetchDecks(subjectId);
-            setDeckId(data?.data?.id);
         } catch (e) {
             console.error(e);
             alert("Erro ao criar deck. Verifique RLS/tabelas no Supabase.");
@@ -553,16 +717,25 @@ export default function Flashcards({ user }) {
 
     async function toggleFavorito(card) {
         try {
+            const nextFavorito = !card.favoritos;
             const { error } = await supabase
                 .from("flash_cards")
-                .update({ favoritos: !card.favoritos })
+                .update({ favoritos: nextFavorito })
                 .eq("id", card.id)
                 .eq("user_id", user.id);
 
-            if (error) throw error;
+            if (error) {
+                const { error: legacyError } = await supabase
+                    .from("flash_cards")
+                    .update({ is_favorite: nextFavorito })
+                    .eq("id", card.id)
+                    .eq("user_id", user.id);
+
+                if (legacyError) throw error;
+            }
 
             setCards((prev) =>
-                prev.map((c) => (c.id === card.id ? { ...c, favoritos: !c.favoritos } : c))
+                prev.map((c) => (c.id === card.id ? { ...c, favoritos: nextFavorito } : c))
             );
         } catch (e) {
             console.error(e);
@@ -580,13 +753,7 @@ export default function Flashcards({ user }) {
 
         if (existing?.id) return existing.id;
 
-        const { data: created, error: createErr } = await supabase
-            .from("flash_decks")
-            .insert({ user_id: user.id, subject_id: subjectId, nome })
-            .select("id")
-            .single();
-
-        if (createErr) throw createErr;
+        const created = await createDeckWithSchemaFallback(nome);
         await fetchDecks(subjectId);
         return created.id;
     }
@@ -642,8 +809,7 @@ export default function Flashcards({ user }) {
                 }));
 
             if (novos.length) {
-                const { error: insErr } = await supabase.from("flash_cards").insert(novos);
-                if (insErr) throw insErr;
+                await insertCardsWithSchemaFallback(novos);
             }
 
             if (!automatico) {
@@ -731,17 +897,7 @@ export default function Flashcards({ user }) {
                 const autoName = `Deck IA • ${assuntoSelecionado?.nome || "Assunto"} • ${new Date()
                     .toLocaleDateString("pt-BR")}`;
 
-                const { data: created, error: errDeck } = await supabase
-                    .from("flash_decks")
-                    .insert({
-                        user_id: user.id,
-                        subject_id: subjectId,
-                        nome: autoName,
-                    })
-                    .select("id")
-                    .single();
-
-                if (errDeck) throw errDeck;
+                const created = await createDeckWithSchemaFallback(autoName);
                 targetDeckId = created.id;
 
                 await fetchDecks(subjectId);
@@ -767,20 +923,23 @@ export default function Flashcards({ user }) {
                     }
 
                     if (!c?.cloze_text || !c?.cloze_answer) return null;
+                    const clozePergunta = String(c.cloze_text).slice(0, 3000);
+                    const clozeResposta = String(c.cloze_answer).slice(0, 600);
                     return {
                         user_id: user.id,
                         deck_id: targetDeckId,
                         tipo: "cloze",
-                        cloze_text: String(c.cloze_text).slice(0, 3000),
-                        cloze_answer: String(c.cloze_answer).slice(0, 600),
+                        pergunta: clozePergunta,
+                        resposta: clozeResposta,
+                        cloze_text: clozePergunta,
+                        cloze_answer: clozeResposta,
                         tags: tags.slice(0, 8),
                         favoritos: false,
                     };
                 })
                 .filter(Boolean);
 
-            const { error: errInsert } = await supabase.from("flash_cards").insert(payload);
-            if (errInsert) throw errInsert;
+            await insertCardsWithSchemaFallback(payload);
 
             alert(`✅ ${payload.length} cards gerados e adicionados ao deck!`);
 
