@@ -231,10 +231,12 @@ export default function Flashcards({ user }) {
     async function fetchCourses() {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const query = supabase
                 .from("flash_courses")
+                .eq("user_id", user.id);
+
+            const { data, error } = await query
                 .select("id, nome")
-                .eq("user_id", user.id)
                 .order("nome", { ascending: true });
 
             if (!error) {
@@ -261,12 +263,26 @@ export default function Flashcards({ user }) {
     async function fetchDisciplines(course_id) {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const query = supabase
                 .from("flash_disciplines")
+                .eq("user_id", user.id)
+                .eq("course_id", course_id);
+
+            const { data, error } = await query
                 .select("id, nome, course_id")
+                .order("nome", { ascending: true });
+
+            if (!error) {
+                setDisciplines(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_disciplines")
+                .select("id, name, course_id")
                 .eq("user_id", user.id)
                 .eq("course_id", course_id)
-                .order("nome", { ascending: true });
+                .order("name", { ascending: true });
 
             if (!error) {
                 setDisciplines(data || []);
