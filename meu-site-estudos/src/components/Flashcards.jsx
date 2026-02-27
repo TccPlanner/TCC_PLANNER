@@ -267,6 +267,7 @@ export default function Flashcards({ user }) {
     async function fetchDisciplines(course_id) {
         setLoading(true);
         try {
+            const primaryRes = await supabase
             const query = supabase
                 .from("flash_disciplines")
                 .eq("user_id", user.id)
@@ -288,6 +289,12 @@ export default function Flashcards({ user }) {
                 .eq("course_id", course_id)
                 .order("name", { ascending: true });
 
+            if (!primaryRes.error) {
+                setDisciplines(primaryRes.data || []);
+                return;
+            }
+
+            const legacyRes = await supabase
             if (!error) {
                 setDisciplines(data || []);
                 return;
@@ -301,6 +308,9 @@ export default function Flashcards({ user }) {
                 .eq("course_id", course_id)
                 .order("name", { ascending: true });
 
+            if (legacyRes.error) throw primaryRes.error;
+
+            setDisciplines((legacyRes.data || []).map((d) => ({
             if (legacyDisciplinesError) throw error;
 
             setDisciplines((legacyDisciplinesData || []).map((d) => ({
@@ -321,6 +331,7 @@ export default function Flashcards({ user }) {
     async function fetchSubjects(discipline_id) {
         setLoading(true);
         try {
+            const primaryRes = await supabase
             const subjectQuery = supabase
                 .from("flash_subjects")
                 .eq("user_id", user.id)
@@ -343,6 +354,21 @@ export default function Flashcards({ user }) {
                 .eq("discipline_id", discipline_id)
                 .order("name", { ascending: true });
 
+            if (!primaryRes.error) {
+                setSubjects(primaryRes.data || []);
+                return;
+            }
+
+            const legacyRes = await supabase
+                .from("flash_topics")
+                .select("id, name, discipline_id")
+                .eq("user_id", user.id)
+                .eq("discipline_id", discipline_id)
+                .order("name", { ascending: true });
+
+            if (legacyRes.error) throw primaryRes.error;
+
+            setSubjects((legacyRes.data || []).map((s) => ({
             if (legacySubjectsError) throw error;
 
             setSubjects((legacySubjectsData || []).map((s) => ({
