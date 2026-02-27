@@ -173,6 +173,38 @@ Deno.serve(async (req) => {
       return json(200, { ok: true, data });
     }
 
+
+    // =========================
+    // CREATE TOPIC LEGACY (subjects em flash_topics por discipline_id)
+    // =========================
+    if (action === "create_topic_legacy") {
+      const discipline_id = String(body.discipline_id || "");
+      if (!discipline_id)
+        return json(400, { ok: false, error: "discipline_id é obrigatório." });
+
+      const discipline = await existsWithFallback(
+        supabaseAdmin,
+        "flash_disciplines",
+        discipline_id,
+        user.id
+      );
+
+      if (!discipline)
+        return json(403, {
+          ok: false,
+          error: "Disciplina inválida para este usuário.",
+        });
+
+      const { data } = await insertWithFallback(
+        supabaseAdmin,
+        "flash_topics",
+        { user_id: user.id, discipline_id, nome },
+        { user_id: user.id, discipline_id, name: nome }
+      );
+
+      return json(200, { ok: true, data, meta: { table: "flash_topics" } });
+    }
+
     // =========================
     // CREATE TOPIC
     // =========================
@@ -214,7 +246,6 @@ Deno.serve(async (req) => {
         return json(200, { ok: true, data, meta: { table: "flash_topics" } });
       }
     }
-
 
     // =========================
     // CREATE TOPIC
@@ -299,6 +330,34 @@ Deno.serve(async (req) => {
       );
 
       return json(200, { ok: true, data });
+    }
+
+
+    // =========================
+    // DELETE NODES
+    // =========================
+    if (["delete_course", "delete_discipline", "delete_subject", "delete_topic", "delete_topic_legacy", "delete_deck"].includes(action)) {
+      const id = String(body.id || "").trim();
+      if (!id) return json(400, { ok: false, error: "id é obrigatório." });
+
+      const tableMap: Record<string, string> = {
+        delete_course: "flash_courses",
+        delete_discipline: "flash_disciplines",
+        delete_subject: "flash_subjects",
+        delete_topic: "flash_topics",
+        delete_topic_legacy: "flash_topics",
+        delete_deck: "flash_decks",
+      };
+
+      const table = tableMap[action];
+      const { error } = await supabaseAdmin
+        .from(table)
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+      return json(200, { ok: true });
     }
 
     // =========================
