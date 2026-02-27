@@ -9,6 +9,21 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 const initialTree = {
+import {
+  Brain,
+  Sparkles,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  Pencil,
+  Wand2,
+  FolderTree,
+  UploadCloud,
+  FileText,
+} from "lucide-react";
+
+const EMPTY_TREE = {
   courses: [],
   disciplines: [],
   subjects: [],
@@ -28,6 +43,29 @@ const LEVEL_LABEL = {
 
 function normalizeNameRow(row) {
   return { ...row, nome: row.nome ?? row.name ?? "" };
+}
+
+function safeTags(text) {
+  return String(text || "")
+async function extractTextFromFile(file) {
+  const isPdf = file?.type === "application/pdf" || file?.name?.toLowerCase().endsWith(".pdf");
+  if (!isPdf) return file.text();
+
+  const pdfjsLib = await import("pdfjs-dist/build/pdf");
+  const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker?url");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  let fullText = "";
+  for (let i = 1; i <= pdf.numPages; i += 1) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += `${content.items.map((item) => item.str).join(" ")} `;
+  }
+
+  return fullText;
 }
 
 function safeTags(text) {
@@ -104,6 +142,11 @@ export default function Flashcards({ user }) {
   const userId = user?.id;
 
   const [level, setLevel] = useState("courses");
+  const [tree, setTree] = useState(EMPTY_TREE);
+  const [form, setForm] = useState(INITIAL_CREATE);
+  const [aiForm, setAiForm] = useState(INITIAL_AI);
+  const [aiInputMode, setAiInputMode] = useState("text");
+  const [aiFile, setAiFile] = useState(null);
 
   const [courseId, setCourseId] = useState("");
   const [disciplineId, setDisciplineId] = useState("");
@@ -160,6 +203,10 @@ export default function Flashcards({ user }) {
   async function callWrite(action, payload) {
     const token = await getTokenOrThrow();
 
+
+  async function callWrite(action, payload) {
+    const token = await getTokenOrThrow();
+
     const { data, error } = await supabase.functions.invoke("flashcards-write", {
       body: { action, ...payload },
       headers: { Authorization: `Bearer ${token}` },
@@ -173,6 +220,7 @@ export default function Flashcards({ user }) {
       } catch {
         // noop
       }
+      const msg = error?.message || "Falha na Edge Function";
       throw new Error(msg);
     }
 
@@ -181,6 +229,21 @@ export default function Flashcards({ user }) {
     }
 
     return data?.data?.id;
+  }
+
+  async function selectList({ table, selectModern, selectLegacy, filter = {} }) {
+    let q1 = supabase.from(table).select(selectModern).eq("user_id", userId);
+    Object.entries(filter).forEach(([k, v]) => (q1 = q1.eq(k, v)));
+    const modern = await q1.order("created_at", { ascending: false });
+    if (!modern.error) return (modern.data || []).map(normalizeNameRow);
+
+    let q2 = supabase.from(table).select(selectLegacy).eq("user_id", userId);
+    Object.entries(filter).forEach(([k, v]) => (q2 = q2.eq(k, v)));
+    const legacy = await q2.order("created_at", { ascending: false });
+    if (legacy.error) throw modern.error;
+    return (legacy.data || []).map(normalizeNameRow);
+  }
+
   }
 
   async function selectList({ table, selectModern, selectLegacy, filter = {} }) {
@@ -321,6 +384,10 @@ export default function Flashcards({ user }) {
     },
     [userId]
   );
+    if (!rows.error) {
+      setTree((prev) => ({ ...prev, subjects: rows.data || [] }));
+      return;
+    }
 
   const loadCards = useCallback(
     async (deck_id) => {
@@ -509,6 +576,164 @@ export default function Flashcards({ user }) {
 
     if (level === "disciplines") {
       setCourseId("");
+
+    if (nextLevel === "subjects") {
+      setDisciplineId(id);
+      clearBelow("subjects");
+      setLevel("subjects");
+      await loadSubjects(id);
+      return;
+    }
+
+    if (nextLevel === "topics") {
+      setSubjectId(id);
+      clearBelow("topics");
+      setLevel("topics");
+      await loadTopics(id);
+      return;
+    }
+
+    if (nextLevel === "decks") {
+      if (isLegacySubjects) {
+        setSubjectId(id);
+      } else {
+        setTopicId(id);
+      }
+      clearBelow("decks");
+      setLevel("decks");
+      await loadDecks(id);
+      return;
+    }
+
+    if (nextLevel === "cards") {
+      setDeckId(id);
+      clearBelow("cards");
+      setLevel("cards");
+      await loadCards(id);
+    }
+  }
+
+  function goBack() {
+    setNewName("");
+    setCreateCardsOpen(false);
+    setCreateMode("");
+    setErrorsPaste("");
+    setPdfInfo("");
+
+    if (level === "cards") {
+      setDeckId("");
+      setTree((p) => ({ ...p, cards: [] }));
+      setLevel("decks");
+      return;
+    }
+
+    if (level === "decks") {
+      if (isLegacySubjects) {
+        setLevel("subjects");
+      } else {
+        setTopicId("");
+        setTree((p) => ({ ...p, decks: [], cards: [] }));
+        setLevel("topics");
+      }
+      setDeckId("");
+      setTree((p) => ({ ...p, cards: [] }));
+      return;
+    }
+
+    if (level === "topics") {
+      setSubjectId("");
+      setTopicId("");
+      setTree((p) => ({ ...p, topics: [], decks: [], cards: [] }));
+      setLevel("subjects");
+      return;
+    }
+
+    if (level === "subjects") {
+      setDisciplineId("");
+      setSubjectId("");
+      setTopicId("");
+      setDeckId("");
+      setIsLegacySubjects(false);
+      setTree((p) => ({ ...p, subjects: [], topics: [], decks: [], cards: [] }));
+      setLevel("disciplines");
+      return;
+    }
+
+    if (level === "disciplines") {
+      setCourseId("");
+
+    if (level === "decks") {
+      if (isLegacySubjects) {
+        setLevel("subjects");
+      } else {
+        setTopicId("");
+        setTree((p) => ({ ...p, decks: [], cards: [] }));
+        setLevel("topics");
+      }
+      setDeckId("");
+      setTree((p) => ({ ...p, cards: [] }));
+      return;
+    }
+
+    if (level === "topics") {
+      setSubjectId("");
+      setTopicId("");
+      setTree((p) => ({ ...p, topics: [], decks: [], cards: [] }));
+      setLevel("subjects");
+      return;
+    }
+
+    if (level === "subjects") {
+      setDisciplineId("");
+      setSubjectId("");
+      setTopicId("");
+      setDeckId("");
+      setIsLegacySubjects(false);
+      setTree((p) => ({ ...p, disciplines: [], subjects: [], topics: [], decks: [], cards: [] }));
+      setLevel("courses");
+      setTree((p) => ({ ...p, subjects: [], topics: [], decks: [], cards: [] }));
+      setLevel("disciplines");
+      return;
+    }
+
+  const currentList = useMemo(() => {
+    if (level === "courses") return tree.courses;
+    if (level === "disciplines") return tree.disciplines;
+    if (level === "subjects") return tree.subjects;
+    if (level === "topics") return tree.topics;
+    if (level === "decks") return tree.decks;
+    return [];
+  }, [level, tree]);
+
+  function nextLevelForCurrent() {
+    if (level === "courses") return "disciplines";
+    if (level === "disciplines") return "subjects";
+    if (level === "subjects") return isLegacySubjects ? "decks" : "topics";
+    if (level === "topics") return "decks";
+    if (level === "decks") return "cards";
+    return null;
+  }
+
+  const currentList = useMemo(() => {
+    if (level === "courses") return tree.courses;
+    if (level === "disciplines") return tree.disciplines;
+    if (level === "subjects") return tree.subjects;
+    if (level === "topics") return tree.topics;
+    if (level === "decks") return tree.decks;
+    return [];
+  }, [level, tree]);
+
+  function nextLevelForCurrent() {
+    if (level === "courses") return "disciplines";
+    if (level === "disciplines") return "subjects";
+    if (level === "subjects") return isLegacySubjects ? "decks" : "topics";
+    if (level === "topics") return "decks";
+    if (level === "decks") return "cards";
+    return null;
+  }
+
+    if (level === "disciplines") {
+      setCourseId("");
       setDisciplineId("");
       setSubjectId("");
       setTopicId("");
@@ -669,6 +894,42 @@ export default function Flashcards({ user }) {
           deck_id: deckId,
           text: aiForm.text,
           qtd: Number(aiForm.qtd || 12),
+
+    setAiLoading(true);
+    try {
+      const token = await getTokenOrThrow();
+      const { data, error } = await supabase.functions.invoke("generate-flashcards", {
+        body: {
+          deck_id: deckId,
+          text: aiForm.text,
+          qtd: Number(aiForm.qtd || 12),
+
+    setAiLoading(true);
+    try {
+      const token = await getTokenOrThrow();
+      const { data, error } = await supabase.functions.invoke("generate-flashcards", {
+        body: {
+          deck_id: deckId,
+          text: aiForm.text,
+          qtd: Number(aiForm.qtd || 12),
+    if (!deckId) return alert("Selecione um deck antes de gerar por IA.");
+    if (aiInputMode === "text" && !aiForm.text.trim()) return alert("Cole um texto base para gerar.");
+    if (aiInputMode === "file" && !aiFile) return alert("Envie um arquivo PDF ou TXT para gerar.");
+
+    setAiLoading(true);
+    try {
+      let aiText = aiForm.text;
+      if (aiInputMode === "file") {
+        aiText = await extractTextFromFile(aiFile);
+      }
+
+      const { data: auth } = await supabase.auth.getSession();
+      const token = auth?.session?.access_token;
+
+      const { data, error } = await supabase.functions.invoke("generate-flashcards", {
+        body: {
+          text: aiText,
+          qtd: Number(aiForm.qtd),
           aggressiveness: aiForm.aggressiveness,
           save: true,
         },
@@ -704,6 +965,41 @@ export default function Flashcards({ user }) {
       setAiLoading(false);
     }
   }
+
+        const msg = error?.message || data?.error || "Erro ao gerar cards.";
+        throw new Error(msg);
+      }
+
+      const saved = Number(data?.saved || 0);
+      const generated = Array.isArray(data?.cards) ? data.cards.length : 0;
+      await loadCards(deckId);
+
+      if (!saved) {
+        alert(`A IA não gerou cards válidos (retorno: ${generated} cards). Tente aumentar o texto base.`);
+      await loadCards(deckId);
+
+      if (!saved) {
+        alert("A IA não gerou cards válidos com esse texto.");
+        return 0;
+      }
+
+      alert(`✅ ${saved} cards salvos!`);
+      return saved;
+    } catch (e) {
+      alert(e.message);
+      return 0;
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  async function createCardsFromErrorsPaste() {
+    if (!deckId) return alert("Entre em um deck.");
+    const pairs = parsePairs(errorsPaste);
+    if (!pairs.length) {
+      return alert('Cole no formato "Pergunta | Resposta" (um por linha).');
+    }
+
 
   async function createCardsFromErrorsPaste() {
     if (!deckId) return alert("Entre em um deck.");
@@ -757,6 +1053,14 @@ export default function Flashcards({ user }) {
         const strings = content.items.map((it) => it.str || "");
         text += `${strings.join(" ")}\n`;
       }
+
+      const cleaned = text.replace(/\s+/g, " ").trim();
+      const clipped = cleaned.slice(0, 15000);
+
+
+      const cleaned = text.replace(/\s+/g, " ").trim();
+      const clipped = cleaned.slice(0, 15000);
+
 
       const cleaned = text.replace(/\s+/g, " ").trim();
       const clipped = cleaned.slice(0, 15000);
@@ -829,6 +1133,72 @@ export default function Flashcards({ user }) {
 
             <button onClick={createHere} disabled={!canCreate} className={ui.btnGhost} title="Adicionar">
               <Plus size={16} />
+          <div className="rounded-xl border bg-cyan-50/60 dark:bg-cyan-950/20 p-4 space-y-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Wand2 size={16} /> Gerar cards com IA
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAiInputMode("text")}
+                className={`px-3 py-1.5 rounded-lg border text-sm ${aiInputMode === "text" ? "bg-cyan-600 text-white" : ""}`}
+              >
+                Texto
+              </button>
+              <button
+                onClick={() => setAiInputMode("file")}
+                className={`px-3 py-1.5 rounded-lg border text-sm ${aiInputMode === "file" ? "bg-cyan-600 text-white" : ""}`}
+              >
+                Arquivo
+              </button>
+            </div>
+
+            {aiInputMode === "text" ? (
+              <textarea
+                value={aiForm.text}
+                onChange={(e) => setAiForm((prev) => ({ ...prev, text: e.target.value }))}
+                className="w-full min-h-[120px] px-3 py-2 rounded-lg border"
+                placeholder="Cole o conteúdo base para a IA"
+              />
+            ) : (
+              <label className="w-full rounded-lg border border-dashed px-4 py-6 flex flex-col items-center gap-2 cursor-pointer bg-white/60 dark:bg-slate-900/40">
+                <input
+                  type="file"
+                  accept=".pdf,.txt"
+                  className="hidden"
+                  onChange={(e) => setAiFile(e.target.files?.[0] || null)}
+                />
+                <UploadCloud size={20} />
+                <span className="text-sm font-medium">{aiFile ? aiFile.name : "Clique para enviar PDF ou TXT"}</span>
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <FileText size={14} /> PDF é lido no navegador antes de enviar para a IA.
+                </span>
+              </label>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                min="3"
+                max="30"
+                value={aiForm.qtd}
+                onChange={(e) => setAiForm((prev) => ({ ...prev, qtd: e.target.value }))}
+                className="px-3 py-2 rounded-lg border"
+              />
+              <select
+                value={aiForm.aggressiveness}
+                onChange={(e) => setAiForm((prev) => ({ ...prev, aggressiveness: e.target.value }))}
+                className="px-3 py-2 rounded-lg border"
+              >
+                <option value="prova">Prova</option>
+                <option value="medio">Médio</option>
+                <option value="longo">Longo prazo</option>
+              </select>
+            </div>
+            <button
+              disabled={aiLoading}
+              onClick={generateWithAI}
+              className="px-4 py-2 rounded-lg bg-cyan-600 text-white flex items-center gap-2 disabled:opacity-60"
+            >
+              <Sparkles size={14} /> {aiLoading ? "Gerando..." : "Gerar com IA"}
             </button>
           </div>
         </div>
