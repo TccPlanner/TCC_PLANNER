@@ -30,6 +30,26 @@ function safeJsonExtract(raw: string) {
   }
 }
 
+function extractCards(rawParsed: any) {
+  if (Array.isArray(rawParsed)) return rawParsed;
+  if (!rawParsed || typeof rawParsed !== "object") return [];
+
+  const candidateKeys = ["cards", "flashcards", "items", "data", "result"];
+  for (const key of candidateKeys) {
+    if (Array.isArray(rawParsed[key])) return rawParsed[key];
+  }
+
+  for (const value of Object.values(rawParsed)) {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object") {
+      const nested = extractCards(value);
+      if (nested.length) return nested;
+    }
+  }
+
+  return [];
+}
+
 async function readTextFromBytes(filename: string, bytes: Uint8Array) {
   const lower = filename.toLowerCase();
 
@@ -313,39 +333,84 @@ Regras:
 - Curto, objetivo e útil para revisão
 - Pode usar Markdown e LaTeX quando necessário
 
-Formato:
-[
-  {
-    "tipo": "normal",
-    "pergunta": "...",
-    "resposta": "...",
-    "tags": ["tag1","tag2"]
-  }
-]
+Formato obrigatório:
+{
+  "cards": [
+    {
+      "tipo": "normal",
+      "pergunta": "...",
+      "resposta": "...",
+      "tags": ["tag1","tag2"]
+    }
+  ]
+}
 
 Conteúdo:
 ${baseText}
 `.trim();
 
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "Responda apenas JSON válido em array, sem markdown." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        max_tokens: 1600
-      }),
+    const buildOpenAiBody = (responseFormat: "json_schema" | "json_object") => ({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Responda apenas JSON válido no formato {\"cards\":[...]}, sem markdown." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.2,
+      response_format:
+        responseFormat === "json_schema"
+          ? {
+              type: "json_schema",
+              json_schema: {
+                name: "flashcards_response",
+                strict: true,
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    cards: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        additionalProperties: true,
+                        properties: {
+                          tipo: { type: "string" },
+                          pergunta: { type: "string" },
+                          resposta: { type: "string" },
+                          tags: {
+                            type: "array",
+                            items: { type: "string" },
+                          },
+                        },
+                        required: ["pergunta", "resposta"],
+                      },
+                    },
+                  },
+                  required: ["cards"],
+                },
+              },
+            }
+          : { type: "json_object" },
+      max_tokens: 1600,
     });
 
-    const result = await resp.json();
+    const callOpenAi = async (responseFormat: "json_schema" | "json_object") =>
+      fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildOpenAiBody(responseFormat)),
+      });
+
+    let resp = await callOpenAi("json_schema");
+    let result = await resp.json();
+
+    if (!resp.ok) {
+      // fallback para projetos/modelos que não aceitam json_schema
+      resp = await callOpenAi("json_object");
+      result = await resp.json();
+    }
 
     if (!resp.ok) {
       throw new Error(result?.error?.message || "Erro OpenAI");
@@ -359,10 +424,11 @@ ${baseText}
       parsed = { cards: safeJsonExtract(raw) };
     }
 
-    const cardsRaw = Array.isArray(parsed) ? parsed : parsed?.cards;
+    const cardsRaw = extractCards(parsed);
 
-    // ✅ normalizar cards pra um formato consistente
-    const deck_id = crypto.randomUUID();
+    // ✅ usa deck selecionado quando informado; fallback para UUID
+    const requestedDeckId = String(body?.deck_id || "").trim();
+    const deck_id = requestedDeckId || crypto.randomUUID();
 
     const normalized = (Array.isArray(cardsRaw) ? cardsRaw : []).map((c: any) => ({
       tipo: "normal",
@@ -373,13 +439,25 @@ ${baseText}
       tags: Array.isArray(c?.tags) ? c.tags.map((t: any) => String(t)) : [],
     }));
 
-    const validCards = normalized.filter((c) => c.pergunta.length >= 3 && c.resposta.length >= 2);
+    const validCards = normalized.filter((c) => c.pergunta.length >= 2 && c.resposta.length >= 2);
 
     // ✅ 3) Salvar no banco (RLS) como o usuário autenticado
     let saved = 0;
 
     if (save && validCards.length) {
       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      if (requestedDeckId) {
+        const { data: deck, error: deckErr } = await supabaseAdmin
+          .from("flash_decks")
+          .select("id")
+          .eq("id", requestedDeckId)
+          .eq("user_id", user_id)
+          .maybeSingle();
+
+        if (deckErr) throw new Error(deckErr.message);
+        if (!deck) throw new Error("deck_id inválido para este usuário.");
+      }
 
       const rows = validCards.map((c) => ({
         user_id,
