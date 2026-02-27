@@ -12,6 +12,7 @@ import {
     Repeat,
     Layers,
     ListTree,
+    BarChart3,
 } from "lucide-react";
 
 import EstudarAgora from "./EstudarAgora";
@@ -22,6 +23,7 @@ import AgendaRevisoes from "./AgendaRevisoes";
 import Materias from "./Materias"; // ✅ IMPORTA A TELA DE MATÉRIAS
 import CicloEstudos from "./CicloEstudos";
 import Flashcards from "./Flashcards";
+import DashboardGeral from "./DashboardGeral";
 
 
 function Dashboard({ user }) {
@@ -46,6 +48,7 @@ function Dashboard({ user }) {
 
     const titulo = (() => {
         if (abaAtiva === "inicio") return "Workspace";
+        if (abaAtiva === "dashboard-geral") return "Dashboard Geral";
         if (abaAtiva === "cronometro") return "Estudar Agora";
         if (abaAtiva === "materias") return "Matérias"; // ✅
         if (abaAtiva === "ciclo") return "Ciclo de Estudos";
@@ -86,6 +89,7 @@ function Dashboard({ user }) {
 
                 <nav className="flex-1 flex flex-col gap-2">
                     <MenuLink id="inicio" icon={LayoutDashboard} label="Workspace" />
+                    <MenuLink id="dashboard-geral" icon={BarChart3} label="Dashboard Geral" />
                     <MenuLink id="cronometro" icon={Timer} label="Estudar Agora" />
 
                     {/* ✅ NOVO ITEM NO MENU */}
@@ -119,6 +123,7 @@ function Dashboard({ user }) {
 
                 <section className="rounded-2xl p-6 min-h-[500px] shadow-xl border bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800">
                     {abaAtiva === "inicio" && <Workspace user={user} />}
+                    {abaAtiva === "dashboard-geral" && <DashboardGeral user={user} />}
                     {abaAtiva === "cronometro" && <EstudarAgora user={user} />}
 
                     {/* ✅ Matérias aqui */}
