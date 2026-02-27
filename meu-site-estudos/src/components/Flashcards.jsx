@@ -68,8 +68,8 @@ async function extractTextFromFile(file) {
   return fullText;
 }
 
-const toTags = (value) =>
-  String(value || "")
+function safeTags(text) {
+  return String(text || "")
     .split(",")
     .map((t) => t.trim().toLowerCase())
     .filter(Boolean)
@@ -203,12 +203,23 @@ export default function Flashcards({ user }) {
   async function callWrite(action, payload) {
     const token = await getTokenOrThrow();
 
+
+  async function callWrite(action, payload) {
+    const token = await getTokenOrThrow();
+
     const { data, error } = await supabase.functions.invoke("flashcards-write", {
       body: { action, ...payload },
       headers: { Authorization: `Bearer ${token}` },
     });
 
     if (error) {
+      let msg = error?.message || "Falha na Edge Function";
+      try {
+        const details = await error?.context?.json?.();
+        msg = details?.error || details?.message || msg;
+      } catch {
+        // noop
+      }
       const msg = error?.message || "Falha na Edge Function";
       throw new Error(msg);
     }
@@ -550,6 +561,61 @@ export default function Flashcards({ user }) {
 
     if (level === "disciplines") {
       setCourseId("");
+
+    if (level === "decks") {
+      if (isLegacySubjects) {
+        setLevel("subjects");
+      } else {
+        setTopicId("");
+        setTree((p) => ({ ...p, decks: [], cards: [] }));
+        setLevel("topics");
+      }
+      setDeckId("");
+      setTree((p) => ({ ...p, cards: [] }));
+      return;
+    }
+
+    if (level === "topics") {
+      setSubjectId("");
+      setTopicId("");
+      setTree((p) => ({ ...p, topics: [], decks: [], cards: [] }));
+      setLevel("subjects");
+      return;
+    }
+
+    if (level === "subjects") {
+      setDisciplineId("");
+      setSubjectId("");
+      setTopicId("");
+      setDeckId("");
+      setIsLegacySubjects(false);
+      setTree((p) => ({ ...p, disciplines: [], subjects: [], topics: [], decks: [], cards: [] }));
+      setLevel("courses");
+      setTree((p) => ({ ...p, subjects: [], topics: [], decks: [], cards: [] }));
+      setLevel("disciplines");
+      return;
+    }
+
+  const currentList = useMemo(() => {
+    if (level === "courses") return tree.courses;
+    if (level === "disciplines") return tree.disciplines;
+    if (level === "subjects") return tree.subjects;
+    if (level === "topics") return tree.topics;
+    if (level === "decks") return tree.decks;
+    return [];
+  }, [level, tree]);
+
+  function nextLevelForCurrent() {
+    if (level === "courses") return "disciplines";
+    if (level === "disciplines") return "subjects";
+    if (level === "subjects") return isLegacySubjects ? "decks" : "topics";
+    if (level === "topics") return "decks";
+    if (level === "decks") return "cards";
+    return null;
+  }
+
+    if (level === "disciplines") {
+      setCourseId("");
       setDisciplineId("");
       setSubjectId("");
       setTopicId("");
@@ -710,6 +776,15 @@ export default function Flashcards({ user }) {
           deck_id: deckId,
           text: aiForm.text,
           qtd: Number(aiForm.qtd || 12),
+
+    setAiLoading(true);
+    try {
+      const token = await getTokenOrThrow();
+      const { data, error } = await supabase.functions.invoke("generate-flashcards", {
+        body: {
+          deck_id: deckId,
+          text: aiForm.text,
+          qtd: Number(aiForm.qtd || 12),
     if (!deckId) return alert("Selecione um deck antes de gerar por IA.");
     if (aiInputMode === "text" && !aiForm.text.trim()) return alert("Cole um texto base para gerar.");
     if (aiInputMode === "file" && !aiFile) return alert("Envie um arquivo PDF ou TXT para gerar.");
@@ -740,6 +815,11 @@ export default function Flashcards({ user }) {
       }
 
       const saved = Number(data?.saved || 0);
+      const generated = Array.isArray(data?.cards) ? data.cards.length : 0;
+      await loadCards(deckId);
+
+      if (!saved) {
+        alert(`A IA não gerou cards válidos (retorno: ${generated} cards). Tente aumentar o texto base.`);
       await loadCards(deckId);
 
       if (!saved) {
@@ -756,6 +836,14 @@ export default function Flashcards({ user }) {
       setAiLoading(false);
     }
   }
+
+  async function createCardsFromErrorsPaste() {
+    if (!deckId) return alert("Entre em um deck.");
+    const pairs = parsePairs(errorsPaste);
+    if (!pairs.length) {
+      return alert('Cole no formato "Pergunta | Resposta" (um por linha).');
+    }
+
 
   async function createCardsFromErrorsPaste() {
     if (!deckId) return alert("Entre em um deck.");
@@ -809,6 +897,10 @@ export default function Flashcards({ user }) {
         const strings = content.items.map((it) => it.str || "");
         text += `${strings.join(" ")}\n`;
       }
+
+      const cleaned = text.replace(/\s+/g, " ").trim();
+      const clipped = cleaned.slice(0, 15000);
+
 
       const cleaned = text.replace(/\s+/g, " ").trim();
       const clipped = cleaned.slice(0, 15000);
