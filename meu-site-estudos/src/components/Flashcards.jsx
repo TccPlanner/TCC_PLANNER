@@ -517,6 +517,78 @@ export default function Flashcards({ user }) {
       setTree((p) => ({ ...p, disciplines: [], subjects: [], topics: [], decks: [], cards: [] }));
       setLevel("courses");
     }
+
+    if (level === "disciplines") {
+      setCourseId("");
+
+    if (level === "decks") {
+      if (isLegacySubjects) {
+        setLevel("subjects");
+      } else {
+        setTopicId("");
+        setTree((p) => ({ ...p, decks: [], cards: [] }));
+        setLevel("topics");
+      }
+      setDeckId("");
+      setTree((p) => ({ ...p, cards: [] }));
+      return;
+    }
+
+    if (level === "topics") {
+      setSubjectId("");
+      setTopicId("");
+      setTree((p) => ({ ...p, topics: [], decks: [], cards: [] }));
+      setLevel("subjects");
+      return;
+    }
+
+    if (level === "subjects") {
+      setDisciplineId("");
+      setSubjectId("");
+      setTopicId("");
+      setDeckId("");
+      setIsLegacySubjects(false);
+      setTree((p) => ({ ...p, disciplines: [], subjects: [], topics: [], decks: [], cards: [] }));
+      setLevel("courses");
+      setTree((p) => ({ ...p, subjects: [], topics: [], decks: [], cards: [] }));
+      setLevel("disciplines");
+      return;
+    }
+
+  const currentList = useMemo(() => {
+    if (level === "courses") return tree.courses;
+    if (level === "disciplines") return tree.disciplines;
+    if (level === "subjects") return tree.subjects;
+    if (level === "topics") return tree.topics;
+    if (level === "decks") return tree.decks;
+    return [];
+  }, [level, tree]);
+
+  function nextLevelForCurrent() {
+    if (level === "courses") return "disciplines";
+    if (level === "disciplines") return "subjects";
+    if (level === "subjects") return isLegacySubjects ? "decks" : "topics";
+    if (level === "topics") return "decks";
+    if (level === "decks") return "cards";
+    return null;
+  }
+
+  const currentList = useMemo(() => {
+    if (level === "courses") return tree.courses;
+    if (level === "disciplines") return tree.disciplines;
+    if (level === "subjects") return tree.subjects;
+    if (level === "topics") return tree.topics;
+    if (level === "decks") return tree.decks;
+    return [];
+  }, [level, tree]);
+
+  function nextLevelForCurrent() {
+    if (level === "courses") return "disciplines";
+    if (level === "disciplines") return "subjects";
+    if (level === "subjects") return isLegacySubjects ? "decks" : "topics";
+    if (level === "topics") return "decks";
+    if (level === "decks") return "cards";
+    return null;
   }
 
   const currentList = useMemo(() => {
@@ -726,6 +798,22 @@ export default function Flashcards({ user }) {
         saved += 1;
       }
 
+      alert(`✅ ${saved} cards salvos!`);
+      return saved;
+    } catch (e) {
+      alert(e.message);
+      return 0;
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+        const msg = error?.message || data?.error || "Erro ao gerar cards.";
+        throw new Error(msg);
+      }
+
+      const saved = Number(data?.saved || 0);
+      const generated = Array.isArray(data?.cards) ? data.cards.length : 0;
       await loadCards(deckId);
 
       setErrorsPaste("");
