@@ -40,6 +40,49 @@ async function getUserFromAuthHeader(
   return { user, error: null };
 }
 
+async function insertWithFallback(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  table: string,
+  primaryPayload: Record<string, unknown>,
+  legacyPayload: Record<string, unknown>
+) {
+  const { data, error } = await supabaseAdmin
+    .from(table)
+    .insert(primaryPayload)
+    .select("id")
+    .single();
+
+  if (!error) return { data, usedLegacy: false };
+
+  const { data: legacyData, error: legacyError } = await supabaseAdmin
+    .from(table)
+    .insert(legacyPayload)
+    .select("id")
+    .single();
+
+  if (legacyError) throw error;
+
+  return { data: legacyData, usedLegacy: true };
+}
+
+async function existsWithFallback(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  table: string,
+  id: string,
+  userId: string
+) {
+  const { data, error } = await supabaseAdmin
+    .from(table)
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!error) return data;
+  return null;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
@@ -89,13 +132,12 @@ Deno.serve(async (req) => {
       if (!nome)
         return json(400, { ok: false, error: "Nome é obrigatório." });
 
-      const { data, error } = await supabaseAdmin
-        .from("flash_courses")
-        .insert({ user_id: user.id, nome })
-        .select("id")
-        .single();
-
-      if (error) throw error;
+      const { data } = await insertWithFallback(
+        supabaseAdmin,
+        "flash_courses",
+        { user_id: user.id, nome },
+        { user_id: user.id, name: nome }
+      );
 
       return json(200, { ok: true, data });
     }
@@ -121,13 +163,12 @@ Deno.serve(async (req) => {
           error: "Curso inválido para este usuário.",
         });
 
-      const { data, error } = await supabaseAdmin
-        .from("flash_disciplines")
-        .insert({ user_id: user.id, course_id, nome })
-        .select("id")
-        .single();
-
-      if (error) throw error;
+      const { data } = await insertWithFallback(
+        supabaseAdmin,
+        "flash_disciplines",
+        { user_id: user.id, course_id, nome },
+        { user_id: user.id, course_id, name: nome }
+      );
 
       return json(200, { ok: true, data });
     }
@@ -140,12 +181,12 @@ Deno.serve(async (req) => {
       if (!discipline_id)
         return json(400, { ok: false, error: "discipline_id é obrigatório." });
 
-      const { data: discipline } = await supabaseAdmin
-        .from("flash_disciplines")
-        .select("id")
-        .eq("id", discipline_id)
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const discipline = await existsWithFallback(
+        supabaseAdmin,
+        "flash_disciplines",
+        discipline_id,
+        user.id
+      );
 
       if (!discipline)
         return json(403, {
@@ -153,15 +194,25 @@ Deno.serve(async (req) => {
           error: "Disciplina inválida para este usuário.",
         });
 
-      const { data, error } = await supabaseAdmin
-        .from("flash_subjects")
-        .insert({ user_id: user.id, discipline_id, nome })
-        .select("id")
-        .single();
+      try {
+        const { data } = await insertWithFallback(
+          supabaseAdmin,
+          "flash_subjects",
+          { user_id: user.id, discipline_id, nome },
+          { user_id: user.id, discipline_id, name: nome }
+        );
 
-      if (error) throw error;
+        return json(200, { ok: true, data });
+      } catch {
+        const { data } = await insertWithFallback(
+          supabaseAdmin,
+          "flash_topics",
+          { user_id: user.id, discipline_id, nome },
+          { user_id: user.id, discipline_id, name: nome }
+        );
 
-      return json(200, { ok: true, data });
+        return json(200, { ok: true, data, meta: { table: "flash_topics" } });
+      }
     }
 
     // =========================
@@ -172,26 +223,33 @@ Deno.serve(async (req) => {
       if (!subject_id)
         return json(400, { ok: false, error: "subject_id é obrigatório." });
 
-      const { data: topic } = await supabaseAdmin
-        .from("flash_subjects")
-        .select("id")
-        .eq("id", subject_id)
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const topic = await existsWithFallback(
+        supabaseAdmin,
+        "flash_subjects",
+        subject_id,
+        user.id
+      );
+      const legacyTopic = topic
+        ? topic
+        : await existsWithFallback(
+            supabaseAdmin,
+            "flash_topics",
+            subject_id,
+            user.id
+          );
 
-      if (!topic)
+      if (!legacyTopic)
         return json(403, {
           ok: false,
           error: "Assunto inválido para este usuário.",
         });
 
-      const { data, error } = await supabaseAdmin
-        .from("flash_decks")
-        .insert({ user_id: user.id, subject_id, nome })
-        .select("id")
-        .single();
-
-      if (error) throw error;
+      const { data } = await insertWithFallback(
+        supabaseAdmin,
+        "flash_decks",
+        { user_id: user.id, subject_id, nome },
+        { user_id: user.id, topic_id: subject_id, name: nome }
+      );
 
       return json(200, { ok: true, data });
     }

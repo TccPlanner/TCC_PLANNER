@@ -244,8 +244,10 @@ export default function Flashcards({ user }) {
                 return;
             }
 
-            const { data: legacyData, error: legacyError } = await query
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_courses")
                 .select("id, name")
+                .eq("user_id", user.id)
                 .order("name", { ascending: true });
 
             if (legacyError) throw error;
@@ -275,8 +277,11 @@ export default function Flashcards({ user }) {
                 return;
             }
 
-            const { data: legacyData, error: legacyError } = await query
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_disciplines")
                 .select("id, name, course_id")
+                .eq("user_id", user.id)
+                .eq("course_id", course_id)
                 .order("name", { ascending: true });
 
             if (legacyError) throw error;
@@ -532,6 +537,8 @@ export default function Flashcards({ user }) {
             if (!nome) return alert("Digite o nome do curso.");
 
             const data = await invokeFlashcardsWrite({ action: "create_course", nome });
+            const createdId = data?.data?.id;
+            if (!createdId) throw new Error("Curso criado sem id.");
 
             const createdId = data?.data?.id;
 
@@ -565,6 +572,7 @@ export default function Flashcards({ user }) {
             });
 
             const createdId = data?.data?.id;
+            if (!createdId) throw new Error("Disciplina criada sem id.");
 
             setOpenDisciplineModal(false);
             setNewDisciplineName("");
@@ -596,6 +604,7 @@ export default function Flashcards({ user }) {
             });
 
             const createdId = data?.data?.id;
+            if (!createdId) throw new Error("Assunto criado sem id.");
 
             setOpenSubjectModal(false);
             setNewSubjectName("");
@@ -631,6 +640,7 @@ export default function Flashcards({ user }) {
             });
 
             const createdId = data?.data?.id;
+            if (!createdId) throw new Error("Deck criado sem id.");
 
             setOpenDeckModal(false);
             setNewDeckName("");
