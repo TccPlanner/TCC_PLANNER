@@ -171,6 +171,7 @@ export default function Flashcards({ user }) {
       setTree((prev) => ({ ...prev, subjects: rows.data || [] }));
       return;
     }
+  }
 
     const legacy = await supabase
       .from("flash_topics")
@@ -287,6 +288,15 @@ export default function Flashcards({ user }) {
     if (!form.pergunta.trim() || !form.resposta.trim()) {
       return alert("Preencha pergunta e resposta.");
     }
+  }
+
+  async function registerResult(cardId, resultado) {
+    const { error } = await supabase.from("flash_card_reviews").insert({
+      user_id: user.id,
+      deck_id: deckId,
+      card_id: cardId,
+      resultado,
+    });
 
     setSaving(true);
     try {
