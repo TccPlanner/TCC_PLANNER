@@ -10,6 +10,8 @@ import {
   Pencil,
   Wand2,
   FolderTree,
+  UploadCloud,
+  FileText,
 } from "lucide-react";
 
 const EMPTY_TREE = {
@@ -33,6 +35,27 @@ const INITIAL_CREATE = {
 };
 
 const INITIAL_AI = { text: "", qtd: 10, aggressiveness: "medio" };
+
+async function extractTextFromFile(file) {
+  const isPdf = file?.type === "application/pdf" || file?.name?.toLowerCase().endsWith(".pdf");
+  if (!isPdf) return file.text();
+
+  const pdfjsLib = await import("pdfjs-dist/build/pdf");
+  const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker?url");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  let fullText = "";
+  for (let i = 1; i <= pdf.numPages; i += 1) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += `${content.items.map((item) => item.str).join(" ")} `;
+  }
+
+  return fullText;
+}
 
 const toTags = (value) =>
   String(value || "")
@@ -64,6 +87,8 @@ export default function Flashcards({ user }) {
   const [tree, setTree] = useState(EMPTY_TREE);
   const [form, setForm] = useState(INITIAL_CREATE);
   const [aiForm, setAiForm] = useState(INITIAL_AI);
+  const [aiInputMode, setAiInputMode] = useState("text");
+  const [aiFile, setAiFile] = useState(null);
 
   const [courseId, setCourseId] = useState("");
   const [disciplineId, setDisciplineId] = useState("");
@@ -171,7 +196,6 @@ export default function Flashcards({ user }) {
       setTree((prev) => ({ ...prev, subjects: rows.data || [] }));
       return;
     }
-  }
 
     const legacy = await supabase
       .from("flash_topics")
@@ -288,15 +312,6 @@ export default function Flashcards({ user }) {
     if (!form.pergunta.trim() || !form.resposta.trim()) {
       return alert("Preencha pergunta e resposta.");
     }
-  }
-
-  async function registerResult(cardId, resultado) {
-    const { error } = await supabase.from("flash_card_reviews").insert({
-      user_id: user.id,
-      deck_id: deckId,
-      card_id: cardId,
-      resultado,
-    });
 
     setSaving(true);
     try {
@@ -382,16 +397,22 @@ export default function Flashcards({ user }) {
 
   async function generateWithAI() {
     if (!deckId) return alert("Selecione um deck antes de gerar por IA.");
-    if (!aiForm.text.trim()) return alert("Cole um texto base para gerar.");
+    if (aiInputMode === "text" && !aiForm.text.trim()) return alert("Cole um texto base para gerar.");
+    if (aiInputMode === "file" && !aiFile) return alert("Envie um arquivo PDF ou TXT para gerar.");
 
     setAiLoading(true);
     try {
+      let aiText = aiForm.text;
+      if (aiInputMode === "file") {
+        aiText = await extractTextFromFile(aiFile);
+      }
+
       const { data: auth } = await supabase.auth.getSession();
       const token = auth?.session?.access_token;
 
       const { data, error } = await supabase.functions.invoke("generate-flashcards", {
         body: {
-          text: aiForm.text,
+          text: aiText,
           qtd: Number(aiForm.qtd),
           aggressiveness: aiForm.aggressiveness,
         },
@@ -572,12 +593,43 @@ export default function Flashcards({ user }) {
             <h3 className="font-semibold flex items-center gap-2">
               <Wand2 size={16} /> Gerar cards com IA
             </h3>
-            <textarea
-              value={aiForm.text}
-              onChange={(e) => setAiForm((prev) => ({ ...prev, text: e.target.value }))}
-              className="w-full min-h-[120px] px-3 py-2 rounded-lg border"
-              placeholder="Cole o conteúdo base para a IA"
-            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAiInputMode("text")}
+                className={`px-3 py-1.5 rounded-lg border text-sm ${aiInputMode === "text" ? "bg-cyan-600 text-white" : ""}`}
+              >
+                Texto
+              </button>
+              <button
+                onClick={() => setAiInputMode("file")}
+                className={`px-3 py-1.5 rounded-lg border text-sm ${aiInputMode === "file" ? "bg-cyan-600 text-white" : ""}`}
+              >
+                Arquivo
+              </button>
+            </div>
+
+            {aiInputMode === "text" ? (
+              <textarea
+                value={aiForm.text}
+                onChange={(e) => setAiForm((prev) => ({ ...prev, text: e.target.value }))}
+                className="w-full min-h-[120px] px-3 py-2 rounded-lg border"
+                placeholder="Cole o conteúdo base para a IA"
+              />
+            ) : (
+              <label className="w-full rounded-lg border border-dashed px-4 py-6 flex flex-col items-center gap-2 cursor-pointer bg-white/60 dark:bg-slate-900/40">
+                <input
+                  type="file"
+                  accept=".pdf,.txt"
+                  className="hidden"
+                  onChange={(e) => setAiFile(e.target.files?.[0] || null)}
+                />
+                <UploadCloud size={20} />
+                <span className="text-sm font-medium">{aiFile ? aiFile.name : "Clique para enviar PDF ou TXT"}</span>
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <FileText size={14} /> PDF é lido no navegador antes de enviar para a IA.
+                </span>
+              </label>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
