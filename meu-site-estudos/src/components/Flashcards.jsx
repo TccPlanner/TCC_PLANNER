@@ -231,10 +231,12 @@ export default function Flashcards({ user }) {
     async function fetchCourses() {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const query = supabase
                 .from("flash_courses")
+                .eq("user_id", user.id);
+
+            const { data, error } = await query
                 .select("id, nome")
-                .eq("user_id", user.id)
                 .order("nome", { ascending: true });
 
             if (!error) {
@@ -261,11 +263,13 @@ export default function Flashcards({ user }) {
     async function fetchDisciplines(course_id) {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const query = supabase
                 .from("flash_disciplines")
-                .select("id, nome, course_id")
                 .eq("user_id", user.id)
-                .eq("course_id", course_id)
+                .eq("course_id", course_id);
+
+            const { data, error } = await query
+                .select("id, nome, course_id")
                 .order("nome", { ascending: true });
 
             if (!error) {
@@ -535,6 +539,8 @@ export default function Flashcards({ user }) {
             const data = await invokeFlashcardsWrite({ action: "create_course", nome });
             const createdId = data?.data?.id;
             if (!createdId) throw new Error("Curso criado sem id.");
+
+            const createdId = data?.data?.id;
 
             setOpenCourseModal(false);
             setNewCourseName("");
