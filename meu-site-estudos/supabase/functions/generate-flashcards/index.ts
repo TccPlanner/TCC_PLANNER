@@ -391,56 +391,10 @@ ${baseText}
             }
           : { type: "json_object" },
       max_tokens: 1600,
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "Responda apenas JSON válido no formato {\"cards\":[...]}, sem markdown." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.2,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "flashcards_response",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                cards: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    additionalProperties: true,
-                    properties: {
-                      tipo: { type: "string" },
-                      pergunta: { type: "string" },
-                      resposta: { type: "string" },
-                      tags: {
-                        type: "array",
-                        items: { type: "string" },
-                      },
-                    },
-                    required: ["pergunta", "resposta"],
-                  },
-                },
-              },
-              required: ["cards"],
-            },
-          },
-        },
-        max_tokens: 1600,
-      }),
     });
 
-    const callOpenAi = async (responseFormat: "json_schema" | "json_object") =>
-      fetch("https://api.openai.com/v1/chat/completions", {
+    const callOpenAi = async (responseFormat: "json_schema" | "json_object") => {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -449,17 +403,27 @@ ${baseText}
         body: JSON.stringify(buildOpenAiBody(responseFormat)),
       });
 
-    let resp = await callOpenAi("json_schema");
-    let result = await resp.json();
+      const rawText = await response.text();
+      let parsedBody: any = null;
+      try {
+        parsedBody = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        parsedBody = { raw: rawText };
+      }
+
+      return { response, parsedBody };
+    };
+
+    let { response: resp, parsedBody: result } = await callOpenAi("json_schema");
 
     if (!resp.ok) {
       // fallback para projetos/modelos que não aceitam json_schema
-      resp = await callOpenAi("json_object");
-      result = await resp.json();
+      ({ response: resp, parsedBody: result } = await callOpenAi("json_object"));
     }
 
     if (!resp.ok) {
-      throw new Error(result?.error?.message || "Erro OpenAI");
+      const details = typeof result === "string" ? result : JSON.stringify(result);
+      throw new Error(result?.error?.message || `Erro OpenAI (${resp.status}): ${details}`);
     }
 
     const raw = result?.choices?.[0]?.message?.content || "{}";
@@ -514,14 +478,7 @@ ${baseText}
         cloze_text: c.cloze_text,
         cloze_answer: c.cloze_answer,
         tags: c.tags,
-        status: "new",
-        repetitions: 0,
-        ease: 2.5,
-        interval_days: 0,
-        next_review_at: null,
-        last_review_at: null,
-        para_revisao: true,
-        due_date: null,
+        favoritos: false,
       }));
 
       const { error: insErr } = await supabaseAdmin.from("flash_cards").insert(rows);
@@ -540,6 +497,6 @@ ${baseText}
       schedule,
     });
   } catch (e: any) {
-    return json(400, { ok: false, error: String(e?.message || e) });
+    return json(200, { ok: false, error: String(e?.message || e) });
   }
 });
