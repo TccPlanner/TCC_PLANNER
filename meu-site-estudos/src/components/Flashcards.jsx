@@ -231,10 +231,12 @@ export default function Flashcards({ user }) {
     async function fetchCourses() {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const query = supabase
                 .from("flash_courses")
+                .eq("user_id", user.id);
+
+            const { data, error } = await query
                 .select("id, nome")
-                .eq("user_id", user.id)
                 .order("nome", { ascending: true });
 
             if (!error) {
@@ -243,6 +245,7 @@ export default function Flashcards({ user }) {
             }
 
             const { data: legacyCoursesData, error: legacyCoursesError } = await supabase
+            const { data: legacyData, error: legacyError } = await supabase
                 .from("flash_courses")
                 .select("id, name")
                 .eq("user_id", user.id)
@@ -251,6 +254,9 @@ export default function Flashcards({ user }) {
             if (legacyCoursesError) throw error;
 
             setCourses((legacyCoursesData || []).map((c) => ({ id: c.id, nome: c.name || "" })));
+            if (legacyError) throw error;
+
+            setCourses((legacyData || []).map((c) => ({ id: c.id, nome: c.name || "" })));
         } catch (e) {
             console.error(e);
         } finally {
@@ -262,11 +268,26 @@ export default function Flashcards({ user }) {
         setLoading(true);
         try {
             const primaryRes = await supabase
+            const query = supabase
                 .from("flash_disciplines")
+                .eq("user_id", user.id)
+                .eq("course_id", course_id);
+
+            const { data, error } = await query
                 .select("id, nome, course_id")
+                .order("nome", { ascending: true });
+
+            if (!error) {
+                setDisciplines(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_disciplines")
+                .select("id, name, course_id")
                 .eq("user_id", user.id)
                 .eq("course_id", course_id)
-                .order("nome", { ascending: true });
+                .order("name", { ascending: true });
 
             if (!primaryRes.error) {
                 setDisciplines(primaryRes.data || []);
@@ -274,6 +295,13 @@ export default function Flashcards({ user }) {
             }
 
             const legacyRes = await supabase
+            if (!error) {
+                setDisciplines(data || []);
+                return;
+            }
+
+            const { data: legacyDisciplinesData, error: legacyDisciplinesError } = await supabase
+            const { data: legacyData, error: legacyError } = await supabase
                 .from("flash_disciplines")
                 .select("id, name, course_id")
                 .eq("user_id", user.id)
@@ -283,6 +311,12 @@ export default function Flashcards({ user }) {
             if (legacyRes.error) throw primaryRes.error;
 
             setDisciplines((legacyRes.data || []).map((d) => ({
+            if (legacyDisciplinesError) throw error;
+
+            setDisciplines((legacyDisciplinesData || []).map((d) => ({
+            if (legacyError) throw error;
+
+            setDisciplines((legacyData || []).map((d) => ({
                 id: d.id,
                 nome: d.name || "",
                 course_id: d.course_id,
@@ -298,11 +332,27 @@ export default function Flashcards({ user }) {
         setLoading(true);
         try {
             const primaryRes = await supabase
+            const subjectQuery = supabase
                 .from("flash_subjects")
+                .eq("user_id", user.id)
+                .eq("discipline_id", discipline_id);
+
+            const { data, error } = await subjectQuery
                 .select("id, nome, discipline_id")
+                .order("nome", { ascending: true });
+
+            if (!error) {
+                setSubjects(data || []);
+                return;
+            }
+
+            const { data: legacySubjectsData, error: legacySubjectsError } = await supabase
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_topics")
+                .select("id, name, discipline_id")
                 .eq("user_id", user.id)
                 .eq("discipline_id", discipline_id)
-                .order("nome", { ascending: true });
+                .order("name", { ascending: true });
 
             if (!primaryRes.error) {
                 setSubjects(primaryRes.data || []);
@@ -319,6 +369,12 @@ export default function Flashcards({ user }) {
             if (legacyRes.error) throw primaryRes.error;
 
             setSubjects((legacyRes.data || []).map((s) => ({
+            if (legacySubjectsError) throw error;
+
+            setSubjects((legacySubjectsData || []).map((s) => ({
+            if (legacyError) throw error;
+
+            setSubjects((legacyData || []).map((s) => ({
                 id: s.id,
                 nome: s.name || "",
                 discipline_id: s.discipline_id,
@@ -346,6 +402,7 @@ export default function Flashcards({ user }) {
             }
 
             const { data: legacyDecksData, error: legacyDecksError } = await supabase
+            const { data: legacyData, error: legacyError } = await supabase
                 .from("flash_decks")
                 .select("id, name, topic_id, created_at")
                 .eq("user_id", user.id)
@@ -355,6 +412,9 @@ export default function Flashcards({ user }) {
             if (legacyDecksError) throw error;
 
             setDecks((legacyDecksData || []).map((d) => ({
+            if (legacyError) throw error;
+
+            setDecks((legacyData || []).map((d) => ({
                 id: d.id,
                 nome: d.name || "",
                 subject_id: d.topic_id,
@@ -403,6 +463,7 @@ export default function Flashcards({ user }) {
         if (!error) return data;
 
         const { data: legacyCreatedDeckData, error: legacyCreatedDeckError } = await supabase
+        const { data: legacyData, error: legacyError } = await supabase
             .from("flash_decks")
             .insert({
                 user_id: user.id,
@@ -414,6 +475,8 @@ export default function Flashcards({ user }) {
 
         if (legacyCreatedDeckError) throw error;
         return legacyCreatedDeckData;
+        if (legacyError) throw error;
+        return legacyData;
     }
 
     async function fetchCards(deck_id) {
@@ -436,6 +499,7 @@ export default function Flashcards({ user }) {
             }
 
             const { data: legacyCardsData, error: legacyCardsError } = await supabase
+            const { data: legacyData, error: legacyError } = await supabase
                 .from("flash_cards")
                 .select(
                     "id, deck_id, tipo, pergunta, resposta, cloze_text, cloze_answer, tags, is_favorite, created_at"
@@ -447,6 +511,9 @@ export default function Flashcards({ user }) {
             if (legacyCardsError) throw error;
 
             setCards((legacyCardsData || []).map(normalizeCardLegacy));
+            if (legacyError) throw error;
+
+            setCards((legacyData || []).map(normalizeCardLegacy));
             setStudyIndex(0);
             setShowAnswer(false);
         } catch (e) {
