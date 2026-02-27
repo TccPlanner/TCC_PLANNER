@@ -12,6 +12,7 @@ import {
     Sparkles,
     Flame,
     PartyPopper,
+    Check,
 } from "lucide-react";
 
 import {
@@ -36,10 +37,10 @@ const WIDGET_LIBRARY = [
     { type: "streak", title: "Ofensiva (sequência)", icon: Flame, description: "Gamificado: Eu me comprometo + animação." },
     { type: "ultimos_5_dias", title: "Últimos 5 dias", icon: BarChart3, description: "Horas líquidas reais (baseado no histórico)." },
     { type: "motivacional", title: "Frase motivacional", icon: Quote, description: "Uma frase curta para manter o foco." },
-    { type: "todo", title: "To-do list", icon: CheckSquare, description: "Lista rápida de tarefas do dia (placeholder)." },
-    { type: "calendario_mini", title: "Calendário mini", icon: CalendarDays, description: "Um mini calendário (placeholder)." },
-    { type: "cronometro_basico", title: "Cronômetro básico", icon: Timer, description: "Timer simples (placeholder)." },
-    { type: "revisoes_futuras", title: "Revisões futuras", icon: Sparkles, description: "Revisões agendadas (placeholder)." },
+    { type: "todo", title: "To-do real", icon: CheckSquare, description: "Crie e conclua tarefas com progresso real." },
+    { type: "calendario_mini", title: "Agenda dos próximos 7 dias", icon: CalendarDays, description: "Resumo real de tarefas e revisões por dia." },
+    { type: "cronometro_basico", title: "Progresso semanal", icon: Timer, description: "Meta semanal de horas com base nas sessões reais." },
+    { type: "revisoes_futuras", title: "Revisões futuras", icon: Sparkles, description: "Mostra próximas revisões pendentes reais." },
 ];
 
 /* ==============================
@@ -410,6 +411,261 @@ function StreakWidget({ user }) {
     );
 }
 
+function TodoWidget({ user }) {
+    const [tarefas, setTarefas] = useState([]);
+    const [texto, setTexto] = useState("");
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const run = async () => {
+            const { data } = await supabase
+                .from("tarefas")
+                .select("id, texto, concluida")
+                .eq("user_id", user.id)
+                .order("id", { ascending: true })
+                .limit(8);
+
+            setTarefas(data || []);
+            setLoading(false);
+        };
+
+        run();
+    }, [user?.id]);
+
+    const adicionar = async (e) => {
+        e.preventDefault();
+        if (!texto.trim()) return;
+
+        const { data, error } = await supabase
+            .from("tarefas")
+            .insert([{ texto: texto.trim(), concluida: false, user_id: user.id }])
+            .select("id, texto, concluida")
+            .single();
+
+        if (!error && data) {
+            setTarefas((prev) => [...prev, data]);
+            setTexto("");
+        }
+    };
+
+    const alternar = async (id, concluida) => {
+        await supabase.from("tarefas").update({ concluida: !concluida }).eq("id", id);
+        setTarefas((prev) => prev.map((t) => (t.id === id ? { ...t, concluida: !concluida } : t)));
+    };
+
+    const remover = async (id) => {
+        await supabase.from("tarefas").delete().eq("id", id);
+        setTarefas((prev) => prev.filter((t) => t.id !== id));
+    };
+
+    const concluidas = tarefas.filter((t) => t.concluida).length;
+    const progresso = tarefas.length ? Math.round((concluidas / tarefas.length) * 100) : 0;
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-end justify-between gap-3">
+                <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">Progresso da lista</p>
+                    <p className="text-xl font-black text-slate-900 dark:text-white">{progresso}%</p>
+                </div>
+                <p className="text-xs font-black text-cyan-600 dark:text-cyan-400">{concluidas}/{tarefas.length || 0} concluídas</p>
+            </div>
+
+            <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                <div className="h-full bg-cyan-600 dark:bg-cyan-500" style={{ width: `${progresso}%` }} />
+            </div>
+
+            <form onSubmit={adicionar} className="flex gap-2">
+                <input
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value)}
+                    placeholder="Nova tarefa"
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none"
+                />
+                <button className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-black cursor-pointer">
+                    Add
+                </button>
+            </form>
+
+            <div className="space-y-2 max-h-48 overflow-auto pr-1">
+                {loading && <p className="text-xs text-slate-500 dark:text-slate-300">Carregando…</p>}
+                {!loading && tarefas.length === 0 && <p className="text-xs text-slate-500 dark:text-slate-300">Sem tarefas ainda.</p>}
+
+                {tarefas.map((t) => (
+                    <div key={t.id} className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-2 py-2">
+                        <button
+                            onClick={() => alternar(t.id, t.concluida)}
+                            className={`w-5 h-5 rounded-md border flex items-center justify-center cursor-pointer ${t.concluida ? "bg-cyan-600 border-cyan-600" : "border-slate-300 dark:border-slate-600"}`}
+                        >
+                            {t.concluida && <Check size={13} className="text-white" />}
+                        </button>
+                        <p className={`flex-1 text-sm ${t.concluida ? "line-through text-slate-400" : "text-slate-700 dark:text-slate-200"}`}>{t.texto}</p>
+                        <button onClick={() => remover(t.id)} className="p-1 text-rose-500 cursor-pointer" title="Apagar">
+                            <Trash2 size={14} />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function RevisoesFuturasWidget({ user }) {
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const run = async () => {
+            const hoje = new Date().toISOString().slice(0, 10);
+            const { data } = await supabase
+                .from("revisoes_agendadas")
+                .select("id, titulo, data_revisao, tipo_revisao")
+                .eq("user_id", user.id)
+                .eq("executada", false)
+                .gte("data_revisao", hoje)
+                .order("data_revisao", { ascending: true })
+                .limit(5);
+
+            setItems(data || []);
+            setLoading(false);
+        };
+
+        run();
+    }, [user?.id]);
+
+    return (
+        <div className="space-y-2">
+            <p className="text-xs text-slate-500 dark:text-slate-300">Próximas revisões pendentes</p>
+            {loading && <p className="text-xs text-slate-500 dark:text-slate-300">Carregando…</p>}
+            {!loading && items.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-300">Nada pendente nos próximos dias 🎉</p>}
+
+            {items.map((r) => (
+                <div key={r.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2">
+                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{r.titulo || "Sem título"}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">
+                        {new Date(`${r.data_revisao}T12:00:00`).toLocaleDateString("pt-BR")} • {r.tipo_revisao || "Revisão"}
+                    </p>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function AgendaMiniWidget({ user }) {
+    const [dias, setDias] = useState([]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const run = async () => {
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            const fim = new Date(hoje);
+            fim.setDate(fim.getDate() + 6);
+
+            const ymd = (d) => d.toISOString().slice(0, 10);
+            const inicioYmd = ymd(hoje);
+            const fimYmd = ymd(fim);
+
+            const [{ data: tarefas }, { data: revisoes }] = await Promise.all([
+                supabase
+                    .from("tarefas")
+                    .select("id, prazo")
+                    .eq("user_id", user.id)
+                    .gte("prazo", inicioYmd)
+                    .lte("prazo", fimYmd),
+                supabase
+                    .from("revisoes_agendadas")
+                    .select("id, data_revisao")
+                    .eq("user_id", user.id)
+                    .gte("data_revisao", inicioYmd)
+                    .lte("data_revisao", fimYmd),
+            ]);
+
+            const mapa = new Map();
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(hoje);
+                d.setDate(d.getDate() + i);
+                const key = ymd(d);
+                mapa.set(key, { key, label: d.toLocaleDateString("pt-BR", { weekday: "short" }), tarefas: 0, revisoes: 0 });
+            }
+
+            for (const t of tarefas || []) {
+                if (mapa.has(t.prazo)) mapa.get(t.prazo).tarefas += 1;
+            }
+            for (const r of revisoes || []) {
+                if (mapa.has(r.data_revisao)) mapa.get(r.data_revisao).revisoes += 1;
+            }
+
+            setDias(Array.from(mapa.values()));
+        };
+
+        run();
+    }, [user?.id]);
+
+    return (
+        <div className="space-y-2">
+            <p className="text-xs text-slate-500 dark:text-slate-300">Próximos 7 dias</p>
+            <div className="grid grid-cols-7 gap-2">
+                {dias.map((d) => (
+                    <div key={d.key} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-2 text-center">
+                        <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">{d.label.replace('.', '')}</p>
+                        <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-black mt-1">T {d.tarefas}</p>
+                        <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-black">R {d.revisoes}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function ProgressoSemanalWidget({ user }) {
+    const [horas, setHoras] = useState(0);
+    const meta = 20;
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const run = async () => {
+            const hoje = new Date();
+            const diaSemana = (hoje.getDay() + 6) % 7;
+            const segunda = new Date(hoje);
+            segunda.setDate(hoje.getDate() - diaSemana);
+            segunda.setHours(0, 0, 0, 0);
+
+            const { data } = await supabase
+                .from("sessoes_estudo")
+                .select("duracao_segundos")
+                .eq("user_id", user.id)
+                .gte("inicio_em", segunda.toISOString());
+
+            const total = (data || []).reduce((acc, x) => acc + Number(x.duracao_segundos || 0), 0);
+            setHoras(total / 3600);
+        };
+
+        run();
+    }, [user?.id]);
+
+    const percentual = Math.min(100, Math.round((horas / meta) * 100));
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between">
+                <p className="text-sm font-black text-slate-800 dark:text-slate-100">Meta da semana</p>
+                <p className="text-xs text-slate-500 dark:text-slate-300">{horas.toFixed(1)}h / {meta}h</p>
+            </div>
+            <div className="h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                <div className="h-full bg-emerald-500" style={{ width: `${percentual}%` }} />
+            </div>
+            <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">{percentual}% concluído</p>
+        </div>
+    );
+}
+
 /* ==============================
    ✅ Conteúdo por widget
 ================================ */
@@ -430,67 +686,13 @@ function WidgetContent({ widget, user }) {
         );
     }
 
-    if (widget.type === "todo") {
-        return (
-            <div className="space-y-2">
-                <p className="text-xs font-black text-slate-500 dark:text-slate-300">
-                    To-do (placeholder)
-                </p>
-                <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                        <input type="checkbox" className="accent-cyan-500" />
-                        Revisar 20 questões
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                        <input type="checkbox" className="accent-cyan-500" />
-                        Ler teoria 30 min
-                    </label>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Depois conecto isso no Supabase como To-do real ✅
-                </p>
-            </div>
-        );
-    }
+    if (widget.type === "todo") return <TodoWidget user={user} />;
 
-    if (widget.type === "calendario_mini") {
-        return (
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                    Mini calendário (placeholder)
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Depois conecto com tarefas + revisões.
-                </p>
-            </div>
-        );
-    }
+    if (widget.type === "calendario_mini") return <AgendaMiniWidget user={user} />;
 
-    if (widget.type === "cronometro_basico") {
-        return (
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                    Cronômetro básico (placeholder)
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Já já eu deixo ele registrando atividade também ✅
-                </p>
-            </div>
-        );
-    }
+    if (widget.type === "cronometro_basico") return <ProgressoSemanalWidget user={user} />;
 
-    if (widget.type === "revisoes_futuras") {
-        return (
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                    Revisões futuras (placeholder)
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Depois puxa da tabela revisoes_agendadas ✅
-                </p>
-            </div>
-        );
-    }
+    if (widget.type === "revisoes_futuras") return <RevisoesFuturasWidget user={user} />;
 
     return null;
 }
@@ -501,6 +703,7 @@ function WidgetContent({ widget, user }) {
 export default function Workspace({ user }) {
     const [widgets, setWidgets] = useState([]);
     const [pickerOpen, setPickerOpen] = useState(false);
+    const [selectedTypes, setSelectedTypes] = useState([]);
 
     const saveTimer = useRef(null);
 
@@ -563,7 +766,7 @@ export default function Workspace({ user }) {
         const base = WIDGET_LIBRARY.find((w) => w.type === type);
         if (!base) return;
 
-        const id = `${type}-${Date.now()}`;
+        const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
         setWidgets((prev) => [
             ...prev,
@@ -573,7 +776,18 @@ export default function Workspace({ user }) {
                 title: base.title,
             },
         ]);
+    };
 
+    const toggleSelectType = (type) => {
+        setSelectedTypes((prev) =>
+            prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+        );
+    };
+
+    const addSelectedWidgets = () => {
+        if (selectedTypes.length === 0) return;
+        selectedTypes.forEach((type) => addWidget(type));
+        setSelectedTypes([]);
         setPickerOpen(false);
     };
 
@@ -610,7 +824,7 @@ export default function Workspace({ user }) {
                 </div>
 
                 <button
-                    onClick={() => setPickerOpen(true)}
+                    onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
                     className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer"
                 >
                     <Plus size={18} />
@@ -676,13 +890,22 @@ export default function Workspace({ user }) {
                                 return (
                                     <button
                                         key={w.type}
-                                        onClick={() => addWidget(w.type)}
-                                        className="text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 p-4 transition-all cursor-pointer"
+                                        onClick={() => toggleSelectType(w.type)}
+                                        className={`text-left rounded-2xl border p-4 transition-all cursor-pointer ${selectedTypes.includes(w.type)
+                                            ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30"
+                                            : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            }`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                                                 <Icon size={18} className="text-cyan-600 dark:text-cyan-400" />
                                             </div>
+
+                                            {selectedTypes.includes(w.type) && (
+                                                <div className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center">
+                                                    <Check size={12} />
+                                                </div>
+                                            )}
 
                                             <div className="flex-1">
                                                 <p className="font-black text-slate-900 dark:text-white text-sm">
@@ -698,12 +921,21 @@ export default function Workspace({ user }) {
                             })}
                         </div>
 
-                        <button
-                            onClick={() => setPickerOpen(false)}
-                            className="mt-5 w-full py-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-black hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                        >
-                            Fechar
-                        </button>
+                        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <button
+                                onClick={addSelectedWidgets}
+                                disabled={selectedTypes.length === 0}
+                                className="w-full py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black"
+                            >
+                                Adicionar selecionados ({selectedTypes.length})
+                            </button>
+                            <button
+                                onClick={() => { setSelectedTypes([]); setPickerOpen(false); }}
+                                className="w-full py-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-black hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                            >
+                                Fechar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
