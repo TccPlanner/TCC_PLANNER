@@ -349,6 +349,48 @@ Conteúdo:
 ${baseText}
 `.trim();
 
+    const buildOpenAiBody = (responseFormat: "json_schema" | "json_object") => ({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Responda apenas JSON válido no formato {\"cards\":[...]}, sem markdown." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.2,
+      response_format:
+        responseFormat === "json_schema"
+          ? {
+              type: "json_schema",
+              json_schema: {
+                name: "flashcards_response",
+                strict: true,
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    cards: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        additionalProperties: true,
+                        properties: {
+                          tipo: { type: "string" },
+                          pergunta: { type: "string" },
+                          resposta: { type: "string" },
+                          tags: {
+                            type: "array",
+                            items: { type: "string" },
+                          },
+                        },
+                        required: ["pergunta", "resposta"],
+                      },
+                    },
+                  },
+                  required: ["cards"],
+                },
+              },
+            }
+          : { type: "json_object" },
+      max_tokens: 1600,
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -397,7 +439,24 @@ ${baseText}
       }),
     });
 
-    const result = await resp.json();
+    const callOpenAi = async (responseFormat: "json_schema" | "json_object") =>
+      fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildOpenAiBody(responseFormat)),
+      });
+
+    let resp = await callOpenAi("json_schema");
+    let result = await resp.json();
+
+    if (!resp.ok) {
+      // fallback para projetos/modelos que não aceitam json_schema
+      resp = await callOpenAi("json_object");
+      result = await resp.json();
+    }
 
     if (!resp.ok) {
       throw new Error(result?.error?.message || "Erro OpenAI");

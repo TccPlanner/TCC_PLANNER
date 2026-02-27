@@ -244,6 +244,21 @@ export default function Flashcards({ user }) {
     return (legacy.data || []).map(normalizeNameRow);
   }
 
+  }
+
+  async function selectList({ table, selectModern, selectLegacy, filter = {} }) {
+    let q1 = supabase.from(table).select(selectModern).eq("user_id", userId);
+    Object.entries(filter).forEach(([k, v]) => (q1 = q1.eq(k, v)));
+    const modern = await q1.order("created_at", { ascending: false });
+    if (!modern.error) return (modern.data || []).map(normalizeNameRow);
+
+    let q2 = supabase.from(table).select(selectLegacy).eq("user_id", userId);
+    Object.entries(filter).forEach(([k, v]) => (q2 = q2.eq(k, v)));
+    const legacy = await q2.order("created_at", { ascending: false });
+    if (legacy.error) throw modern.error;
+    return (legacy.data || []).map(normalizeNameRow);
+  }
+
   const loadCourses = useCallback(async () => {
     setLoading(true);
     try {
@@ -562,6 +577,91 @@ export default function Flashcards({ user }) {
     if (level === "disciplines") {
       setCourseId("");
 
+    if (nextLevel === "subjects") {
+      setDisciplineId(id);
+      clearBelow("subjects");
+      setLevel("subjects");
+      await loadSubjects(id);
+      return;
+    }
+
+    if (nextLevel === "topics") {
+      setSubjectId(id);
+      clearBelow("topics");
+      setLevel("topics");
+      await loadTopics(id);
+      return;
+    }
+
+    if (nextLevel === "decks") {
+      if (isLegacySubjects) {
+        setSubjectId(id);
+      } else {
+        setTopicId(id);
+      }
+      clearBelow("decks");
+      setLevel("decks");
+      await loadDecks(id);
+      return;
+    }
+
+    if (nextLevel === "cards") {
+      setDeckId(id);
+      clearBelow("cards");
+      setLevel("cards");
+      await loadCards(id);
+    }
+  }
+
+  function goBack() {
+    setNewName("");
+    setCreateCardsOpen(false);
+    setCreateMode("");
+    setErrorsPaste("");
+    setPdfInfo("");
+
+    if (level === "cards") {
+      setDeckId("");
+      setTree((p) => ({ ...p, cards: [] }));
+      setLevel("decks");
+      return;
+    }
+
+    if (level === "decks") {
+      if (isLegacySubjects) {
+        setLevel("subjects");
+      } else {
+        setTopicId("");
+        setTree((p) => ({ ...p, decks: [], cards: [] }));
+        setLevel("topics");
+      }
+      setDeckId("");
+      setTree((p) => ({ ...p, cards: [] }));
+      return;
+    }
+
+    if (level === "topics") {
+      setSubjectId("");
+      setTopicId("");
+      setTree((p) => ({ ...p, topics: [], decks: [], cards: [] }));
+      setLevel("subjects");
+      return;
+    }
+
+    if (level === "subjects") {
+      setDisciplineId("");
+      setSubjectId("");
+      setTopicId("");
+      setDeckId("");
+      setIsLegacySubjects(false);
+      setTree((p) => ({ ...p, subjects: [], topics: [], decks: [], cards: [] }));
+      setLevel("disciplines");
+      return;
+    }
+
+    if (level === "disciplines") {
+      setCourseId("");
+
     if (level === "decks") {
       if (isLegacySubjects) {
         setLevel("subjects");
@@ -595,6 +695,24 @@ export default function Flashcards({ user }) {
       setLevel("disciplines");
       return;
     }
+
+  const currentList = useMemo(() => {
+    if (level === "courses") return tree.courses;
+    if (level === "disciplines") return tree.disciplines;
+    if (level === "subjects") return tree.subjects;
+    if (level === "topics") return tree.topics;
+    if (level === "decks") return tree.decks;
+    return [];
+  }, [level, tree]);
+
+  function nextLevelForCurrent() {
+    if (level === "courses") return "disciplines";
+    if (level === "disciplines") return "subjects";
+    if (level === "subjects") return isLegacySubjects ? "decks" : "topics";
+    if (level === "topics") return "decks";
+    if (level === "decks") return "cards";
+    return null;
+  }
 
   const currentList = useMemo(() => {
     if (level === "courses") return tree.courses;
@@ -785,6 +903,15 @@ export default function Flashcards({ user }) {
           deck_id: deckId,
           text: aiForm.text,
           qtd: Number(aiForm.qtd || 12),
+
+    setAiLoading(true);
+    try {
+      const token = await getTokenOrThrow();
+      const { data, error } = await supabase.functions.invoke("generate-flashcards", {
+        body: {
+          deck_id: deckId,
+          text: aiForm.text,
+          qtd: Number(aiForm.qtd || 12),
     if (!deckId) return alert("Selecione um deck antes de gerar por IA.");
     if (aiInputMode === "text" && !aiForm.text.trim()) return alert("Cole um texto base para gerar.");
     if (aiInputMode === "file" && !aiFile) return alert("Envie um arquivo PDF ou TXT para gerar.");
@@ -810,6 +937,35 @@ export default function Flashcards({ user }) {
       });
 
       if (error || !data?.ok) {
+        let msg = error?.message || data?.error || "Erro ao gerar cards.";
+        try {
+          const details = await error?.context?.json?.();
+          msg = details?.error || details?.message || msg;
+        } catch {
+          // noop
+        }
+        throw new Error(msg);
+      }
+
+      const saved = Number(data?.saved || 0);
+      const generated = Array.isArray(data?.cards) ? data.cards.length : 0;
+      await loadCards(deckId);
+
+      if (!saved) {
+        alert(`A IA não gerou cards válidos (retorno: ${generated} cards). Tente aumentar o texto base.`);
+        return 0;
+      }
+
+      alert(`✅ ${saved} cards salvos!`);
+      return saved;
+    } catch (e) {
+      alert(e.message);
+      return 0;
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
         const msg = error?.message || data?.error || "Erro ao gerar cards.";
         throw new Error(msg);
       }
@@ -897,6 +1053,10 @@ export default function Flashcards({ user }) {
         const strings = content.items.map((it) => it.str || "");
         text += `${strings.join(" ")}\n`;
       }
+
+      const cleaned = text.replace(/\s+/g, " ").trim();
+      const clipped = cleaned.slice(0, 15000);
+
 
       const cleaned = text.replace(/\s+/g, " ").trim();
       const clipped = cleaned.slice(0, 15000);
