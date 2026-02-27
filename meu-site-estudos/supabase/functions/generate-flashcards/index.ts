@@ -361,8 +361,9 @@ ${baseText}
 
     const cardsRaw = Array.isArray(parsed) ? parsed : parsed?.cards;
 
-    // ✅ normalizar cards pra um formato consistente
-    const deck_id = crypto.randomUUID();
+    // ✅ usa deck selecionado quando informado; fallback para UUID
+    const requestedDeckId = String(body?.deck_id || "").trim();
+    const deck_id = requestedDeckId || crypto.randomUUID();
 
     const normalized = (Array.isArray(cardsRaw) ? cardsRaw : []).map((c: any) => ({
       tipo: "normal",
@@ -380,6 +381,18 @@ ${baseText}
 
     if (save && validCards.length) {
       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      if (requestedDeckId) {
+        const { data: deck, error: deckErr } = await supabaseAdmin
+          .from("flash_decks")
+          .select("id")
+          .eq("id", requestedDeckId)
+          .eq("user_id", user_id)
+          .maybeSingle();
+
+        if (deckErr) throw new Error(deckErr.message);
+        if (!deck) throw new Error("deck_id inválido para este usuário.");
+      }
 
       const rows = validCards.map((c) => ({
         user_id,

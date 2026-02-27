@@ -309,6 +309,19 @@ Deno.serve(async (req) => {
       if (!deck_id)
         return json(400, { ok: false, error: "deck_id é obrigatório." });
 
+      const deck = await existsWithFallback(
+        supabaseAdmin,
+        "flash_decks",
+        deck_id,
+        user.id
+      );
+
+      if (!deck)
+        return json(403, {
+          ok: false,
+          error: "Deck inválido para este usuário.",
+        });
+
       const tipo = "normal";
       const pergunta = String(body.pergunta || "").trim();
       const resposta = String(body.resposta || "").trim();
