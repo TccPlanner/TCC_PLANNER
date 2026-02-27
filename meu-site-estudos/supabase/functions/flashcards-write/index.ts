@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
     // CREATE DECK
     // =========================
     if (action === "create_deck") {
-      const subject_id = String(body.subject_id || "");
+      const subject_id = String(body.subject_id || body.topic_id || "");
       if (!subject_id)
         return json(400, { ok: false, error: "subject_id é obrigatório." });
 
@@ -240,7 +240,14 @@ Deno.serve(async (req) => {
         .from("flash_cards")
         .insert(payload);
 
-      if (error) throw error;
+      if (error) {
+        const { favoritos, ...legacyBase } = payload;
+        const { error: legacyError } = await supabaseAdmin
+          .from("flash_cards")
+          .insert({ ...legacyBase, is_favorite: favoritos });
+
+        if (legacyError) throw error;
+      }
 
       return json(200, { ok: true });
     }

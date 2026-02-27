@@ -368,6 +368,55 @@ export default function Flashcards({ user }) {
         }
     }
 
+    function normalizeCardLegacy(card) {
+        return {
+            ...card,
+            favoritos: Boolean(card?.favoritos ?? card?.is_favorite),
+        };
+    }
+
+    async function insertCardsWithSchemaFallback(payload) {
+        if (!Array.isArray(payload) || payload.length === 0) return;
+
+        const { error } = await supabase.from("flash_cards").insert(payload);
+        if (!error) return;
+
+        const legacyPayload = payload.map((card) => {
+            const { favoritos, ...rest } = card;
+            return { ...rest, is_favorite: Boolean(favoritos) };
+        });
+
+        const { error: legacyError } = await supabase.from("flash_cards").insert(legacyPayload);
+        if (legacyError) throw error;
+    }
+
+    async function createDeckWithSchemaFallback(nome) {
+        const { data, error } = await supabase
+            .from("flash_decks")
+            .insert({
+                user_id: user.id,
+                subject_id: subjectId,
+                nome,
+            })
+            .select("id")
+            .single();
+
+        if (!error) return data;
+
+        const { data: legacyData, error: legacyError } = await supabase
+            .from("flash_decks")
+            .insert({
+                user_id: user.id,
+                topic_id: subjectId,
+                name: nome,
+            })
+            .select("id")
+            .single();
+
+        if (legacyError) throw error;
+        return legacyData;
+    }
+
     async function fetchCards(deck_id) {
         setLoadingDeck(true);
         try {
@@ -380,8 +429,25 @@ export default function Flashcards({ user }) {
                 .eq("deck_id", deck_id)
                 .order("created_at", { ascending: true });
 
-            if (error) throw error;
-            setCards(data || []);
+            if (!error) {
+                setCards((data || []).map(normalizeCardLegacy));
+                setStudyIndex(0);
+                setShowAnswer(false);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_cards")
+                .select(
+                    "id, deck_id, tipo, pergunta, resposta, cloze_text, cloze_answer, tags, is_favorite, created_at"
+                )
+                .eq("user_id", user.id)
+                .eq("deck_id", deck_id)
+                .order("created_at", { ascending: true });
+
+            if (legacyError) throw error;
+
+            setCards((legacyData || []).map(normalizeCardLegacy));
             setStudyIndex(0);
             setShowAnswer(false);
         } catch (e) {
@@ -647,16 +713,25 @@ export default function Flashcards({ user }) {
 
     async function toggleFavorito(card) {
         try {
+            const nextFavorito = !card.favoritos;
             const { error } = await supabase
                 .from("flash_cards")
-                .update({ favoritos: !card.favoritos })
+                .update({ favoritos: nextFavorito })
                 .eq("id", card.id)
                 .eq("user_id", user.id);
 
-            if (error) throw error;
+            if (error) {
+                const { error: legacyError } = await supabase
+                    .from("flash_cards")
+                    .update({ is_favorite: nextFavorito })
+                    .eq("id", card.id)
+                    .eq("user_id", user.id);
+
+                if (legacyError) throw error;
+            }
 
             setCards((prev) =>
-                prev.map((c) => (c.id === card.id ? { ...c, favoritos: !c.favoritos } : c))
+                prev.map((c) => (c.id === card.id ? { ...c, favoritos: nextFavorito } : c))
             );
         } catch (e) {
             console.error(e);
@@ -674,13 +749,7 @@ export default function Flashcards({ user }) {
 
         if (existing?.id) return existing.id;
 
-        const { data: created, error: createErr } = await supabase
-            .from("flash_decks")
-            .insert({ user_id: user.id, subject_id: subjectId, nome })
-            .select("id")
-            .single();
-
-        if (createErr) throw createErr;
+        const created = await createDeckWithSchemaFallback(nome);
         await fetchDecks(subjectId);
         return created.id;
     }
@@ -736,8 +805,7 @@ export default function Flashcards({ user }) {
                 }));
 
             if (novos.length) {
-                const { error: insErr } = await supabase.from("flash_cards").insert(novos);
-                if (insErr) throw insErr;
+                await insertCardsWithSchemaFallback(novos);
             }
 
             if (!automatico) {
@@ -825,17 +893,7 @@ export default function Flashcards({ user }) {
                 const autoName = `Deck IA • ${assuntoSelecionado?.nome || "Assunto"} • ${new Date()
                     .toLocaleDateString("pt-BR")}`;
 
-                const { data: created, error: errDeck } = await supabase
-                    .from("flash_decks")
-                    .insert({
-                        user_id: user.id,
-                        subject_id: subjectId,
-                        nome: autoName,
-                    })
-                    .select("id")
-                    .single();
-
-                if (errDeck) throw errDeck;
+                const created = await createDeckWithSchemaFallback(autoName);
                 targetDeckId = created.id;
 
                 await fetchDecks(subjectId);
@@ -861,20 +919,23 @@ export default function Flashcards({ user }) {
                     }
 
                     if (!c?.cloze_text || !c?.cloze_answer) return null;
+                    const clozePergunta = String(c.cloze_text).slice(0, 3000);
+                    const clozeResposta = String(c.cloze_answer).slice(0, 600);
                     return {
                         user_id: user.id,
                         deck_id: targetDeckId,
                         tipo: "cloze",
-                        cloze_text: String(c.cloze_text).slice(0, 3000),
-                        cloze_answer: String(c.cloze_answer).slice(0, 600),
+                        pergunta: clozePergunta,
+                        resposta: clozeResposta,
+                        cloze_text: clozePergunta,
+                        cloze_answer: clozeResposta,
                         tags: tags.slice(0, 8),
                         favoritos: false,
                     };
                 })
                 .filter(Boolean);
 
-            const { error: errInsert } = await supabase.from("flash_cards").insert(payload);
-            if (errInsert) throw errInsert;
+            await insertCardsWithSchemaFallback(payload);
 
             alert(`✅ ${payload.length} cards gerados e adicionados ao deck!`);
 
