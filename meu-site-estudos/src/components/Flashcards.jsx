@@ -284,6 +284,18 @@ export default function Flashcards({ user }) {
                 .eq("course_id", course_id)
                 .order("name", { ascending: true });
 
+            if (!error) {
+                setDisciplines(data || []);
+                return;
+            }
+
+            const { data: legacyData, error: legacyError } = await supabase
+                .from("flash_disciplines")
+                .select("id, name, course_id")
+                .eq("user_id", user.id)
+                .eq("course_id", course_id)
+                .order("name", { ascending: true });
+
             if (legacyError) throw error;
 
             setDisciplines((legacyData || []).map((d) => ({
@@ -537,18 +549,16 @@ export default function Flashcards({ user }) {
             if (!nome) return alert("Digite o nome do curso.");
 
             const data = await invokeFlashcardsWrite({ action: "create_course", nome });
-            const createdId = data?.data?.id;
-            if (!createdId) throw new Error("Curso criado sem id.");
-
-            const createdId = data?.data?.id;
+            const createdCourseId = data?.data?.id;
+            if (!createdCourseId) throw new Error("Curso criado sem id.");
 
             setOpenCourseModal(false);
             setNewCourseName("");
-            if (createdId) {
-                setCourses((prev) => (prev.some((c) => c.id === createdId)
+            if (createdCourseId) {
+                setCourses((prev) => (prev.some((c) => c.id === createdCourseId)
                     ? prev
-                    : [{ id: createdId, nome }, ...prev]));
-                setCourseId(createdId);
+                    : [{ id: createdCourseId, nome }, ...prev]));
+                setCourseId(createdCourseId);
             }
 
             await fetchCourses();
@@ -571,16 +581,16 @@ export default function Flashcards({ user }) {
                 nome,
             });
 
-            const createdId = data?.data?.id;
-            if (!createdId) throw new Error("Disciplina criada sem id.");
+            const createdDisciplineId = data?.data?.id;
+            if (!createdDisciplineId) throw new Error("Disciplina criada sem id.");
 
             setOpenDisciplineModal(false);
             setNewDisciplineName("");
-            if (createdId) {
-                setDisciplines((prev) => (prev.some((d) => d.id === createdId)
+            if (createdDisciplineId) {
+                setDisciplines((prev) => (prev.some((d) => d.id === createdDisciplineId)
                     ? prev
-                    : [{ id: createdId, nome, course_id: courseId }, ...prev]));
-                setDisciplineId(createdId);
+                    : [{ id: createdDisciplineId, nome, course_id: courseId }, ...prev]));
+                setDisciplineId(createdDisciplineId);
             }
 
             await fetchDisciplines(courseId);
@@ -603,16 +613,16 @@ export default function Flashcards({ user }) {
                 nome,
             });
 
-            const createdId = data?.data?.id;
-            if (!createdId) throw new Error("Assunto criado sem id.");
+            const createdSubjectId = data?.data?.id;
+            if (!createdSubjectId) throw new Error("Assunto criado sem id.");
 
             setOpenSubjectModal(false);
             setNewSubjectName("");
-            if (createdId) {
-                setSubjects((prev) => (prev.some((s) => s.id === createdId)
+            if (createdSubjectId) {
+                setSubjects((prev) => (prev.some((s) => s.id === createdSubjectId)
                     ? prev
-                    : [{ id: createdId, nome, discipline_id: disciplineId }, ...prev]));
-                setSubjectId(createdId);
+                    : [{ id: createdSubjectId, nome, discipline_id: disciplineId }, ...prev]));
+                setSubjectId(createdSubjectId);
             }
 
             await fetchSubjects(disciplineId);
@@ -639,16 +649,16 @@ export default function Flashcards({ user }) {
                 nome,
             });
 
-            const createdId = data?.data?.id;
-            if (!createdId) throw new Error("Deck criado sem id.");
+            const createdDeckId = data?.data?.id;
+            if (!createdDeckId) throw new Error("Deck criado sem id.");
 
             setOpenDeckModal(false);
             setNewDeckName("");
-            if (createdId) {
-                setDecks((prev) => (prev.some((d) => d.id === createdId)
+            if (createdDeckId) {
+                setDecks((prev) => (prev.some((d) => d.id === createdDeckId)
                     ? prev
-                    : [{ id: createdId, nome, subject_id: subjectId }, ...prev]));
-                setDeckId(createdId);
+                    : [{ id: createdDeckId, nome, subject_id: subjectId }, ...prev]));
+                setDeckId(createdDeckId);
             }
 
             await fetchDecks(subjectId);
