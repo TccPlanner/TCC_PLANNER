@@ -1089,6 +1089,30 @@ export default function Flashcards({ user }) {
                             </button>
                           )}
                         </div>
+                        {isFlipped && (
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => registerResult(card.id, "acerto")}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                cardResult === "acerto"
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                              }`}
+                            >
+                              Acertei
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => registerResult(card.id, "erro")}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                cardResult === "erro" ? "bg-red-600 text-white" : "bg-red-100 text-red-700 hover:bg-red-200"
+                              }`}
+                            >
+                              Errei
+                            </button>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
