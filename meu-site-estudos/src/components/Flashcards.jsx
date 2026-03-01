@@ -649,6 +649,33 @@ export default function Flashcards({ user }) {
     }
   }
 
+  async function deleteCard(card) {
+    if (!window.confirm(`Apagar o card "${card.pergunta}"?`)) return;
+
+    try {
+      const { error } = await supabase.from("flash_cards").delete().eq("id", card.id).eq("user_id", userId);
+      if (error) throw error;
+
+      setReviewResults((prev) => {
+        if (!prev?.[deckId]?.[card.id]) return prev;
+        const nextDeckResults = { ...(prev[deckId] || {}) };
+        delete nextDeckResults[card.id];
+        return { ...prev, [deckId]: nextDeckResults };
+      });
+
+      setFlippedCards((prev) => {
+        if (!prev?.[card.id]) return prev;
+        const next = { ...prev };
+        delete next[card.id];
+        return next;
+      });
+
+      await loadCards(deckId);
+    } catch (e) {
+      alert(e.message || "Não foi possível apagar o card.");
+    }
+  }
+
   async function createCard() {
     if (!deckId) return alert("Entre em um deck.");
     const pergunta = cardForm.pergunta.trim();
@@ -709,7 +736,7 @@ export default function Flashcards({ user }) {
         return 0;
       }
 
-      alert(`✅ ${saved} cards salvos!`);
+      alert(`✅ ${saved} cards criados com sucesso!`);
       return saved;
     } catch (e) {
       alert(e.message);
@@ -719,7 +746,7 @@ export default function Flashcards({ user }) {
     }
   }
 
-  async function createCardsFromErrorsPaste() {
+  async function createCardsFromListPaste() {
     if (!deckId) return alert("Entre em um deck.");
     const pairs = parsePairs(errorsPaste);
     if (!pairs.length) {
@@ -735,12 +762,12 @@ export default function Flashcards({ user }) {
           tipo: "normal",
           pergunta: p.pergunta,
           resposta: p.resposta,
-          tags: ["erro"],
+          tags: [],
         });
         saved += 1;
       }
 
-      alert(`✅ ${saved} cards salvos!`);
+      alert(`✅ ${saved} cards criados com sucesso!`);
       return saved;
     } catch (e) {
       alert(e.message);
@@ -1023,6 +1050,45 @@ export default function Flashcards({ user }) {
                           </div>
                         </button>
 
+                        <div className="flex items-center gap-2 justify-end">
+                          {isFlipped && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => registerResult(card.id, "acerto")}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                  cardResult === "acerto"
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"
+                                }`}
+                              >
+                                Acertei
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => registerResult(card.id, "erro")}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                  cardResult === "erro"
+                                    ? "bg-red-600 text-white"
+                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"
+                                }`}
+                              >
+                                Errei
+                              </button>
+                            </>
+                          )}
+
+                          {editMode && (
+                            <button
+                              type="button"
+                              onClick={() => deleteCard(card)}
+                              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                              title="Apagar card"
+                            >
+                              <Trash2 size={14} className="text-slate-600 dark:text-slate-200" />
+                            </button>
+                          )}
+                        </div>
                         {isFlipped && (
                           <div className="flex items-center gap-2 justify-end">
                             <button
@@ -1078,8 +1144,8 @@ export default function Flashcards({ user }) {
                         <div className={ui.modalText}>Você escreve pergunta e resposta</div>
                       </button>
 
-                      <button onClick={() => setCreateMode("errors")} className={ui.modalCard}>
-                        <div className="font-black text-slate-900 dark:text-white">A partir dos erros</div>
+                      <button onClick={() => setCreateMode("list")} className={ui.modalCard}>
+                        <div className="font-black text-slate-900 dark:text-white">Lista Pergunta | Resposta</div>
                         <div className={ui.modalText}>Cole “Pergunta | Resposta” (1 por linha)</div>
                       </button>
 
@@ -1139,10 +1205,10 @@ export default function Flashcards({ user }) {
                     </div>
                   )}
 
-                  {createMode === "errors" && (
+                  {createMode === "list" && (
                     <div className="mt-4">
                       <div className="flex items-center justify-between">
-                        <div className="font-black text-slate-900 dark:text-white">Criar a partir dos erros</div>
+                        <div className="font-black text-slate-900 dark:text-white">Criar por lista (Pergunta | Resposta)</div>
                         <button
                           onClick={() => setCreateMode("")}
                           className="text-sm font-black underline text-slate-600 dark:text-slate-300"
@@ -1165,7 +1231,7 @@ export default function Flashcards({ user }) {
                       <div className="flex justify-end mt-4">
                         <button
                           onClick={async () => {
-                            const saved = await createCardsFromErrorsPaste();
+                            const saved = await createCardsFromListPaste();
                             if (saved > 0) {
                               setCreateCardsOpen(false);
                               setCreateMode("");
