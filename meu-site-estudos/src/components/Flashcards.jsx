@@ -819,6 +819,31 @@ export default function Flashcards({ user }) {
         });
       }
 
+
+    const errors = tree.cards.filter((card) => reviewResults?.[deckId]?.[card.id] === "erro");
+    if (!errors.length) return alert("Marque alguns cards como erro para gerar um deck.");
+
+    const suggested = `${selectedDeck?.nome || "Deck"} - Erros`;
+    const name = window.prompt("Nome do novo deck de erros:", suggested)?.trim();
+    if (!name) return;
+
+    setErrorDeckLoading(true);
+    try {
+      const payload = isLegacySubjects
+        ? { nome: name, topic_id: subjectId }
+        : { nome: name, topic_id: topicId, subject_id: subjectId || null };
+
+      const newDeckId = await callWrite("create_deck", payload);
+      for (const card of errors) {
+        await callWrite("create_card", {
+          deck_id: newDeckId,
+          tipo: "normal",
+          pergunta: card.pergunta,
+          resposta: card.resposta,
+          tags: Array.from(new Set([...(card.tags || []), "erro"])),
+        });
+      }
+
       const base = isLegacySubjects ? subjectId : topicId;
       await loadDecks(base);
       setErrorsPaste("");
@@ -1020,6 +1045,18 @@ export default function Flashcards({ user }) {
                     const cardResult = reviewResults?.[deckId]?.[card.id];
 
                     return (
+                      <li key={card.id} className="space-y-2 relative">
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => toggleCard(card.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggleCard(card.id);
+                            }
+                          }}
+                          className="w-full text-left [perspective:1000px] cursor-pointer"
                       <li key={card.id} className="space-y-2">
                         <button
                           type="button"
@@ -1048,6 +1085,22 @@ export default function Flashcards({ user }) {
                               <p className="font-bold text-slate-800 dark:text-slate-100 mt-2">{card.resposta}</p>
                             </div>
                           </div>
+                        </div>
+
+                        {editMode && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteCard(card);
+                            }}
+                            className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/90 hover:bg-red-100 border border-slate-200 dark:bg-slate-900/90 dark:hover:bg-red-900/40 dark:border-slate-700 z-10"
+                            title="Apagar card"
+                          >
+                            <Trash2 size={14} className="text-red-600 dark:text-red-300" />
+                          </button>
+                        )}
+
                         </button>
 
                         <div className="flex items-center gap-2 justify-end">
@@ -1094,6 +1147,10 @@ export default function Flashcards({ user }) {
                             <button
                               type="button"
                               onClick={() => registerResult(card.id, "acerto")}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-colors ${
+                                cardResult === "acerto"
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                  : "bg-slate-200 text-slate-800 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-emerald-900/50 dark:hover:text-emerald-200"
                               className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
                                 cardResult === "acerto"
                                   ? "bg-emerald-600 text-white"
@@ -1105,6 +1162,10 @@ export default function Flashcards({ user }) {
                             <button
                               type="button"
                               onClick={() => registerResult(card.id, "erro")}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-colors ${
+                                cardResult === "erro"
+                                  ? "bg-red-600 text-white hover:bg-red-700"
+                                  : "bg-slate-200 text-slate-800 hover:bg-red-100 hover:text-red-800 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-red-900/50 dark:hover:text-red-200"
                               className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
                                 cardResult === "erro" ? "bg-red-600 text-white" : "bg-red-100 text-red-700 hover:bg-red-200"
                               }`}
