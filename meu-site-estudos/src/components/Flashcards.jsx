@@ -819,6 +819,31 @@ export default function Flashcards({ user }) {
         });
       }
 
+
+    const errors = tree.cards.filter((card) => reviewResults?.[deckId]?.[card.id] === "erro");
+    if (!errors.length) return alert("Marque alguns cards como erro para gerar um deck.");
+
+    const suggested = `${selectedDeck?.nome || "Deck"} - Erros`;
+    const name = window.prompt("Nome do novo deck de erros:", suggested)?.trim();
+    if (!name) return;
+
+    setErrorDeckLoading(true);
+    try {
+      const payload = isLegacySubjects
+        ? { nome: name, topic_id: subjectId }
+        : { nome: name, topic_id: topicId, subject_id: subjectId || null };
+
+      const newDeckId = await callWrite("create_deck", payload);
+      for (const card of errors) {
+        await callWrite("create_card", {
+          deck_id: newDeckId,
+          tipo: "normal",
+          pergunta: card.pergunta,
+          resposta: card.resposta,
+          tags: Array.from(new Set([...(card.tags || []), "erro"])),
+        });
+      }
+
       const base = isLegacySubjects ? subjectId : topicId;
       await loadDecks(base);
       setErrorsPaste("");
@@ -1032,6 +1057,11 @@ export default function Flashcards({ user }) {
                             }
                           }}
                           className="w-full text-left [perspective:1000px] cursor-pointer"
+                      <li key={card.id} className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleCard(card.id)}
+                          className="w-full text-left [perspective:1000px]"
                         >
                           <div
                             className={`relative min-h-[150px] w-full rounded-2xl transition-transform duration-500 [transform-style:preserve-3d] ${
@@ -1071,6 +1101,47 @@ export default function Flashcards({ user }) {
                           </button>
                         )}
 
+                        </button>
+
+                        <div className="flex items-center gap-2 justify-end">
+                          {isFlipped && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => registerResult(card.id, "acerto")}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                  cardResult === "acerto"
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"
+                                }`}
+                              >
+                                Acertei
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => registerResult(card.id, "erro")}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                  cardResult === "erro"
+                                    ? "bg-red-600 text-white"
+                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"
+                                }`}
+                              >
+                                Errei
+                              </button>
+                            </>
+                          )}
+
+                          {editMode && (
+                            <button
+                              type="button"
+                              onClick={() => deleteCard(card)}
+                              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                              title="Apagar card"
+                            >
+                              <Trash2 size={14} className="text-slate-600 dark:text-slate-200" />
+                            </button>
+                          )}
+                        </div>
                         {isFlipped && (
                           <div className="flex items-center gap-2 justify-end">
                             <button
@@ -1080,6 +1151,10 @@ export default function Flashcards({ user }) {
                                 cardResult === "acerto"
                                   ? "bg-emerald-600 text-white hover:bg-emerald-700"
                                   : "bg-slate-200 text-slate-800 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-emerald-900/50 dark:hover:text-emerald-200"
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                cardResult === "acerto"
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                               }`}
                             >
                               Acertei
@@ -1091,6 +1166,8 @@ export default function Flashcards({ user }) {
                                 cardResult === "erro"
                                   ? "bg-red-600 text-white hover:bg-red-700"
                                   : "bg-slate-200 text-slate-800 hover:bg-red-100 hover:text-red-800 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-red-900/50 dark:hover:text-red-200"
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                cardResult === "erro" ? "bg-red-600 text-white" : "bg-red-100 text-red-700 hover:bg-red-200"
                               }`}
                             >
                               Errei
