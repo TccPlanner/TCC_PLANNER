@@ -131,8 +131,21 @@ export default function Flashcards({ user }) {
 
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfInfo, setPdfInfo] = useState("");
+  const [flippedCards, setFlippedCards] = useState({});
+  const [reviewResults, setReviewResults] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("flash_review_results") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [errorDeckLoading, setErrorDeckLoading] = useState(false);
 
   const selectedDeck = useMemo(() => tree.decks.find((d) => d.id === deckId), [tree.decks, deckId]);
+
+  useEffect(() => {
+    localStorage.setItem("flash_review_results", JSON.stringify(reviewResults));
+  }, [reviewResults]);
 
   const breadcrumb = useMemo(() => {
     const parts = [{ key: "courses", label: "Cursos" }];
@@ -516,79 +529,8 @@ export default function Flashcards({ user }) {
       setIsLegacySubjects(false);
       setTree((p) => ({ ...p, disciplines: [], subjects: [], topics: [], decks: [], cards: [] }));
       setLevel("courses");
-    }
-
-    if (level === "disciplines") {
-      setCourseId("");
-
-    if (level === "decks") {
-      if (isLegacySubjects) {
-        setLevel("subjects");
-      } else {
-        setTopicId("");
-        setTree((p) => ({ ...p, decks: [], cards: [] }));
-        setLevel("topics");
-      }
-      setDeckId("");
-      setTree((p) => ({ ...p, cards: [] }));
       return;
     }
-
-    if (level === "topics") {
-      setSubjectId("");
-      setTopicId("");
-      setTree((p) => ({ ...p, topics: [], decks: [], cards: [] }));
-      setLevel("subjects");
-      return;
-    }
-
-    if (level === "subjects") {
-      setDisciplineId("");
-      setSubjectId("");
-      setTopicId("");
-      setDeckId("");
-      setIsLegacySubjects(false);
-      setTree((p) => ({ ...p, disciplines: [], subjects: [], topics: [], decks: [], cards: [] }));
-      setLevel("courses");
-      setTree((p) => ({ ...p, subjects: [], topics: [], decks: [], cards: [] }));
-      setLevel("disciplines");
-      return;
-    }
-
-  const currentList = useMemo(() => {
-    if (level === "courses") return tree.courses;
-    if (level === "disciplines") return tree.disciplines;
-    if (level === "subjects") return tree.subjects;
-    if (level === "topics") return tree.topics;
-    if (level === "decks") return tree.decks;
-    return [];
-  }, [level, tree]);
-
-  function nextLevelForCurrent() {
-    if (level === "courses") return "disciplines";
-    if (level === "disciplines") return "subjects";
-    if (level === "subjects") return isLegacySubjects ? "decks" : "topics";
-    if (level === "topics") return "decks";
-    if (level === "decks") return "cards";
-    return null;
-  }
-
-  const currentList = useMemo(() => {
-    if (level === "courses") return tree.courses;
-    if (level === "disciplines") return tree.disciplines;
-    if (level === "subjects") return tree.subjects;
-    if (level === "topics") return tree.topics;
-    if (level === "decks") return tree.decks;
-    return [];
-  }, [level, tree]);
-
-  function nextLevelForCurrent() {
-    if (level === "courses") return "disciplines";
-    if (level === "disciplines") return "subjects";
-    if (level === "subjects") return isLegacySubjects ? "decks" : "topics";
-    if (level === "topics") return "decks";
-    if (level === "decks") return "cards";
-    return null;
   }
 
   const currentList = useMemo(() => {
@@ -804,26 +746,60 @@ export default function Flashcards({ user }) {
       alert(e.message);
       return 0;
     } finally {
-      setAiLoading(false);
+      setBulkLoading(false);
     }
   }
 
-        const msg = error?.message || data?.error || "Erro ao gerar cards.";
-        throw new Error(msg);
+  function toggleCard(cardId) {
+    setFlippedCards((p) => ({ ...p, [cardId]: !p[cardId] }));
+  }
+
+  function registerResult(cardId, result) {
+    if (!deckId) return;
+    setReviewResults((prev) => ({
+      ...prev,
+      [deckId]: {
+        ...(prev[deckId] || {}),
+        [cardId]: result,
+      },
+    }));
+  }
+
+  async function createErrorsDeckFromReview() {
+    if (!deckId) return;
+
+    const errors = tree.cards.filter((card) => reviewResults?.[deckId]?.[card.id] === "erro");
+    if (!errors.length) return alert("Marque alguns cards como erro para gerar um deck.");
+
+    const suggested = `${selectedDeck?.nome || "Deck"} - Erros`;
+    const name = window.prompt("Nome do novo deck de erros:", suggested)?.trim();
+    if (!name) return;
+
+    setErrorDeckLoading(true);
+    try {
+      const payload = isLegacySubjects
+        ? { nome: name, topic_id: subjectId }
+        : { nome: name, topic_id: topicId, subject_id: subjectId || null };
+
+      const newDeckId = await callWrite("create_deck", payload);
+      for (const card of errors) {
+        await callWrite("create_card", {
+          deck_id: newDeckId,
+          tipo: "normal",
+          pergunta: card.pergunta,
+          resposta: card.resposta,
+          tags: Array.from(new Set([...(card.tags || []), "erro"])),
+        });
       }
 
-      const saved = Number(data?.saved || 0);
-      const generated = Array.isArray(data?.cards) ? data.cards.length : 0;
-      await loadCards(deckId);
-
+      const base = isLegacySubjects ? subjectId : topicId;
+      await loadDecks(base);
       setErrorsPaste("");
-      alert(`✅ ${saved} cards criados a partir dos erros!`);
-      return saved;
+      alert(`✅ Deck "${name}" criado com ${errors.length} card(s) de erro.`);
     } catch (e) {
       alert(e.message);
-      return 0;
     } finally {
-      setBulkLoading(false);
+      setErrorDeckLoading(false);
     }
   }
 
@@ -879,7 +855,14 @@ export default function Flashcards({ user }) {
           <p className={ui.headerSub}>Cursos → disciplinas → assuntos → tópicos → decks → cards</p>
         </div>
 
-        <button onClick={() => setEditMode((v) => !v)} className={ui.btnEdit}>
+        <button
+          onClick={() => setEditMode((v) => !v)}
+          className={
+            editMode
+              ? "flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-600 hover:bg-red-500 text-white transition font-black text-xs"
+              : ui.btnEdit
+          }
+        >
           <Pencil size={16} /> {editMode ? "Sair da edição" : "Modo edição"}
         </button>
       </div>
@@ -973,23 +956,29 @@ export default function Flashcards({ user }) {
           )
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="text-sm text-slate-500 dark:text-slate-400 font-bold">
                 Deck: <span className="text-slate-900 dark:text-white font-black">{selectedDeck?.nome || "-"}</span>
               </div>
 
-              {editMode && (
-                <button
-                  onClick={() => {
-                    setCreateCardsOpen(true);
-                    setCreateMode("");
-                    setPdfInfo("");
-                  }}
-                  className={ui.btnDark}
-                >
-                  Criar cards
+              <div className="flex items-center gap-2">
+                <button onClick={createErrorsDeckFromReview} disabled={errorDeckLoading} className={ui.btnGhost}>
+                  {errorDeckLoading ? "Gerando deck..." : "Gerar deck com erros"}
                 </button>
-              )}
+
+                {editMode && (
+                  <button
+                    onClick={() => {
+                      setCreateCardsOpen(true);
+                      setCreateMode("");
+                      setPdfInfo("");
+                    }}
+                    className={ui.btnDark}
+                  >
+                    Criar cards
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className={ui.panelSoft}>
@@ -998,16 +987,69 @@ export default function Flashcards({ user }) {
               {!tree.cards.length ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">Nenhum card ainda.</p>
               ) : (
-                <ul className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                  {tree.cards.map((card) => (
-                    <li
-                      key={card.id}
-                      className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-                    >
-                      <p className="font-black text-slate-900 dark:text-white">{card.pergunta}</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 font-bold">{card.resposta}</p>
-                    </li>
-                  ))}
+                <ul className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+                  {tree.cards.map((card) => {
+                    const isFlipped = Boolean(flippedCards[card.id]);
+                    const cardResult = reviewResults?.[deckId]?.[card.id];
+
+                    return (
+                      <li key={card.id} className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleCard(card.id)}
+                          className="w-full text-left [perspective:1000px]"
+                        >
+                          <div
+                            className={`relative min-h-[150px] w-full rounded-2xl transition-transform duration-500 [transform-style:preserve-3d] ${
+                              isFlipped ? "[transform:rotateY(180deg)]" : ""
+                            }`}
+                          >
+                            <div className="absolute inset-0 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 [backface-visibility:hidden]">
+                              <p className="text-xs uppercase tracking-wider font-black text-slate-500 dark:text-slate-400">
+                                Pergunta
+                              </p>
+                              <p className="font-black text-slate-900 dark:text-white mt-2">{card.pergunta}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 font-bold">
+                                Clique para virar o card
+                              </p>
+                            </div>
+
+                            <div className="absolute inset-0 p-4 rounded-2xl border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 [transform:rotateY(180deg)] [backface-visibility:hidden]">
+                              <p className="text-xs uppercase tracking-wider font-black text-indigo-500 dark:text-indigo-300">
+                                Resposta
+                              </p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100 mt-2">{card.resposta}</p>
+                            </div>
+                          </div>
+                        </button>
+
+                        {isFlipped && (
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => registerResult(card.id, "acerto")}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                cardResult === "acerto"
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                              }`}
+                            >
+                              Acertei
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => registerResult(card.id, "erro")}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                                cardResult === "erro" ? "bg-red-600 text-white" : "bg-red-100 text-red-700 hover:bg-red-200"
+                              }`}
+                            >
+                              Errei
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
