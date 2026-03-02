@@ -88,17 +88,21 @@ function Dashboard({ user }) {
                 </div>
 
                 <nav className="flex-1 flex flex-col gap-2">
-                    <MenuLink id="inicio" icon={LayoutDashboard} label="Workspace" />
+                    {menuAberto && <p className="px-2 pt-2 pb-1 text-xs font-black tracking-[0.18em] text-slate-400">VISÃO GERAL</p>}
                     <MenuLink id="dashboard-geral" icon={BarChart3} label="Dashboard Geral" />
-                    <MenuLink id="cronometro" icon={Timer} label="Estudar Agora" />
+                    <MenuLink id="inicio" icon={LayoutDashboard} label="Workspace" />
 
-                    {/* ✅ NOVO ITEM NO MENU */}
+                    {menuAberto && <p className="px-2 pt-4 pb-1 text-xs font-black tracking-[0.18em] text-slate-400">PLANEJAMENTO</p>}
                     <MenuLink id="materias" icon={ListTree} label="Matérias" />
                     <MenuLink id="ciclo" icon={Repeat} label="Ciclo de Estudos" />
-                    <MenuLink id="flashcards" icon={Layers} label="Flashcards" />
-
                     <MenuLink id="calendario" icon={Calendar} label="Calendário" />
                     <MenuLink id="tarefas" icon={CheckSquare} label="To-Do List" />
+
+                    {menuAberto && <p className="px-2 pt-4 pb-1 text-xs font-black tracking-[0.18em] text-slate-400">EXECUÇÃO</p>}
+                    <MenuLink id="cronometro" icon={Timer} label="Estudar Agora" />
+                    <MenuLink id="flashcards" icon={Layers} label="Flashcards" />
+
+                    {menuAberto && <p className="px-2 pt-4 pb-1 text-xs font-black tracking-[0.18em] text-slate-400">ACOMPANHAMENTO</p>}
                     <MenuLink id="revisoes" icon={BookOpen} label="Revisões" />
                     <MenuLink id="historico" icon={History} label="Histórico" />
                 </nav>
