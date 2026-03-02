@@ -81,27 +81,11 @@ function Friendships() {
 
     if (authError || !user) throw new Error("Não logado");
 
-    const { data: rpcData, error: rpcErr } = await supabase.rpc("resolve_invite_code", {
+    const { data: friendId, error: rpcErr } = await supabase.rpc("resolve_invite_code", {
       code,
     });
 
-    if (rpcErr) throw rpcErr;
-
-    let friendId = null;
-
-    if (Array.isArray(rpcData)) {
-      const first = rpcData[0];
-      friendId =
-        (first && typeof first === "object"
-          ? first.id ?? first.user_id ?? first.friend_id ?? first.resolve_invite_code
-          : first) ?? null;
-    } else if (rpcData && typeof rpcData === "object") {
-      friendId = rpcData.id ?? rpcData.user_id ?? rpcData.friend_id ?? rpcData.resolve_invite_code ?? null;
-    } else {
-      friendId = rpcData;
-    }
-
-    if (!friendId) throw new Error("Código inválido.");
+    if (rpcErr || !friendId) throw new Error("Código inválido.");
 
     if (friendId === user.id) {
       throw new Error("Você não pode adicionar você mesma.");
@@ -194,13 +178,7 @@ function Friendships() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Solicitações pendentes</h2>
           <button
-            onClick={async () => {
-              try {
-                await loadIncomingRequests();
-              } catch (error) {
-                alert(error.message || "Erro ao atualizar solicitações.");
-              }
-            }}
+            onClick={loadIncomingRequests}
             className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
           >
             Atualizar
@@ -238,13 +216,7 @@ function Friendships() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Ranking</h2>
           <button
-            onClick={async () => {
-              try {
-                await loadFriendsRanking();
-              } catch (error) {
-                alert(error.message || "Erro ao atualizar ranking.");
-              }
-            }}
+            onClick={loadFriendsRanking}
             className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
           >
             Atualizar
