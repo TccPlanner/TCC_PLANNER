@@ -58,14 +58,13 @@ export default function DashboardGeral({ user }) {
         setLoading(true);
         setErro("");
         try {
-        const [
+            const [
                 { data: sessoes, error: e1 },
                 { data: cicloSessoes, error: e2 },
                 { data: cicloMaterias, error: e3 },
                 { data: cicloAtual, error: e4 },
                 { data: cards, error: e5 },
                 { data: cardsFavoritos, error: e6 },
-                { data: revisoesCards, error: e7 },
                 { data: tarefas, error: e8 },
                 { data: revisoes, error: e9 },
             ] = await Promise.all([
@@ -75,12 +74,22 @@ export default function DashboardGeral({ user }) {
                 supabase.from("study_cycles").select("id, cycles_completed").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1),
                 supabase.from("flash_cards").select("id, created_at").eq("user_id", user.id),
                 supabase.from("flash_card_favorites").select("card_id").eq("user_id", user.id),
-                supabase.from("flash_card_reviews").select("resultado, created_at").eq("user_id", user.id),
                 supabase.from("tarefas").select("id, concluida, concluida_em, created_at").eq("user_id", user.id),
                 supabase.from("revisoes_agendadas").select("id, executada, qtd_feitas, qtd_acertos, data_revisao").eq("user_id", user.id),
             ]);
 
-            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9;
+            const { data: revisoesCards, error: e7 } = await supabase
+                .from("flash_card_reviews")
+                .select("resultado, created_at")
+                .eq("user_id", user.id);
+
+            const podeIgnorarErroReviews =
+                !!e7?.message &&
+                (e7.message.includes("schema cache") ||
+                    e7.message.includes("Could not find the table") ||
+                    e7.message.includes("does not exist"));
+
+            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e8 || e9 || (!podeIgnorarErroReviews ? e7 : null);
             if (erroQuery) throw erroQuery;
 
             setDados({
