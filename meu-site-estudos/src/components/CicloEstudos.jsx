@@ -327,16 +327,32 @@ export default function CicloEstudos({ user }) {
             setLoading(true);
             if (!cycle?.id || !user?.id) return;
 
-            const { data, error } = await supabase
-                .from("study_cycles")
-                .update({ cycles_completed: 0 })
-                .eq("id", cycle.id)
-                .eq("user_id", user.id)
-                .select("*")
-                .single();
+            const [{ data, error }, { error: resetSubjectsError }, { error: deleteSessionsError }] = await Promise.all([
+                supabase
+                    .from("study_cycles")
+                    .update({ cycles_completed: 0 })
+                    .eq("id", cycle.id)
+                    .eq("user_id", user.id)
+                    .select("*")
+                    .single(),
+                supabase
+                    .from("study_cycle_subjects")
+                    .update({ minutos_feitos: 0 })
+                    .eq("cycle_id", cycle.id)
+                    .eq("user_id", user.id),
+                supabase
+                    .from("study_cycle_sessions")
+                    .delete()
+                    .eq("cycle_id", cycle.id)
+                    .eq("user_id", user.id),
+            ]);
 
-            if (error) throw error;
+            if (error || resetSubjectsError || deleteSessionsError) {
+                throw error || resetSubjectsError || deleteSessionsError;
+            }
+
             setCycle(data);
+            setSubjects((prev) => prev.map((s) => ({ ...s, minutos_feitos: 0 })));
         } finally {
             setLoading(false);
         }
