@@ -53,27 +53,25 @@ export default function DashboardGeral({ user }) {
         try {
             const [
                 { data: sessoes, error: e1 },
-                { data: estudos, error: e2 },
-                { data: cicloSessoes, error: e3 },
-                { data: cicloMaterias, error: e4 },
-                { data: cards, error: e5 },
-                { data: cardsFavoritos, error: e6 },
-                { data: revisoesCards, error: e7 },
-                { data: tarefas, error: e8 },
-                { data: revisoes, error: e9 },
+                { data: cicloSessoes, error: e2 },
+                { data: cicloMaterias, error: e3 },
+                { data: cards, error: e4 },
+                { data: cardsFavoritos, error: e5 },
+                { data: revisoesCards, error: e6 },
+                { data: tarefas, error: e7 },
+                { data: revisoes, error: e8 },
             ] = await Promise.all([
                 supabase.from("sessoes_estudo").select("duracao_segundos, modo, materia, inicio_em").eq("user_id", user.id),
-                supabase.from("estudos").select("duracao_segundos, materia, data_estudo").eq("user_id", user.id),
                 supabase.from("study_cycle_sessions").select("minutos, started_at").eq("user_id", user.id),
                 supabase.from("study_cycle_subjects").select("id, nome, minutos_planejados, minutos_feitos").eq("user_id", user.id),
-                supabase.from("flash_cards").select("id, created_at, is_favorite").eq("user_id", user.id),
+                supabase.from("flash_cards").select("id, created_at").eq("user_id", user.id),
                 supabase.from("flash_card_favorites").select("card_id").eq("user_id", user.id),
                 supabase.from("flash_card_reviews").select("resultado, created_at").eq("user_id", user.id),
                 supabase.from("tarefas").select("id, concluida, concluida_em, created_at").eq("user_id", user.id),
                 supabase.from("revisoes_agendadas").select("id, executada, qtd_feitas, qtd_acertos, data_revisao").eq("user_id", user.id),
             ]);
 
-            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9;
+            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8;
             if (erroQuery) throw erroQuery;
 
             setDados({
@@ -101,8 +99,6 @@ export default function DashboardGeral({ user }) {
 
     const stats = useMemo(() => {
         const totalSegSessoes = dados.sessoes.reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
-        const totalSegEstudos = dados.estudos.reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
-
         const segCronometro = dados.sessoes.filter((s) => s.modo === "cronometro").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
         const segManual = dados.sessoes.filter((s) => s.modo === "manual").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
 
@@ -119,22 +115,16 @@ export default function DashboardGeral({ user }) {
         const revisoesAcertos = dados.revisoes.reduce((acc, r) => acc + Number(r.qtd_acertos || 0), 0);
 
         const cardsTotal = dados.cards.length;
-        const legacyFavorites = dados.cards.filter((card) => card.is_favorite).length;
-        const relationFavorites = new Set((dados.cardsFavoritos || []).map((item) => item.card_id)).size;
-        const cardsFavoritos = Math.max(legacyFavorites, relationFavorites);
+        const cardsFavoritos = new Set((dados.cardsFavoritos || []).map((item) => item.card_id)).size;
         const reviewsTotal = dados.revisoesCards.length;
 
-        const materiasMap = {};
-        dados.sessoes.forEach((s) => {
-            const nome = (s.materia || "Sem matéria").trim() || "Sem matéria";
-            materiasMap[nome] = (materiasMap[nome] || 0) + Number(s.duracao_segundos || 0);
-        });
-        dados.estudos.forEach((s) => {
-            const nome = (s.materia || "Sem matéria").trim() || "Sem matéria";
-            materiasMap[nome] = (materiasMap[nome] || 0) + Number(s.duracao_segundos || 0);
-        });
-
-        const topMaterias = Object.entries(materiasMap)
+        const topMaterias = Object.entries(
+            dados.sessoes.reduce((acc, s) => {
+                const nome = (s.materia || "Sem matéria").trim() || "Sem matéria";
+                acc[nome] = (acc[nome] || 0) + Number(s.duracao_segundos || 0);
+                return acc;
+            }, {})
+        )
             .map(([nome, segundos]) => ({ nome, segundos }))
             .sort((a, b) => b.segundos - a.segundos)
             .slice(0, 5);
@@ -147,7 +137,6 @@ export default function DashboardGeral({ user }) {
         const fontesHoras = [
             { nome: "Cronômetro", valor: segCronometro / 3600, cor: "bg-cyan-500" },
             { nome: "Manual", valor: segManual / 3600, cor: "bg-violet-500" },
-            { nome: "Registros antigos", valor: totalSegEstudos / 3600, cor: "bg-amber-500" },
             { nome: "Ciclo", valor: minutosCiclo / 60, cor: "bg-emerald-500" },
         ];
         const totalFontesHoras = fontesHoras.reduce((acc, f) => acc + f.valor, 0);
@@ -184,12 +173,6 @@ export default function DashboardGeral({ user }) {
             mapa7[key] += Number(s.duracao_segundos || 0) / 3600;
         });
 
-        dados.estudos.forEach((s) => {
-            const key = dayKey(s.data_estudo);
-            if (!key || !(key in mapa7)) return;
-            mapa7[key] += Number(s.duracao_segundos || 0) / 3600;
-        });
-
         dados.cicloSessoes.forEach((s) => {
             const key = dayKey(s.started_at);
             if (!key || !(key in mapa7)) return;
@@ -200,7 +183,7 @@ export default function DashboardGeral({ user }) {
         const pico7dias = Math.max(1, ...estudo7dias.map((d) => d.horas));
 
         return {
-            horasTotais: totalSegSessoes / 3600 + totalSegEstudos / 3600 + minutosCiclo / 60,
+            horasTotais: totalSegSessoes / 3600 + minutosCiclo / 60,
             horasCronometro: segCronometro / 3600,
             horasManual: segManual / 3600,
             horasLegacy: totalSegEstudos / 3600,
@@ -261,7 +244,7 @@ export default function DashboardGeral({ user }) {
             ) : (
                 <>
                     <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-                        <Card title="Horas totais estudadas" value={fmtHoras(stats.horasTotais * 60)} subtitle="Cronômetro + Manual + Antigos + Ciclo" icon={Clock3} theme={cardThemes[0]} />
+                        <Card title="Horas totais estudadas" value={fmtHoras(stats.horasTotais * 60)} subtitle="Cronômetro + Manual + Ciclo" icon={Clock3} theme={cardThemes[0]} />
                         <Card title="Progresso no ciclo" value={`${stats.progressoCiclo}%`} subtitle={`Sessões de ciclo: ${fmtHoras(stats.horasCiclo * 60)}`} icon={Target} theme={cardThemes[1]} />
                         <Card title="Flashcards" value={`${stats.cardsTotal} cards`} subtitle={`${stats.reviewsTotal} revisões • ${stats.cardsFavoritos} favoritos`} icon={Layers} theme={cardThemes[2]} />
                         <Card title="Tarefas concluídas" value={`${stats.tarefasConcluidas}/${stats.tarefasTotal}`} subtitle={`Taxa de conclusão: ${stats.taxaConclusaoTarefas}%`} icon={CalendarCheck2} theme={cardThemes[3]} />
