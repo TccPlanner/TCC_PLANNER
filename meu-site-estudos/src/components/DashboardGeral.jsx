@@ -1,8 +1,29 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { BarChart3, Clock3, Target, Layers, CalendarCheck2, RefreshCw, TrendingUp } from "lucide-react";
+import { BarChart3, Clock3, Target, Layers, CalendarCheck2, RefreshCw, PieChart } from "lucide-react";
 
 const fmtHoras = (minutos) => `${(Number(minutos || 0) / 60).toFixed(1)}h`;
+
+const cardThemes = [
+    {
+        wrap: "from-cyan-500/10 via-sky-500/10 to-indigo-500/10 dark:from-cyan-500/20 dark:via-sky-500/10 dark:to-indigo-500/20",
+        icon: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300",
+    },
+    {
+        wrap: "from-violet-500/10 via-fuchsia-500/10 to-pink-500/10 dark:from-violet-500/20 dark:via-fuchsia-500/10 dark:to-pink-500/20",
+        icon: "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300",
+    },
+    {
+        wrap: "from-emerald-500/10 via-teal-500/10 to-cyan-500/10 dark:from-emerald-500/20 dark:via-teal-500/10 dark:to-cyan-500/20",
+        icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
+    },
+    {
+        wrap: "from-amber-500/10 via-orange-500/10 to-rose-500/10 dark:from-amber-500/20 dark:via-orange-500/10 dark:to-rose-500/20",
+        icon: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
+    },
+];
+
+const materiasColors = ["bg-cyan-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500"];
 
 export default function DashboardGeral({ user }) {
     const [loading, setLoading] = useState(true);
@@ -31,34 +52,13 @@ export default function DashboardGeral({ user }) {
                 { data: tarefas, error: e6 },
                 { data: revisoes, error: e7 },
             ] = await Promise.all([
-                supabase
-                    .from("sessoes_estudo")
-                    .select("duracao_segundos, modo, materia, tipo_estudo, inicio_em")
-                    .eq("user_id", user.id),
-                supabase
-                    .from("study_cycle_sessions")
-                    .select("minutos, started_at, subject_id")
-                    .eq("user_id", user.id),
-                supabase
-                    .from("study_cycle_subjects")
-                    .select("id, nome, minutos_planejados, minutos_feitos")
-                    .eq("user_id", user.id),
-                supabase
-                    .from("flash_cards")
-                    .select("id, favoritos, created_at")
-                    .eq("user_id", user.id),
-                supabase
-                    .from("flash_card_reviews")
-                    .select("resultado, created_at")
-                    .eq("user_id", user.id),
-                supabase
-                    .from("tarefas")
-                    .select("id, concluida, concluida_em, created_at")
-                    .eq("user_id", user.id),
-                supabase
-                    .from("revisoes_agendadas")
-                    .select("id, executada, qtd_feitas, qtd_acertos, data_revisao")
-                    .eq("user_id", user.id),
+                supabase.from("sessoes_estudo").select("duracao_segundos, modo, materia, tipo_estudo, inicio_em").eq("user_id", user.id),
+                supabase.from("study_cycle_sessions").select("minutos, started_at, subject_id").eq("user_id", user.id),
+                supabase.from("study_cycle_subjects").select("id, nome, minutos_planejados, minutos_feitos").eq("user_id", user.id),
+                supabase.from("flash_cards").select("id, favoritos, created_at").eq("user_id", user.id),
+                supabase.from("flash_card_reviews").select("resultado, created_at").eq("user_id", user.id),
+                supabase.from("tarefas").select("id, concluida, concluida_em, created_at").eq("user_id", user.id),
+                supabase.from("revisoes_agendadas").select("id, executada, qtd_feitas, qtd_acertos, data_revisao").eq("user_id", user.id),
             ]);
 
             const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e7;
@@ -87,12 +87,8 @@ export default function DashboardGeral({ user }) {
 
     const stats = useMemo(() => {
         const totalSegSessoes = dados.sessoes.reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
-        const segCronometro = dados.sessoes
-            .filter((s) => s.modo === "cronometro")
-            .reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
-        const segManual = dados.sessoes
-            .filter((s) => s.modo === "manual")
-            .reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
+        const segCronometro = dados.sessoes.filter((s) => s.modo === "cronometro").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
+        const segManual = dados.sessoes.filter((s) => s.modo === "manual").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
 
         const minutosCiclo = dados.cicloSessoes.reduce((acc, s) => acc + Number(s.minutos || 0), 0);
         const minutosPlanejadosCiclo = dados.cicloMaterias.reduce((acc, s) => acc + Number(s.minutos_planejados || 0), 0);
@@ -124,35 +120,43 @@ export default function DashboardGeral({ user }) {
         const taxaConclusaoTarefas = tarefasTotal ? Math.round((tarefasConcluidas / tarefasTotal) * 100) : 0;
         const taxaConclusaoRevisoes = revisoesTotal ? Math.round((revisoesConcluidas / revisoesTotal) * 100) : 0;
         const taxaAcertoRevisoes = revisoesQuestoesFeitas ? Math.round((revisoesAcertos / revisoesQuestoesFeitas) * 100) : 0;
-        const progressoCiclo = minutosPlanejadosCiclo
-            ? Math.round((minutosFeitosCiclo / minutosPlanejadosCiclo) * 100)
-            : 0;
+        const progressoCiclo = minutosPlanejadosCiclo ? Math.round((minutosFeitosCiclo / minutosPlanejadosCiclo) * 100) : 0;
+
+        const fontesHoras = [
+            { nome: "Cronômetro", valor: segCronometro / 3600, cor: "bg-cyan-500" },
+            { nome: "Manual", valor: segManual / 3600, cor: "bg-violet-500" },
+            { nome: "Ciclo", valor: minutosCiclo / 60, cor: "bg-emerald-500" },
+        ];
+
+        const totalFontesHoras = fontesHoras.reduce((acc, f) => acc + f.valor, 0);
 
         return {
-            horasTotais: (totalSegSessoes / 3600) + (minutosCiclo / 60),
+            horasTotais: totalSegSessoes / 3600 + minutosCiclo / 60,
             horasCronometro: segCronometro / 3600,
             horasManual: segManual / 3600,
             horasCiclo: minutosCiclo / 60,
-            tarefasTotal,
-            tarefasConcluidas,
-            taxaConclusaoTarefas,
-            revisoesTotal,
-            revisoesConcluidas,
-            taxaConclusaoRevisoes,
-            taxaAcertoRevisoes,
+            progressoCiclo,
             cardsTotal,
             cardsFavoritos,
             reviewsTotal,
-            progressoCiclo,
+            tarefasTotal,
+            tarefasConcluidas,
+            revisoesTotal,
+            revisoesConcluidas,
+            taxaConclusaoTarefas,
+            taxaConclusaoRevisoes,
+            taxaAcertoRevisoes,
             topMaterias,
+            fontesHoras,
+            totalFontesHoras,
         };
     }, [dados]);
 
-    const Card = ({ title, value, subtitle, icon: Icon }) => (
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
+    const Card = ({ title, value, subtitle, icon: Icon, theme = cardThemes[0] }) => (
+        <div className={`rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 bg-gradient-to-br ${theme.wrap} shadow-sm`}>
+            <div className="flex items-center justify-between gap-2">
                 <p className="text-sm text-slate-500 dark:text-slate-400">{title}</p>
-                <div className="p-2 rounded-lg bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300">
+                <div className={`p-2 rounded-lg ${theme.icon}`}>
                     <Icon size={18} />
                 </div>
             </div>
@@ -165,7 +169,7 @@ export default function DashboardGeral({ user }) {
         <div className="space-y-6">
             <div className="flex items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-black text-cyan-600 dark:text-cyan-400">Dashboard Geral</h2>
+                    <h2 className="text-2xl font-black bg-gradient-to-r from-cyan-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">Dashboard Geral</h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Estatísticas reais consolidadas do seu banco de dados.</p>
                 </div>
                 <button
@@ -176,61 +180,79 @@ export default function DashboardGeral({ user }) {
                 </button>
             </div>
 
-            {erro && (
-                <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/40 dark:border-red-900 text-red-700 dark:text-red-300 p-4 text-sm">
-                    {erro}
-                </div>
-            )}
+            {erro && <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/40 dark:border-red-900 text-red-700 dark:text-red-300 p-4 text-sm">{erro}</div>}
 
             {loading ? (
                 <div className="text-sm text-slate-500">Carregando estatísticas...</div>
             ) : (
                 <>
                     <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-                        <Card title="Horas totais estudadas" value={fmtHoras(stats.horasTotais * 60)} subtitle="Cronômetro + Manual + Ciclo" icon={Clock3} />
-                        <Card title="Progresso no ciclo" value={`${stats.progressoCiclo}%`} subtitle={`Inclui sessões do ciclo: ${fmtHoras(stats.horasCiclo * 60)}`} icon={Target} />
-                        <Card title="Flashcards" value={`${stats.cardsTotal} cards`} subtitle={`${stats.reviewsTotal} revisões • ${stats.cardsFavoritos} favoritos`} icon={Layers} />
-                        <Card title="Tarefas concluídas" value={`${stats.tarefasConcluidas}/${stats.tarefasTotal}`} subtitle={`Taxa de conclusão: ${stats.taxaConclusaoTarefas}%`} icon={CalendarCheck2} />
+                        <Card title="Horas totais estudadas" value={fmtHoras(stats.horasTotais * 60)} subtitle="Cronômetro + Manual + Ciclo" icon={Clock3} theme={cardThemes[0]} />
+                        <Card title="Progresso no ciclo" value={`${stats.progressoCiclo}%`} subtitle={`Inclui sessões do ciclo: ${fmtHoras(stats.horasCiclo * 60)}`} icon={Target} theme={cardThemes[1]} />
+                        <Card title="Flashcards" value={`${stats.cardsTotal} cards`} subtitle={`${stats.reviewsTotal} revisões • ${stats.cardsFavoritos} favoritos`} icon={Layers} theme={cardThemes[2]} />
+                        <Card title="Tarefas concluídas" value={`${stats.tarefasConcluidas}/${stats.tarefasTotal}`} subtitle={`Taxa de conclusão: ${stats.taxaConclusaoTarefas}%`} icon={CalendarCheck2} theme={cardThemes[3]} />
                     </div>
 
                     <div className="grid lg:grid-cols-2 gap-4">
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
-                            <h3 className="font-bold mb-3 flex items-center gap-2"><BarChart3 size={16} /> Fontes de horas</h3>
-                            <ul className="space-y-2 text-sm">
-                                <li className="flex justify-between"><span>Cronômetro</span><strong>{fmtHoras(stats.horasCronometro * 60)}</strong></li>
-                                <li className="flex justify-between"><span>Lançamentos manuais</span><strong>{fmtHoras(stats.horasManual * 60)}</strong></li>
-                                <li className="flex justify-between"><span>Sessões do ciclo</span><strong>{fmtHoras(stats.horasCiclo * 60)}</strong></li>
-                            </ul>
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40">
+                            <h3 className="font-bold mb-4 flex items-center gap-2"><BarChart3 size={16} /> Fontes de horas</h3>
+                            <div className="space-y-3">
+                                {stats.fontesHoras.map((fonte) => {
+                                    const pct = stats.totalFontesHoras ? Math.round((fonte.valor / stats.totalFontesHoras) * 100) : 0;
+                                    return (
+                                        <div key={fonte.nome} className="space-y-1">
+                                            <div className="flex justify-between text-sm">
+                                                <span>{fonte.nome}</span>
+                                                <strong>{fmtHoras(fonte.valor * 60)} · {pct}%</strong>
+                                            </div>
+                                            <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                                                <div className={`h-full ${fonte.cor}`} style={{ width: `${pct}%` }} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
 
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
-                            <h3 className="font-bold mb-3 flex items-center gap-2"><TrendingUp size={16} /> Revisões</h3>
-                            <ul className="space-y-2 text-sm">
-                                <li className="flex justify-between"><span>Revisões concluídas</span><strong>{stats.revisoesConcluidas}/{stats.revisoesTotal}</strong></li>
-                                <li className="flex justify-between"><span>Taxa de conclusão</span><strong>{stats.taxaConclusaoRevisoes}%</strong></li>
-                                <li className="flex justify-between"><span>Taxa de acerto (questões)</span><strong>{stats.taxaAcertoRevisoes}%</strong></li>
-                            </ul>
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40">
+                            <h3 className="font-bold mb-4 flex items-center gap-2"><PieChart size={16} /> Revisões</h3>
+                            <div className="grid grid-cols-3 gap-3 text-center mb-4">
+                                <div className="rounded-xl p-3 bg-cyan-100/70 dark:bg-cyan-900/30">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Concluídas</p>
+                                    <p className="text-lg font-black text-cyan-700 dark:text-cyan-300">{stats.revisoesConcluidas}</p>
+                                </div>
+                                <div className="rounded-xl p-3 bg-violet-100/70 dark:bg-violet-900/30">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Taxa conclusão</p>
+                                    <p className="text-lg font-black text-violet-700 dark:text-violet-300">{stats.taxaConclusaoRevisoes}%</p>
+                                </div>
+                                <div className="rounded-xl p-3 bg-emerald-100/70 dark:bg-emerald-900/30">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Taxa acerto</p>
+                                    <p className="text-lg font-black text-emerald-700 dark:text-emerald-300">{stats.taxaAcertoRevisoes}%</p>
+                                </div>
+                            </div>
+                            <div className="h-2.5 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 flex">
+                                <div className="bg-cyan-500" style={{ width: `${stats.taxaConclusaoRevisoes}%` }} />
+                                <div className="bg-violet-500" style={{ width: `${Math.max(0, stats.taxaAcertoRevisoes - stats.taxaConclusaoRevisoes)}%` }} />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40">
                         <h3 className="font-bold mb-4">Matérias mais estudadas</h3>
                         {stats.topMaterias.length === 0 ? (
                             <p className="text-sm text-slate-500">Ainda não há sessões registradas para montar ranking.</p>
                         ) : (
                             <div className="space-y-3">
                                 {stats.topMaterias.map((m, idx) => {
-                                    const pct = stats.topMaterias[0]?.segundos
-                                        ? Math.round((m.segundos / stats.topMaterias[0].segundos) * 100)
-                                        : 0;
+                                    const pct = stats.topMaterias[0]?.segundos ? Math.round((m.segundos / stats.topMaterias[0].segundos) * 100) : 0;
                                     return (
                                         <div key={m.nome}>
                                             <div className="flex justify-between text-sm mb-1">
                                                 <span>{idx + 1}. {m.nome}</span>
                                                 <strong>{(m.segundos / 3600).toFixed(1)}h</strong>
                                             </div>
-                                            <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                                                <div className="h-full bg-cyan-500" style={{ width: `${pct}%` }} />
+                                            <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                                                <div className={`h-full ${materiasColors[idx % materiasColors.length]}`} style={{ width: `${pct}%` }} />
                                             </div>
                                         </div>
                                     );
