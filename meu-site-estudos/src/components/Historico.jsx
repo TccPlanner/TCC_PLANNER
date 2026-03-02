@@ -152,61 +152,6 @@ const Historico = ({ user }) => {
         // eslint-disable-next-line
     }, [user?.id, intervalo.inicio.getTime(), intervalo.fim.getTime()]);
 
-    useEffect(() => {
-        if (!user?.id) return;
-
-        const atualizar = () => carregarHistorico();
-
-        const chSessao = supabase
-            .channel("historico_sessoes_estudo_changes")
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "sessoes_estudo",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                atualizar
-            )
-            .subscribe();
-
-        const chCiclo = supabase
-            .channel("historico_study_cycle_sessions_changes")
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "study_cycle_sessions",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                atualizar
-            )
-            .subscribe();
-
-        const chSubjects = supabase
-            .channel("historico_study_cycle_subjects_changes")
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "study_cycle_subjects",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                atualizar
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(chSessao);
-            supabase.removeChannel(chCiclo);
-            supabase.removeChannel(chSubjects);
-        };
-        // eslint-disable-next-line
-    }, [user?.id, intervalo.inicio.getTime(), intervalo.fim.getTime()]);
-
     const diasAgrupados = useMemo(() => {
         const bucket = new Map();
 
@@ -322,8 +267,8 @@ const Historico = ({ user }) => {
                         >
                             <header className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                                 <div className="flex items-center gap-2">
-                                    <CalendarDays size={24} className="text-cyan-500" />
-                                    <h3 className="font-black text-xl md:text-2xl text-slate-900 dark:text-white">
+                                    <CalendarDays size={16} className="text-cyan-500" />
+                                    <h3 className="font-black text-slate-900 dark:text-white">
                                         {new Date(dia.key + "T00:00:00").toLocaleDateString("pt-BR", {
                                             weekday: "long",
                                             day: "2-digit",
