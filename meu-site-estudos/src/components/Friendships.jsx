@@ -13,6 +13,16 @@ function Friendships() {
   const [loadingPending, setLoadingPending] = useState(false);
   const [loadingRanking, setLoadingRanking] = useState(false);
 
+  const copiarCodigo = async (codigo) => {
+    if (!codigo) return;
+    try {
+      await navigator.clipboard.writeText(codigo);
+      alert(`Código ${codigo} copiado!`);
+    } catch {
+      alert(`Código: ${codigo}`);
+    }
+  };
+
   const medalha = (pos) => {
     if (pos === 1) return "🥇";
     if (pos === 2) return "🥈";
@@ -89,11 +99,51 @@ function Friendships() {
       .from("v_friend_ranking")
       .select("user_id, nome, level, title, xp_total");
 
+    if (error) {
+      setLoadingRanking(false);
+      throw error;
+    }
+
+    const rankingBase = data ?? [];
+    const idsParaCodigo = Array.from(new Set([
+      ...rankingBase.map((row) => row.user_id),
+      myUserId,
+    ].filter(Boolean)));
+
+    let mapaCodigos = {};
+    if (idsParaCodigo.length > 0) {
+      const { data: perfisData, error: perfisError } = await supabase
+        .from("perfis")
+        .select("id, invite_code")
+        .in("id", idsParaCodigo);
+
+      if (perfisError) {
+        setLoadingRanking(false);
+        throw perfisError;
+      }
+
+      mapaCodigos = Object.fromEntries((perfisData ?? []).map((perfil) => [perfil.id, perfil.invite_code]));
+    }
+
+    const meuRegistro = rankingBase.find((row) => row.user_id === myUserId);
+    const completo = [...rankingBase];
+
+    if (myUserId && !meuRegistro) {
+      completo.push({
+        user_id: myUserId,
+        nome: myName || "Você",
+        level: 1,
+        title: "Iniciante",
+        xp_total: 0,
+      });
+    }
+
+    const rankingFinal = completo
+      .map((row) => ({ ...row, invite_code: mapaCodigos[row.user_id] || "" }))
+      .sort((a, b) => Number(b.xp_total || 0) - Number(a.xp_total || 0));
+
+    setRanking(rankingFinal);
     setLoadingRanking(false);
-
-    if (error) throw error;
-
-    setRanking(data ?? []);
   };
 
   const sendFriendRequestByCode = async (inviteCode) => {
@@ -151,7 +201,7 @@ function Friendships() {
     }
 
     try {
-      await loadIncomingRequests();
+      await Promise.all([loadIncomingRequests(), loadFriendsRanking()]);
     } catch (error) {
       alert(error.message || "Erro ao carregar solicitações.");
     }
@@ -176,7 +226,7 @@ function Friendships() {
       setInviteCodeInput("");
       alert("Convite enviado com sucesso.");
       // (Pendentes são os recebidos; aqui não muda, mas pode manter)
-      await loadIncomingRequests();
+      await Promise.all([loadIncomingRequests(), loadFriendsRanking()]);
     } catch (error) {
       alert(error.message || "Não foi possível enviar o convite.");
     }
@@ -201,6 +251,13 @@ function Friendships() {
           Seu código: <strong>{myInviteCode || "-"}</strong>
           {myName ? ` (${myName})` : ""}
         </p>
+        <button
+          type="button"
+          onClick={() => copiarCodigo(myInviteCode)}
+          className="text-sm mb-4 text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+        >
+          Clique para copiar seu código
+        </button>
 
         <form onSubmit={enviarPedido} className="flex flex-col sm:flex-row gap-3">
           <input
@@ -288,6 +345,7 @@ function Friendships() {
                   <th className="py-2 pr-4 font-semibold">XP Total</th>
                   <th className="py-2 pr-4 font-semibold">Level</th>
                   <th className="py-2 pr-4 font-semibold">Título</th>
+                  <th className="py-2 pr-4 font-semibold">Código</th>
                 </tr>
               </thead>
               <tbody>
@@ -308,6 +366,17 @@ function Friendships() {
                       <td className="py-2 pr-4 text-sm">{row.xp_total ?? 0}</td>
                       <td className="py-2 pr-4 text-sm">{row.level ?? "-"}</td>
                       <td className="py-2 pr-4 text-sm">{row.title ?? "-"}</td>
+                      <td className="py-2 pr-4 text-sm">
+                        {row.invite_code ? (
+                          <button
+                            type="button"
+                            onClick={() => copiarCodigo(row.invite_code)}
+                            className="text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                          >
+                            {row.invite_code}
+                          </button>
+                        ) : "-"}
+                      </td>
                     </tr>
                   );
                 })}

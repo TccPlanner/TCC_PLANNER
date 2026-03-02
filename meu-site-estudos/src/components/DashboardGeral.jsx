@@ -3,6 +3,13 @@ import { supabase } from "../supabaseClient";
 import { Activity, BarChart3, CalendarCheck2, Clock3, Layers, PieChart, RefreshCw, Target } from "lucide-react";
 
 const fmtHoras = (minutos) => `${(Number(minutos || 0) / 60).toFixed(1)}h`;
+const fmtHMS = (totalSegundos) => {
+    const total = Math.max(0, Math.floor(Number(totalSegundos || 0)));
+    const horas = Math.floor(total / 3600);
+    const minutos = Math.floor((total % 3600) / 60);
+    const segundos = total % 60;
+    return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(2, "0")}:${String(segundos).padStart(2, "0")}`;
+};
 
 const cardThemes = [
     {
@@ -36,9 +43,9 @@ export default function DashboardGeral({ user }) {
     const [erro, setErro] = useState("");
     const [dados, setDados] = useState({
         sessoes: [],
-        estudos: [],
         cicloSessoes: [],
         cicloMaterias: [],
+        cicloAtual: null,
         cards: [],
         cardsFavoritos: [],
         revisoesCards: [],
@@ -51,19 +58,21 @@ export default function DashboardGeral({ user }) {
         setLoading(true);
         setErro("");
         try {
-            const [
+        const [
                 { data: sessoes, error: e1 },
                 { data: cicloSessoes, error: e2 },
                 { data: cicloMaterias, error: e3 },
-                { data: cards, error: e4 },
-                { data: cardsFavoritos, error: e5 },
-                { data: revisoesCards, error: e6 },
-                { data: tarefas, error: e7 },
-                { data: revisoes, error: e8 },
+                { data: cicloAtual, error: e4 },
+                { data: cards, error: e5 },
+                { data: cardsFavoritos, error: e6 },
+                { data: revisoesCards, error: e7 },
+                { data: tarefas, error: e8 },
+                { data: revisoes, error: e9 },
             ] = await Promise.all([
                 supabase.from("sessoes_estudo").select("duracao_segundos, modo, materia, inicio_em").eq("user_id", user.id),
                 supabase.from("study_cycle_sessions").select("minutos, started_at").eq("user_id", user.id),
                 supabase.from("study_cycle_subjects").select("id, nome, minutos_planejados, minutos_feitos").eq("user_id", user.id),
+                supabase.from("study_cycles").select("id, cycles_completed").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1),
                 supabase.from("flash_cards").select("id, created_at").eq("user_id", user.id),
                 supabase.from("flash_card_favorites").select("card_id").eq("user_id", user.id),
                 supabase.from("flash_card_reviews").select("resultado, created_at").eq("user_id", user.id),
@@ -71,14 +80,14 @@ export default function DashboardGeral({ user }) {
                 supabase.from("revisoes_agendadas").select("id, executada, qtd_feitas, qtd_acertos, data_revisao").eq("user_id", user.id),
             ]);
 
-            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8;
+            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9;
             if (erroQuery) throw erroQuery;
 
             setDados({
                 sessoes: sessoes || [],
-                estudos: estudos || [],
                 cicloSessoes: cicloSessoes || [],
                 cicloMaterias: cicloMaterias || [],
+                cicloAtual: cicloAtual?.[0] || null,
                 cards: cards || [],
                 cardsFavoritos: cardsFavoritos || [],
                 revisoesCards: revisoesCards || [],
@@ -186,8 +195,8 @@ export default function DashboardGeral({ user }) {
             horasTotais: totalSegSessoes / 3600 + minutosCiclo / 60,
             horasCronometro: segCronometro / 3600,
             horasManual: segManual / 3600,
-            horasLegacy: totalSegEstudos / 3600,
             horasCiclo: minutosCiclo / 60,
+            ciclosConcluidos: Number(dados.cicloAtual?.cycles_completed || 0),
             progressoCiclo,
             cardsTotal,
             cardsFavoritos,
@@ -245,7 +254,7 @@ export default function DashboardGeral({ user }) {
                 <>
                     <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
                         <Card title="Horas totais estudadas" value={fmtHoras(stats.horasTotais * 60)} subtitle="Cronômetro + Manual + Ciclo" icon={Clock3} theme={cardThemes[0]} />
-                        <Card title="Progresso no ciclo" value={`${stats.progressoCiclo}%`} subtitle={`Sessões de ciclo: ${fmtHoras(stats.horasCiclo * 60)}`} icon={Target} theme={cardThemes[1]} />
+                        <Card title="Progresso no ciclo" value={`${stats.progressoCiclo}%`} subtitle={`Ciclos concluídos: ${stats.ciclosConcluidos}`} icon={Target} theme={cardThemes[1]} />
                         <Card title="Flashcards" value={`${stats.cardsTotal} cards`} subtitle={`${stats.reviewsTotal} revisões • ${stats.cardsFavoritos} favoritos`} icon={Layers} theme={cardThemes[2]} />
                         <Card title="Tarefas concluídas" value={`${stats.tarefasConcluidas}/${stats.tarefasTotal}`} subtitle={`Taxa de conclusão: ${stats.taxaConclusaoTarefas}%`} icon={CalendarCheck2} theme={cardThemes[3]} />
                     </div>
@@ -266,6 +275,29 @@ export default function DashboardGeral({ user }) {
                                         </div>
                                     );
                                 })}
+                            </div>
+                            <div className="mt-4">
+                                <svg viewBox="0 0 100 30" className="w-full h-20">
+                                    <polyline
+                                        fill="none"
+                                        stroke="url(#estudoGradient)"
+                                        strokeWidth="1.6"
+                                        points={stats.estudo7dias
+                                            .map((dia, index) => {
+                                                const x = (index / 6) * 100;
+                                                const y = 28 - (dia.horas / stats.pico7dias) * 24;
+                                                return `${x},${Number.isFinite(y) ? y : 28}`;
+                                            })
+                                            .join(" ")}
+                                    />
+                                    <defs>
+                                        <linearGradient id="estudoGradient" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stopColor="#06b6d4" />
+                                            <stop offset="50%" stopColor="#8b5cf6" />
+                                            <stop offset="100%" stopColor="#d946ef" />
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
                             </div>
                         </div>
 
@@ -345,7 +377,7 @@ export default function DashboardGeral({ user }) {
                                         <div key={m.nome}>
                                             <div className="flex justify-between text-sm mb-1">
                                                 <span>{idx + 1}. {m.nome}</span>
-                                                <strong>{(m.segundos / 3600).toFixed(1)}h</strong>
+                                                <strong>{fmtHMS(m.segundos)}</strong>
                                             </div>
                                             <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                                                 <div className={`h-full ${materiasColors[idx % materiasColors.length]}`} style={{ width: `${pct}%` }} />
