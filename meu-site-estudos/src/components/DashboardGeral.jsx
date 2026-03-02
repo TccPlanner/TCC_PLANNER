@@ -36,6 +36,7 @@ export default function DashboardGeral({ user }) {
     const [erro, setErro] = useState("");
     const [dados, setDados] = useState({
         sessoes: [],
+        estudos: [],
         cicloSessoes: [],
         cicloMaterias: [],
         cards: [],
@@ -75,6 +76,7 @@ export default function DashboardGeral({ user }) {
 
             setDados({
                 sessoes: sessoes || [],
+                estudos: estudos || [],
                 cicloSessoes: cicloSessoes || [],
                 cicloMaterias: cicloMaterias || [],
                 cards: cards || [],
@@ -184,6 +186,7 @@ export default function DashboardGeral({ user }) {
             horasTotais: totalSegSessoes / 3600 + minutosCiclo / 60,
             horasCronometro: segCronometro / 3600,
             horasManual: segManual / 3600,
+            horasLegacy: totalSegEstudos / 3600,
             horasCiclo: minutosCiclo / 60,
             progressoCiclo,
             cardsTotal,
