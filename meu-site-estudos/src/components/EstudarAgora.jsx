@@ -547,9 +547,27 @@ const EstudarAgora = ({ user }) => {
     }, [showSugestoesConteudo, materia]);
 
 
+    const ultimoTickMsRef = useRef(null);
     useEffect(() => {
-        let intervalo = null;
-        if (ativo) intervalo = setInterval(() => setSegundos((s) => s + 1), 1000);
+        if (!ativo) {
+            ultimoTickMsRef.current = null;
+            return undefined;
+        }
+
+        if (!ultimoTickMsRef.current) ultimoTickMsRef.current = Date.now();
+
+        const atualizarCronometro = () => {
+            const agora = Date.now();
+            const ultimoTick = ultimoTickMsRef.current || agora;
+            const deltaSeg = Math.floor((agora - ultimoTick) / 1000);
+
+            if (deltaSeg <= 0) return;
+
+            setSegundos((s) => s + deltaSeg);
+            ultimoTickMsRef.current = ultimoTick + deltaSeg * 1000;
+        };
+
+        const intervalo = setInterval(atualizarCronometro, 250);
         return () => clearInterval(intervalo);
     }, [ativo]);
 
@@ -579,6 +597,7 @@ const EstudarAgora = ({ user }) => {
         setSegundos(0);
         setAtivo(false);
         setInicioCronometroEm(null);
+        ultimoTickMsRef.current = null;
 
         // ✅ NÃO remove alarmes ativos
         // ✅ Apenas reinicia "duração" para contar do zero de novo
