@@ -5,10 +5,20 @@ function Friendships() {
   const [inviteCodeInput, setInviteCodeInput] = useState("");
   const [myInviteCode, setMyInviteCode] = useState("");
   const [myName, setMyName] = useState("");
+  const [myUserId, setMyUserId] = useState(null);
+
   const [pendingRequests, setPendingRequests] = useState([]);
   const [ranking, setRanking] = useState([]);
+
   const [loadingPending, setLoadingPending] = useState(false);
   const [loadingRanking, setLoadingRanking] = useState(false);
+
+  const medalha = (pos) => {
+    if (pos === 1) return "🥇";
+    if (pos === 2) return "🥈";
+    if (pos === 3) return "🥉";
+    return `#${pos}`;
+  };
 
   const loadMyInviteCode = async () => {
     const {
@@ -18,11 +28,38 @@ function Friendships() {
 
     if (authError || !user) throw new Error("Não logado");
 
-    const { data, error } = await supabase
+    setMyUserId(user.id);
+
+    // Busca perfil
+    let { data, error } = await supabase
       .from("perfis")
       .select("invite_code, nome")
       .eq("id", user.id)
       .single();
+
+    // Se não existir, tenta UPSERT (fallback seguro)
+    if (error && (error.code === "PGRST116" || String(error.message || "").includes("0 rows"))) {
+      const { error: upErr } = await supabase
+        .from("perfis")
+        .upsert(
+          {
+            id: user.id,
+            nome: user.user_metadata?.name ?? user.email ?? null,
+          },
+          { onConflict: "id" }
+        );
+
+      if (upErr) throw upErr;
+
+      const res = await supabase
+        .from("perfis")
+        .select("invite_code, nome")
+        .eq("id", user.id)
+        .single();
+
+      data = res.data;
+      error = res.error;
+    }
 
     if (error) throw error;
 
@@ -30,25 +67,13 @@ function Friendships() {
     setMyName(data?.nome ?? "");
   };
 
+  // ✅ Agora lê da VIEW que já traz requester_nome
   const loadIncomingRequests = async () => {
     setLoadingPending(true);
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      setLoadingPending(false);
-      throw new Error("Não logado");
-    }
-
     const { data, error } = await supabase
-      .from("friendships")
-      .select("id, requester_id, status, created_at")
-      .eq("addressee_id", user.id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
+      .from("v_incoming_friend_requests")
+      .select("id, requester_id, requester_nome, status, created_at");
 
     setLoadingPending(false);
 
@@ -81,6 +106,7 @@ function Friendships() {
 
     if (authError || !user) throw new Error("Não logado");
 
+    // ✅ RPC segura
     const { data: friendId, error: rpcErr } = await supabase.rpc("resolve_invite_code", {
       code,
     });
@@ -113,16 +139,30 @@ function Friendships() {
     return true;
   };
 
+  // ✅ bootstrap resiliente (não quebra tudo se 1 chamada falhar)
   const bootstrap = async () => {
     try {
-      await Promise.all([loadMyInviteCode(), loadIncomingRequests(), loadFriendsRanking()]);
+      await loadMyInviteCode();
     } catch (error) {
-      alert(error.message || "Erro ao carregar dados de amizades.");
+      alert(error.message || "Erro ao carregar seu perfil.");
+    }
+
+    try {
+      await loadIncomingRequests();
+    } catch (error) {
+      alert(error.message || "Erro ao carregar solicitações.");
+    }
+
+    try {
+      await loadFriendsRanking();
+    } catch (error) {
+      alert(error.message || "Erro ao carregar ranking.");
     }
   };
 
   useEffect(() => {
     bootstrap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const enviarPedido = async (e) => {
@@ -132,6 +172,7 @@ function Friendships() {
       await sendFriendRequestByCode(inviteCodeInput);
       setInviteCodeInput("");
       alert("Convite enviado com sucesso.");
+      // (Pendentes são os recebidos; aqui não muda, mas pode manter)
       await loadIncomingRequests();
     } catch (error) {
       alert(error.message || "Não foi possível enviar o convite.");
@@ -150,6 +191,7 @@ function Friendships() {
 
   return (
     <div className="space-y-8">
+      {/* Adicionar amigo */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50 dark:bg-slate-950/40">
         <h2 className="text-xl font-bold mb-1">Adicionar amigo</h2>
         <p className="text-sm text-slate-500 mb-4">
@@ -174,6 +216,7 @@ function Friendships() {
         </form>
       </section>
 
+      {/* Solicitações pendentes */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50 dark:bg-slate-950/40">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Solicitações pendentes</h2>
@@ -197,8 +240,12 @@ function Friendships() {
                 className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 flex items-center justify-between"
               >
                 <div>
-                  <p className="font-medium">Solicitante: {request.requester_id}</p>
-                  <p className="text-sm text-slate-500">{new Date(request.created_at).toLocaleString()}</p>
+                  <p className="font-medium">
+                    Solicitante: {request.requester_nome ?? request.requester_id}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {new Date(request.created_at).toLocaleString()}
+                  </p>
                 </div>
                 <button
                   onClick={() => aceitarPedido(request.id)}
@@ -212,6 +259,7 @@ function Friendships() {
         )}
       </section>
 
+      {/* Ranking */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50 dark:bg-slate-950/40">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Ranking</h2>
@@ -240,15 +288,26 @@ function Friendships() {
                 </tr>
               </thead>
               <tbody>
-                {ranking.map((row, index) => (
-                  <tr key={row.user_id} className="border-b border-slate-100 dark:border-slate-900">
-                    <td className="py-2 pr-4 text-sm font-semibold">#{index + 1}</td>
-                    <td className="py-2 pr-4 text-sm">{row.nome ?? "-"}</td>
-                    <td className="py-2 pr-4 text-sm">{row.xp_total ?? 0}</td>
-                    <td className="py-2 pr-4 text-sm">{row.level ?? "-"}</td>
-                    <td className="py-2 pr-4 text-sm">{row.title ?? "-"}</td>
-                  </tr>
-                ))}
+                {ranking.map((row, index) => {
+                  const isMe = myUserId && row.user_id === myUserId;
+                  return (
+                    <tr
+                      key={row.user_id}
+                      className={[
+                        "border-b border-slate-100 dark:border-slate-900",
+                        isMe ? "bg-cyan-50 dark:bg-cyan-950/30" : "",
+                      ].join(" ")}
+                    >
+                      <td className="py-2 pr-4 text-sm font-semibold">{medalha(index + 1)}</td>
+                      <td className="py-2 pr-4 text-sm">
+                        {row.nome ?? "-"} {isMe ? "(você)" : ""}
+                      </td>
+                      <td className="py-2 pr-4 text-sm">{row.xp_total ?? 0}</td>
+                      <td className="py-2 pr-4 text-sm">{row.level ?? "-"}</td>
+                      <td className="py-2 pr-4 text-sm">{row.title ?? "-"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
