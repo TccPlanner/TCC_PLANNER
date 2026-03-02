@@ -276,13 +276,15 @@ const Calendario = ({ user }) => {
                 const tipoKey = normalizarTipoSessao(s.tipo_estudo);
 
                 // ✅ status "concluída" (se existir)
-                const concluidaSessao = !!(
-                    s.concluida ??
-                    s.finalizada ??
-                    s.realizada ??
-                    s.feita ??
-                    false
-                );
+                const statusSessaoExplicito =
+                    s.concluida ?? s.finalizada ?? s.realizada ?? s.feita;
+
+                // Quando não existe coluna de status na sessão, considera concluída
+                // se a sessão já tem duração registrada e iniciou no passado.
+                const concluidaSessao =
+                    statusSessaoExplicito != null
+                        ? !!statusSessaoExplicito
+                        : dur > 0 && new Date(inicio) <= new Date();
 
                 return {
                     id: `ses-${s.id}`,
