@@ -14,6 +14,7 @@ import {
     ListTree,
     BarChart3,
     Flame,
+    Users,
 } from "lucide-react";
 
 import EstudarAgora from "./EstudarAgora";
@@ -26,6 +27,7 @@ import CicloEstudos from "./CicloEstudos";
 import Flashcards from "./Flashcards";
 import DashboardGeral from "./DashboardGeral";
 import Constancia from "./Constancia"; // ✅ CONSTÂNCIA
+import Friendships from "./Friendships";
 
 function Dashboard({ user }) {
     const [abaAtiva, setAbaAtiva] = useState("inicio");
@@ -59,6 +61,7 @@ function Dashboard({ user }) {
         if (abaAtiva === "tarefas") return "To-do list";
         if (abaAtiva === "revisoes") return "Revisões";
         if (abaAtiva === "historico") return "Histórico";
+        if (abaAtiva === "amizades") return "Amizades";
         return "Dashboard";
     })();
 
@@ -132,6 +135,7 @@ function Dashboard({ user }) {
                     )}
                     <MenuLink id="revisoes" icon={BookOpen} label="Revisões" />
                     <MenuLink id="historico" icon={History} label="Histórico" />
+                    <MenuLink id="amizades" icon={Users} label="Amizades" />
                 </nav>
 
                 {/* ✅ BOTÃO SAIR SEM SAIR DA TELA */}
@@ -174,6 +178,7 @@ function Dashboard({ user }) {
                             Histórico (em breve)
                         </div>
                     )}
+                    {abaAtiva === "amizades" && <Friendships />}
                 </section>
             </main>
         </div>
