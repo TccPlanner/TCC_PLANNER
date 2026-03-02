@@ -152,61 +152,6 @@ const Historico = ({ user }) => {
         // eslint-disable-next-line
     }, [user?.id, intervalo.inicio.getTime(), intervalo.fim.getTime()]);
 
-    useEffect(() => {
-        if (!user?.id) return;
-
-        const atualizar = () => carregarHistorico();
-
-        const chSessao = supabase
-            .channel("historico_sessoes_estudo_changes")
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "sessoes_estudo",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                atualizar
-            )
-            .subscribe();
-
-        const chCiclo = supabase
-            .channel("historico_study_cycle_sessions_changes")
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "study_cycle_sessions",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                atualizar
-            )
-            .subscribe();
-
-        const chSubjects = supabase
-            .channel("historico_study_cycle_subjects_changes")
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "study_cycle_subjects",
-                    filter: `user_id=eq.${user.id}`,
-                },
-                atualizar
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(chSessao);
-            supabase.removeChannel(chCiclo);
-            supabase.removeChannel(chSubjects);
-        };
-        // eslint-disable-next-line
-    }, [user?.id, intervalo.inicio.getTime(), intervalo.fim.getTime()]);
-
     const diasAgrupados = useMemo(() => {
         const bucket = new Map();
 
