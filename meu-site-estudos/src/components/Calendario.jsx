@@ -275,7 +275,7 @@ const Calendario = ({ user }) => {
 
                 const tipoKey = normalizarTipoSessao(s.tipo_estudo);
 
-                // ✅ status "concluída" (se existir)
+                // ✅ status "concluída" (coluna oficial + aliases legados)
                 const concluidaSessao = !!(
                     s.concluida ??
                     s.finalizada ??
