@@ -594,11 +594,6 @@ const GerenciadorTarefas = ({ user }) => {
         setEditSubTexto("");
     };
 
-    // ---------- Progresso geral ----------
-    const progresso = tarefas.length
-        ? Math.round((tarefas.filter((t) => t.concluida).length / tarefas.length) * 100)
-        : 0;
-
     // ---------- Filtros + Ordenação ----------
     const categoriasDisponiveis = useMemo(() => {
         // ✅ agora SEMPRE mostra Estudo e Geral
@@ -668,6 +663,13 @@ const GerenciadorTarefas = ({ user }) => {
     const tarefasVisiveis = useMemo(() => {
         return tarefasFiltradas.slice(0, limiteLista);
     }, [tarefasFiltradas, limiteLista]);
+
+    // ---------- Progresso da visualização atual ----------
+    const progresso = useMemo(() => {
+        if (!tarefasFiltradas.length) return 0;
+        const concluidas = tarefasFiltradas.filter((t) => t.concluida).length;
+        return Math.round((concluidas / tarefasFiltradas.length) * 100);
+    }, [tarefasFiltradas]);
 
     // =======================
     // ✅ ESTATÍSTICAS (FIXADAS)
