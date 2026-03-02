@@ -1058,6 +1058,7 @@ const EstudarAgora = ({ user }) => {
                 duracao_hms,
                 modo,
                 anotacao: anotacao.trim(),
+                concluida: true,
 
                 questoes_feitas:
                     tipoEstudo === "Exercícios" || tipoEstudo === "Simulado" ? Number(questoes.feitas || 0) : 0,
