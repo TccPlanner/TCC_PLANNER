@@ -28,6 +28,7 @@ import Flashcards from "./Flashcards";
 import DashboardGeral from "./DashboardGeral";
 import Constancia from "./Constancia"; // ✅ CONSTÂNCIA
 import Friendships from "./Friendships";
+import Historico from "./Historico";
 
 function Dashboard({ user }) {
     const [abaAtiva, setAbaAtiva] = useState("inicio");
@@ -173,11 +174,7 @@ function Dashboard({ user }) {
                     {abaAtiva === "tarefas" && <GerenciadorTarefas user={user} />}
                     {abaAtiva === "revisoes" && <AgendaRevisoes user={user} />}
 
-                    {abaAtiva === "historico" && (
-                        <div className="text-center py-20 text-slate-500">
-                            Histórico (em breve)
-                        </div>
-                    )}
+                    {abaAtiva === "historico" && <Historico user={user} />}
                     {abaAtiva === "amizades" && <Friendships />}
                 </section>
             </main>
