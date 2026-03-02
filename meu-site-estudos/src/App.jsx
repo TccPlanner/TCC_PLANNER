@@ -61,7 +61,7 @@ export default function App() {
         });
         if (error) alert(error.message);
         else if (data.user) {
-          await supabase.from('perfis').insert([{ id: data.user.id, nome, objetivo }]);
+          await supabase.from('perfis').insert([{ id: data.user.id, user_id: data.user.id, nome, objetivo }]);
           if (!data.session) setCadastroConcluido(true);
         }
       }
