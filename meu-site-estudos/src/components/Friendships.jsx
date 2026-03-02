@@ -97,7 +97,10 @@ function Friendships() {
   };
 
   const sendFriendRequestByCode = async (inviteCode) => {
-    const code = inviteCode.trim();
+    const code = inviteCode
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "");
 
     const {
       data: { user },
