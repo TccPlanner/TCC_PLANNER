@@ -38,10 +38,7 @@ function Anotacoes({ user }) {
   }, [storageKey]);
 
   useEffect(() => {
-    if (!cadernos.length) {
-      localStorage.removeItem(storageKey);
-      return;
-    }
+    if (!cadernos.length) return;
     localStorage.setItem(storageKey, JSON.stringify(cadernos));
   }, [cadernos, storageKey]);
 
@@ -64,21 +61,6 @@ function Anotacoes({ user }) {
     setCadernos((prev) => [...prev, novo]);
     setCadernoId(novo.id);
     setNotaId("");
-  };
-
-  const atualizarTituloCaderno = (valor) => {
-    if (!cadernoAtual) return;
-    setCadernos((prev) =>
-      prev.map((c) => (c.id === cadernoAtual.id ? { ...c, titulo: valor } : c))
-    );
-  };
-
-  const excluirCaderno = () => {
-    if (!cadernoAtual) return;
-    const restantes = cadernos.filter((c) => c.id !== cadernoAtual.id);
-    setCadernos(restantes);
-    setCadernoId(restantes[0]?.id || "");
-    setNotaId(restantes[0]?.notas?.[0]?.id || "");
   };
 
   const criarNota = () => {
@@ -143,25 +125,7 @@ function Anotacoes({ user }) {
           </button>
         </div>
 
-        {cadernoAtual && (
-          <div className="flex gap-2 mb-3">
-            <input
-              value={cadernoAtual.titulo}
-              onChange={(e) => atualizarTituloCaderno(e.target.value)}
-              placeholder="Nome do caderno"
-              className="w-full rounded-lg border px-3 py-2 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 outline-none focus:border-cyan-500"
-            />
-            <button
-              onClick={excluirCaderno}
-              className="px-3 rounded-lg border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
-              title="Excluir caderno"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        )}
-
-        <div className="space-y-2 overflow-y-auto max-h-[52vh] pr-1">
+        <div className="space-y-2 overflow-y-auto max-h-[56vh] pr-1">
           {cadernos.map((c) => (
             <button
               key={c.id}
@@ -175,13 +139,10 @@ function Anotacoes({ user }) {
                   : "hover:bg-slate-200 dark:hover:bg-slate-700"
               }`}
             >
-              <p className="font-medium truncate">{c.titulo || "Sem nome"}</p>
+              <p className="font-medium truncate">{c.titulo}</p>
               <p className="text-xs opacity-75">{c.notas.length} nota(s)</p>
             </button>
           ))}
-          {!cadernos.length && (
-            <p className="text-sm text-slate-500">Crie um caderno para começar.</p>
-          )}
         </div>
       </aside>
 
@@ -215,7 +176,7 @@ function Anotacoes({ user }) {
               </p>
             </button>
           ))}
-          {!!cadernoAtual && !cadernoAtual.notas.length && (
+          {!cadernoAtual?.notas.length && (
             <p className="text-sm text-slate-500">Crie a primeira nota deste caderno.</p>
           )}
         </div>
