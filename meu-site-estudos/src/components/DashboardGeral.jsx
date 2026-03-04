@@ -136,7 +136,6 @@ export default function DashboardGeral({ user }) {
         const segCronometro = dados.sessoes.filter((s) => s.modo === "cronometro").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
         const segManual = dados.sessoes.filter((s) => s.modo === "manual").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
 
-        const minutosCiclo = dados.cicloSessoes.reduce((acc, s) => acc + Number(s.minutos || 0), 0);
         const minutosPlanejadosCiclo = dados.cicloMaterias.reduce((acc, s) => acc + Number(s.minutos_planejados || 0), 0);
         const minutosFeitosCiclo = dados.cicloMaterias.reduce((acc, s) => acc + Number(s.minutos_feitos || 0), 0);
 
@@ -173,7 +172,7 @@ export default function DashboardGeral({ user }) {
         const fontesHoras = [
             { nome: "Cronômetro", valor: segCronometro / 3600, cor: "bg-cyan-500" },
             { nome: "Manual", valor: segManual / 3600, cor: "bg-violet-500" },
-            { nome: "Ciclo", valor: minutosCiclo / 60, cor: "bg-emerald-500" },
+            { nome: "Ciclo", valor: minutosFeitosCiclo / 60, cor: "bg-emerald-500" },
         ];
         const totalFontesHoras = fontesHoras.reduce((acc, f) => acc + f.valor, 0);
 
@@ -209,6 +208,7 @@ export default function DashboardGeral({ user }) {
             mapa7[key] += Number(s.duracao_segundos || 0) / 3600;
         });
 
+        // histórico de sessões do ciclo segue sendo usado no gráfico dos últimos 7 dias
         dados.cicloSessoes.forEach((s) => {
             const key = dayKey(s.started_at);
             if (!key || !(key in mapa7)) return;
@@ -219,10 +219,10 @@ export default function DashboardGeral({ user }) {
         const pico7dias = Math.max(1, ...estudo7dias.map((d) => d.horas));
 
         return {
-            horasTotais: totalSegSessoes / 3600 + minutosCiclo / 60,
+            horasTotais: totalSegSessoes / 3600 + minutosFeitosCiclo / 60,
             horasCronometro: segCronometro / 3600,
             horasManual: segManual / 3600,
-            horasCiclo: minutosCiclo / 60,
+            horasCiclo: minutosFeitosCiclo / 60,
             ciclosConcluidos: Number(dados.cicloAtual?.cycles_completed || 0),
             progressoCiclo,
             cardsTotal,
