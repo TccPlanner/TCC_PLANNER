@@ -15,6 +15,7 @@ import {
     BarChart3,
     Flame,
     Users,
+    NotebookPen,
 } from "lucide-react";
 
 import EstudarAgora from "./EstudarAgora";
@@ -29,6 +30,7 @@ import DashboardGeral from "./DashboardGeral";
 import Constancia from "./Constancia"; // ✅ CONSTÂNCIA
 import Friendships from "./Friendships";
 import Historico from "./Historico";
+import Anotacoes from "./Anotacoes";
 
 function Dashboard({ user }) {
     const [abaAtiva, setAbaAtiva] = useState("inicio");
@@ -63,6 +65,7 @@ function Dashboard({ user }) {
         if (abaAtiva === "revisoes") return "Revisões";
         if (abaAtiva === "historico") return "Histórico";
         if (abaAtiva === "amizades") return "Amizades";
+        if (abaAtiva === "anotacoes") return "Anotações";
         return "Dashboard";
     })();
 
@@ -137,6 +140,7 @@ function Dashboard({ user }) {
                     <MenuLink id="revisoes" icon={BookOpen} label="Revisões" />
                     <MenuLink id="historico" icon={History} label="Histórico" />
                     <MenuLink id="amizades" icon={Users} label="Amizades" />
+                    <MenuLink id="anotacoes" icon={NotebookPen} label="Anotações" />
                 </nav>
 
                 {/* ✅ BOTÃO SAIR SEM SAIR DA TELA */}
@@ -178,6 +182,7 @@ function Dashboard({ user }) {
 
                     {abaAtiva === "historico" && <Historico user={user} />}
                     {abaAtiva === "amizades" && <Friendships />}
+                    {abaAtiva === "anotacoes" && <Anotacoes user={user} />}
                 </section>
             </main>
         </div>
