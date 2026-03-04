@@ -1,58 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
-<<<<<<< HEAD
-import {
-    BarChart3,
-    Clock3,
-    Target,
-    Layers,
-    CalendarCheck2,
-    RefreshCw,
-    TrendingUp,
-} from "lucide-react";
-
-import {
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
-    Tooltip,
-    Legend,
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    LineChart,
-    Line,
-} from "recharts";
+import { Activity, BarChart3, CalendarCheck2, Clock3, Layers, PieChart, RefreshCw, Target } from "lucide-react";
 
 const fmtHoras = (minutos) => `${(Number(minutos || 0) / 60).toFixed(1)}h`;
-
-function toISODate(d) {
-    const dt = new Date(d);
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth() + 1).padStart(2, "0");
-    const day = String(dt.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-}
-
-function labelDia(iso) {
-    const [, m, d] = iso.split("-");
-    return `${d}/${m}`;
-}
-
-function sumBy(arr, fn) {
-    return (arr || []).reduce((acc, x) => acc + Number(fn(x) || 0), 0);
-}
-
-function safeBool(v) {
-    return v === true || v === "true" || v === 1 || v === "1";
-}
-=======
-import { BarChart3, Clock3, Target, Layers, CalendarCheck2, RefreshCw, PieChart } from "lucide-react";
-
-const fmtHoras = (minutos) => `${(Number(minutos || 0) / 60).toFixed(1)}h`;
+const fmtHMS = (totalSegundos) => {
+    const total = Math.max(0, Math.floor(Number(totalSegundos || 0)));
+    const horas = Math.floor(total / 3600);
+    const minutos = Math.floor((total % 3600) / 60);
+    const segundos = total % 60;
+    return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(2, "0")}:${String(segundos).padStart(2, "0")}`;
+};
 
 const cardThemes = [
     {
@@ -74,7 +31,12 @@ const cardThemes = [
 ];
 
 const materiasColors = ["bg-cyan-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500"];
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
+
+const dayKey = (dateValue) => {
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString().slice(0, 10);
+};
 
 export default function DashboardGeral({ user }) {
     const [loading, setLoading] = useState(true);
@@ -83,7 +45,10 @@ export default function DashboardGeral({ user }) {
         sessoes: [],
         cicloSessoes: [],
         cicloMaterias: [],
+        cicloAtual: null,
         cards: [],
+        cardsFavoritos: [],
+        revisoesCards: [],
         tarefas: [],
         revisoes: [],
     });
@@ -92,77 +57,49 @@ export default function DashboardGeral({ user }) {
         if (!user?.id) return;
         setLoading(true);
         setErro("");
-
         try {
             const [
                 { data: sessoes, error: e1 },
                 { data: cicloSessoes, error: e2 },
-                { data: cicloMateriasRaw, error: e3 },
-                { data: cardsRaw, error: e4 },
-                { data: tarefas, error: e5 },
-                { data: revisoes, error: e6 },
+                { data: cicloMaterias, error: e3 },
+                { data: cicloAtual, error: e4 },
+                { data: cards, error: e5 },
+                { data: cardsFavoritos, error: e6 },
+                { data: tarefas, error: e8 },
+                { data: revisoes, error: e9 },
             ] = await Promise.all([
-<<<<<<< HEAD
-                supabase
-                    .from("sessoes_estudo")
-                    .select("duracao_segundos, modo, materia, inicio_em")
-                    .eq("user_id", user.id),
-
-                supabase
-                    .from("study_cycle_sessions")
-                    .select("minutos, started_at")
-                    .eq("user_id", user.id),
-
-                supabase.from("study_cycle_subjects").select("*").eq("user_id", user.id),
-
-                // ✅ você TEM flash_cards e tem is_favorite / repetitions / wrong_total / last_review_at
-                supabase.from("flash_cards").select("*").eq("user_id", user.id),
-
-                supabase
-                    .from("tarefas")
-                    .select("id, concluida, concluida_em, created_at")
-                    .eq("user_id", user.id),
-
-                supabase
-                    .from("revisoes_agendadas")
-                    .select("id, executada, qtd_feitas, qtd_acertos, data_revisao")
-                    .eq("user_id", user.id),
-=======
-                supabase.from("sessoes_estudo").select("duracao_segundos, modo, materia, tipo_estudo, inicio_em").eq("user_id", user.id),
-                supabase.from("study_cycle_sessions").select("minutos, started_at, subject_id").eq("user_id", user.id),
+                supabase.from("sessoes_estudo").select("duracao_segundos, modo, materia, inicio_em").eq("user_id", user.id),
+                supabase.from("study_cycle_sessions").select("minutos, started_at").eq("user_id", user.id),
                 supabase.from("study_cycle_subjects").select("id, nome, minutos_planejados, minutos_feitos").eq("user_id", user.id),
-                supabase.from("flash_cards").select("id, favoritos, created_at").eq("user_id", user.id),
-                supabase.from("flash_card_reviews").select("resultado, created_at").eq("user_id", user.id),
+                supabase.from("study_cycles").select("id, cycles_completed").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1),
+                supabase.from("flash_cards").select("id, created_at").eq("user_id", user.id),
+                supabase.from("flash_card_favorites").select("card_id").eq("user_id", user.id),
                 supabase.from("tarefas").select("id, concluida, concluida_em, created_at").eq("user_id", user.id),
                 supabase.from("revisoes_agendadas").select("id, executada, qtd_feitas, qtd_acertos, data_revisao").eq("user_id", user.id),
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
             ]);
 
-            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6;
+            const { data: revisoesCards, error: e7 } = await supabase
+                .from("flash_card_reviews")
+                .select("resultado, created_at")
+                .eq("user_id", user.id);
+
+            const podeIgnorarErroReviews =
+                !!e7?.message &&
+                (e7.message.includes("schema cache") ||
+                    e7.message.includes("Could not find the table") ||
+                    e7.message.includes("does not exist"));
+
+            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e8 || e9 || (!podeIgnorarErroReviews ? e7 : null);
             if (erroQuery) throw erroQuery;
-
-            // ✅ ciclo: seu schema real tem meta_minutos, minutos_planejados, minutos_feitos
-            const cicloMaterias = (cicloMateriasRaw || []).map((row) => ({
-                ...row,
-                nome: row.nome ?? row.name ?? "Sem nome",
-                meta_minutos: Number(row.meta_minutos ?? 0),
-                minutos_planejados: Number(row.minutos_planejados ?? row.meta_minutos ?? 0),
-                minutos_feitos: Number(row.minutos_feitos ?? 0),
-            }));
-
-            // ✅ cards: favoritos é is_favorite no seu SQL
-            const cards = (cardsRaw || []).map((c) => ({
-                ...c,
-                favoritos: safeBool(c.is_favorite ?? c.favorite ?? c.favoritos ?? false),
-                repetitions: Number(c.repetitions ?? 0),
-                wrong_total: Number(c.wrong_total ?? 0),
-            }));
 
             setDados({
                 sessoes: sessoes || [],
                 cicloSessoes: cicloSessoes || [],
-                cicloMaterias,
-                cards,
+                cicloMaterias: cicloMaterias || [],
+                cicloAtual: cicloAtual?.[0] || null,
+                cards: cards || [],
+                cardsFavoritos: cardsFavoritos || [],
+                revisoesCards: revisoesCards || [],
                 tarefas: tarefas || [],
                 revisoes: revisoes || [],
             });
@@ -179,53 +116,25 @@ export default function DashboardGeral({ user }) {
     }, [user?.id]);
 
     const stats = useMemo(() => {
-<<<<<<< HEAD
-        // Estudo (sessoes_estudo)
-        const totalSegSessoes = sumBy(dados.sessoes, (s) => s.duracao_segundos);
-        const segCronometro = sumBy(
-            dados.sessoes.filter((s) => s.modo === "cronometro"),
-            (s) => s.duracao_segundos
-        );
-        const segManual = sumBy(
-            dados.sessoes.filter((s) => s.modo === "manual"),
-            (s) => s.duracao_segundos
-        );
-=======
         const totalSegSessoes = dados.sessoes.reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
         const segCronometro = dados.sessoes.filter((s) => s.modo === "cronometro").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
         const segManual = dados.sessoes.filter((s) => s.modo === "manual").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
 
-        // Ciclo (study_cycle_sessions)
-        const minutosCiclo = sumBy(dados.cicloSessoes, (s) => s.minutos);
-        const minutosPlanejadosCiclo = sumBy(
-            dados.cicloMaterias,
-            (s) => s.minutos_planejados
-        );
-        const minutosFeitosCiclo = sumBy(
-            dados.cicloMaterias,
-            (s) => s.minutos_feitos
-        );
+        const minutosCiclo = dados.cicloSessoes.reduce((acc, s) => acc + Number(s.minutos || 0), 0);
+        const minutosPlanejadosCiclo = dados.cicloMaterias.reduce((acc, s) => acc + Number(s.minutos_planejados || 0), 0);
+        const minutosFeitosCiclo = dados.cicloMaterias.reduce((acc, s) => acc + Number(s.minutos_feitos || 0), 0);
 
-        // Tarefas
         const tarefasTotal = dados.tarefas.length;
         const tarefasConcluidas = dados.tarefas.filter((t) => t.concluida).length;
 
-        // Revisões agendadas
         const revisoesTotal = dados.revisoes.length;
         const revisoesConcluidas = dados.revisoes.filter((r) => r.executada).length;
-        const revisoesQuestoesFeitas = sumBy(dados.revisoes, (r) => r.qtd_feitas);
-        const revisoesAcertos = sumBy(dados.revisoes, (r) => r.qtd_acertos);
+        const revisoesQuestoesFeitas = dados.revisoes.reduce((acc, r) => acc + Number(r.qtd_feitas || 0), 0);
+        const revisoesAcertos = dados.revisoes.reduce((acc, r) => acc + Number(r.qtd_acertos || 0), 0);
 
-        // Flashcards: sem tabela de reviews -> usar campos do próprio flash_cards
         const cardsTotal = dados.cards.length;
-        const cardsFavoritos = dados.cards.filter((c) => c.favoritos).length;
-
-        // “Total de revisões de flashcards” aproximado: soma de repetitions
-        const flashReviewsTotal = sumBy(dados.cards, (c) => c.repetitions);
-
-        // “Erros de flashcards”: soma wrong_total
-        const flashWrongTotal = sumBy(dados.cards, (c) => c.wrong_total);
+        const cardsFavoritos = new Set((dados.cardsFavoritos || []).map((item) => item.card_id)).size;
+        const reviewsTotal = dados.revisoesCards.length;
 
         const topMaterias = Object.entries(
             dados.sessoes.reduce((acc, s) => {
@@ -236,25 +145,8 @@ export default function DashboardGeral({ user }) {
         )
             .map(([nome, segundos]) => ({ nome, segundos }))
             .sort((a, b) => b.segundos - a.segundos)
-            .slice(0, 8);
+            .slice(0, 5);
 
-        const taxaConclusaoTarefas = tarefasTotal
-            ? Math.round((tarefasConcluidas / tarefasTotal) * 100)
-            : 0;
-
-        const taxaConclusaoRevisoes = revisoesTotal
-            ? Math.round((revisoesConcluidas / revisoesTotal) * 100)
-            : 0;
-
-        const taxaAcertoRevisoes = revisoesQuestoesFeitas
-            ? Math.round((revisoesAcertos / revisoesQuestoesFeitas) * 100)
-            : 0;
-
-<<<<<<< HEAD
-        const progressoCiclo = minutosPlanejadosCiclo
-            ? Math.round((minutosFeitosCiclo / minutosPlanejadosCiclo) * 100)
-            : 0;
-=======
         const taxaConclusaoTarefas = tarefasTotal ? Math.round((tarefasConcluidas / tarefasTotal) * 100) : 0;
         const taxaConclusaoRevisoes = revisoesTotal ? Math.round((revisoesConcluidas / revisoesTotal) * 100) : 0;
         const taxaAcertoRevisoes = revisoesQuestoesFeitas ? Math.round((revisoesAcertos / revisoesQuestoesFeitas) * 100) : 0;
@@ -265,37 +157,55 @@ export default function DashboardGeral({ user }) {
             { nome: "Manual", valor: segManual / 3600, cor: "bg-violet-500" },
             { nome: "Ciclo", valor: minutosCiclo / 60, cor: "bg-emerald-500" },
         ];
-
         const totalFontesHoras = fontesHoras.reduce((acc, f) => acc + f.valor, 0);
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
+
+        const reviewsPorResultadoRaw = dados.revisoesCards.reduce((acc, review) => {
+            const key = String(review.resultado || "outro").toLowerCase();
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+        const reviewsPorResultado = [
+            { nome: "Acerto", valor: reviewsPorResultadoRaw.acerto || 0, cor: "bg-emerald-500" },
+            { nome: "Dúvida", valor: reviewsPorResultadoRaw.duvida || 0, cor: "bg-amber-500" },
+            { nome: "Erro", valor: reviewsPorResultadoRaw.erro || 0, cor: "bg-rose-500" },
+        ];
+        const reviewsResultadoTotal = reviewsPorResultado.reduce((acc, r) => acc + r.valor, 0);
+
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        const ultimos7dias = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(hoje);
+            d.setDate(hoje.getDate() - (6 - i));
+            return {
+                key: dayKey(d),
+                label: d.toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 3),
+                horas: 0,
+            };
+        });
+
+        const mapa7 = Object.fromEntries(ultimos7dias.map((d) => [d.key, 0]));
+
+        dados.sessoes.forEach((s) => {
+            const key = dayKey(s.inicio_em);
+            if (!key || !(key in mapa7)) return;
+            mapa7[key] += Number(s.duracao_segundos || 0) / 3600;
+        });
+
+        dados.cicloSessoes.forEach((s) => {
+            const key = dayKey(s.started_at);
+            if (!key || !(key in mapa7)) return;
+            mapa7[key] += Number(s.minutos || 0) / 60;
+        });
+
+        const estudo7dias = ultimos7dias.map((d) => ({ ...d, horas: Number((mapa7[d.key] || 0).toFixed(2)) }));
+        const pico7dias = Math.max(1, ...estudo7dias.map((d) => d.horas));
 
         return {
             horasTotais: totalSegSessoes / 3600 + minutosCiclo / 60,
             horasCronometro: segCronometro / 3600,
             horasManual: segManual / 3600,
             horasCiclo: minutosCiclo / 60,
-<<<<<<< HEAD
-
-            minutosPlanejadosCiclo,
-            minutosFeitosCiclo,
-            progressoCiclo,
-
-            tarefasTotal,
-            tarefasConcluidas,
-            taxaConclusaoTarefas,
-
-            revisoesTotal,
-            revisoesConcluidas,
-            taxaConclusaoRevisoes,
-            taxaAcertoRevisoes,
-
-            cardsTotal,
-            cardsFavoritos,
-
-            flashReviewsTotal,
-            flashWrongTotal,
-
-=======
+            ciclosConcluidos: Number(dados.cicloAtual?.cycles_completed || 0),
             progressoCiclo,
             cardsTotal,
             cardsFavoritos,
@@ -307,78 +217,26 @@ export default function DashboardGeral({ user }) {
             taxaConclusaoTarefas,
             taxaConclusaoRevisoes,
             taxaAcertoRevisoes,
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
             topMaterias,
             fontesHoras,
             totalFontesHoras,
+            reviewsPorResultado,
+            reviewsResultadoTotal,
+            estudo7dias,
+            pico7dias,
         };
     }, [dados]);
 
-<<<<<<< HEAD
-    const charts = useMemo(() => {
-        // Pizza: fontes (horas)
-        const fontes = [
-            { name: "Cronômetro", value: Number(stats.horasCronometro || 0) },
-            { name: "Manual", value: Number(stats.horasManual || 0) },
-            { name: "Ciclo", value: Number(stats.horasCiclo || 0) },
-        ].filter((x) => x.value > 0);
-
-        // Barras: top matérias (horas)
-        const materias = stats.topMaterias.map((m) => ({
-            name: m.nome.length > 14 ? `${m.nome.slice(0, 14)}…` : m.nome,
-            horas: Number((m.segundos / 3600).toFixed(2)),
-        }));
-
-        // Linha: últimos 14 dias (minutos)
-        const days = 14;
-        const series = [];
-        for (let i = days - 1; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const iso = toISODate(d);
-            series.push({ iso, dia: labelDia(iso), minutos: 0 });
-        }
-        const idx = new Map(series.map((x, i) => [x.iso, i]));
-
-        dados.sessoes.forEach((s) => {
-            if (!s.inicio_em) return;
-            const iso = toISODate(s.inicio_em);
-            const i = idx.get(iso);
-            if (i === undefined) return;
-            series[i].minutos += Number(s.duracao_segundos || 0) / 60;
-        });
-
-        dados.cicloSessoes.forEach((s) => {
-            if (!s.started_at) return;
-            const iso = toISODate(s.started_at);
-            const i = idx.get(iso);
-            if (i === undefined) return;
-            series[i].minutos += Number(s.minutos || 0);
-        });
-
-        series.forEach((x) => (x.minutos = Number(x.minutos.toFixed(0))));
-        return { fontes, materias, series };
-    }, [dados, stats]);
-
-    const Card = ({ title, value, subtitle, icon: Icon }) => (
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-=======
     const Card = ({ title, value, subtitle, icon: Icon, theme = cardThemes[0] }) => (
         <div className={`rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 bg-gradient-to-br ${theme.wrap} shadow-sm`}>
             <div className="flex items-center justify-between gap-2">
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
                 <p className="text-sm text-slate-500 dark:text-slate-400">{title}</p>
                 <div className={`p-2 rounded-lg ${theme.icon}`}>
                     <Icon size={18} />
                 </div>
             </div>
             <p className="text-2xl font-black mt-2">{value}</p>
-            {subtitle && (
-                <p className="text-xs mt-1 text-slate-500 dark:text-slate-400">
-                    {subtitle}
-                </p>
-            )}
+            {subtitle && <p className="text-xs mt-1 text-slate-500 dark:text-slate-400">{subtitle}</p>}
         </div>
     );
 
@@ -386,17 +244,8 @@ export default function DashboardGeral({ user }) {
         <div className="space-y-6">
             <div className="flex items-center justify-between gap-3">
                 <div>
-<<<<<<< HEAD
-                    <h2 className="text-2xl font-black text-cyan-600 dark:text-cyan-400">
-                        Dashboard Geral
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Estatísticas consolidadas (com gráficos).
-                    </p>
-=======
                     <h2 className="text-2xl font-black bg-gradient-to-r from-cyan-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">Dashboard Geral</h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Estatísticas reais consolidadas do seu banco de dados.</p>
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
                 </div>
                 <button
                     onClick={carregar}
@@ -413,88 +262,73 @@ export default function DashboardGeral({ user }) {
             ) : (
                 <>
                     <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-<<<<<<< HEAD
-                        <Card
-                            title="Horas totais estudadas"
-                            value={fmtHoras(stats.horasTotais * 60)}
-                            subtitle="Cronômetro + Manual + Ciclo"
-                            icon={Clock3}
-                        />
-                        <Card
-                            title="Progresso no ciclo"
-                            value={`${stats.progressoCiclo}%`}
-                            subtitle={`Planejado: ${fmtHoras(
-                                stats.minutosPlanejadosCiclo
-                            )} • Feito: ${fmtHoras(stats.minutosFeitosCiclo)}`}
-                            icon={Target}
-                        />
-                        <Card
-                            title="Flashcards"
-                            value={`${stats.cardsTotal} cards`}
-                            subtitle={`${stats.flashReviewsTotal} revisões • ${stats.cardsFavoritos} favoritos`}
-                            icon={Layers}
-                        />
-                        <Card
-                            title="Tarefas concluídas"
-                            value={`${stats.tarefasConcluidas}/${stats.tarefasTotal}`}
-                            subtitle={`Taxa: ${stats.taxaConclusaoTarefas}%`}
-                            icon={CalendarCheck2}
-                        />
-                    </div>
-
-                    <div className="grid lg:grid-cols-2 gap-4">
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white dark:bg-slate-900">
-                            <h3 className="font-bold mb-3 flex items-center gap-2">
-                                <BarChart3 size={16} /> Fontes de estudo
-                            </h3>
-
-                            {charts.fontes.length === 0 ? (
-                                <p className="text-sm text-slate-500">
-                                    Ainda não há horas suficientes para exibir o gráfico.
-                                </p>
-                            ) : (
-                                <div style={{ width: "100%", height: 260 }}>
-                                    <ResponsiveContainer>
-                                        <PieChart>
-                                            <Pie
-                                                dataKey="value"
-                                                data={charts.fontes}
-                                                nameKey="name"
-                                                innerRadius={55}
-                                                outerRadius={85}
-                                            >
-                                                {charts.fontes.map((_, i) => (
-                                                    <Cell key={i} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip formatter={(v) => `${Number(v).toFixed(2)}h`} />
-                                            <Legend />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white dark:bg-slate-900">
-                            <h3 className="font-bold mb-3 flex items-center gap-2">
-                                <TrendingUp size={16} /> Estudo por dia (14 dias)
-                            </h3>
-
-                            <div style={{ width: "100%", height: 260 }}>
-                                <ResponsiveContainer>
-                                    <LineChart data={charts.series}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="dia" />
-                                        <YAxis />
-                                        <Tooltip formatter={(v) => `${v} min`} />
-                                        <Line type="monotone" dataKey="minutos" dot={false} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-=======
                         <Card title="Horas totais estudadas" value={fmtHoras(stats.horasTotais * 60)} subtitle="Cronômetro + Manual + Ciclo" icon={Clock3} theme={cardThemes[0]} />
-                        <Card title="Progresso no ciclo" value={`${stats.progressoCiclo}%`} subtitle={`Inclui sessões do ciclo: ${fmtHoras(stats.horasCiclo * 60)}`} icon={Target} theme={cardThemes[1]} />
+                        <Card title="Progresso no ciclo" value={`${stats.progressoCiclo}%`} subtitle={`Ciclos concluídos: ${stats.ciclosConcluidos}`} icon={Target} theme={cardThemes[1]} />
                         <Card title="Flashcards" value={`${stats.cardsTotal} cards`} subtitle={`${stats.reviewsTotal} revisões • ${stats.cardsFavoritos} favoritos`} icon={Layers} theme={cardThemes[2]} />
                         <Card title="Tarefas concluídas" value={`${stats.tarefasConcluidas}/${stats.tarefasTotal}`} subtitle={`Taxa de conclusão: ${stats.taxaConclusaoTarefas}%`} icon={CalendarCheck2} theme={cardThemes[3]} />
+                    </div>
+
+                    <div className="grid xl:grid-cols-3 gap-4">
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40 xl:col-span-2">
+                            <h3 className="font-bold mb-4 flex items-center gap-2"><Activity size={16} /> Estudo nos últimos 7 dias</h3>
+                            <div className="grid grid-cols-7 gap-2 items-end h-40">
+                                {stats.estudo7dias.map((dia) => {
+                                    const altura = Math.max(8, Math.round((dia.horas / stats.pico7dias) * 100));
+                                    return (
+                                        <div key={dia.key} className="flex flex-col items-center gap-1">
+                                            <div className="w-full rounded-md bg-slate-100 dark:bg-slate-800 h-28 flex items-end overflow-hidden">
+                                                <div className="w-full bg-gradient-to-t from-cyan-500 via-violet-500 to-fuchsia-500 rounded-md" style={{ height: `${altura}%` }} />
+                                            </div>
+                                            <span className="text-[11px] text-slate-500 uppercase">{dia.label}</span>
+                                            <span className="text-[11px] font-semibold">{dia.horas.toFixed(1)}h</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="mt-4">
+                                <svg viewBox="0 0 100 30" className="w-full h-20">
+                                    <polyline
+                                        fill="none"
+                                        stroke="url(#estudoGradient)"
+                                        strokeWidth="1.6"
+                                        points={stats.estudo7dias
+                                            .map((dia, index) => {
+                                                const x = (index / 6) * 100;
+                                                const y = 28 - (dia.horas / stats.pico7dias) * 24;
+                                                return `${x},${Number.isFinite(y) ? y : 28}`;
+                                            })
+                                            .join(" ")}
+                                    />
+                                    <defs>
+                                        <linearGradient id="estudoGradient" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stopColor="#06b6d4" />
+                                            <stop offset="50%" stopColor="#8b5cf6" />
+                                            <stop offset="100%" stopColor="#d946ef" />
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40">
+                            <h3 className="font-bold mb-4 flex items-center gap-2"><PieChart size={16} /> Revisões de flashcards</h3>
+                            <div className="space-y-3">
+                                {stats.reviewsPorResultado.map((item) => {
+                                    const pct = stats.reviewsResultadoTotal ? Math.round((item.valor / stats.reviewsResultadoTotal) * 100) : 0;
+                                    return (
+                                        <div key={item.nome} className="space-y-1">
+                                            <div className="flex justify-between text-sm">
+                                                <span>{item.nome}</span>
+                                                <strong>{item.valor} ({pct}%)</strong>
+                                            </div>
+                                            <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                                                <div className={`h-full ${item.cor}`} style={{ width: `${pct}%` }} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid lg:grid-cols-2 gap-4">
@@ -519,7 +353,7 @@ export default function DashboardGeral({ user }) {
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40">
-                            <h3 className="font-bold mb-4 flex items-center gap-2"><PieChart size={16} /> Revisões</h3>
+                            <h3 className="font-bold mb-4 flex items-center gap-2"><PieChart size={16} /> Revisões agendadas</h3>
                             <div className="grid grid-cols-3 gap-3 text-center mb-4">
                                 <div className="rounded-xl p-3 bg-cyan-100/70 dark:bg-cyan-900/30">
                                     <p className="text-xs text-slate-500 dark:text-slate-400">Concluídas</p>
@@ -534,44 +368,17 @@ export default function DashboardGeral({ user }) {
                                     <p className="text-lg font-black text-emerald-700 dark:text-emerald-300">{stats.taxaAcertoRevisoes}%</p>
                                 </div>
                             </div>
-                            <div className="h-2.5 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 flex">
-                                <div className="bg-cyan-500" style={{ width: `${stats.taxaConclusaoRevisoes}%` }} />
-                                <div className="bg-violet-500" style={{ width: `${Math.max(0, stats.taxaAcertoRevisoes - stats.taxaConclusaoRevisoes)}%` }} />
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
+                            <div className="h-2.5 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800">
+                                <div className="h-full bg-gradient-to-r from-cyan-500 via-violet-500 to-emerald-500" style={{ width: `${stats.taxaConclusaoRevisoes}%` }} />
                             </div>
                         </div>
                     </div>
 
-<<<<<<< HEAD
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white dark:bg-slate-900">
-=======
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40">
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
                         <h3 className="font-bold mb-4">Matérias mais estudadas</h3>
-
-                        {charts.materias.length === 0 ? (
-                            <p className="text-sm text-slate-500">
-                                Ainda não há sessões registradas para montar ranking.
-                            </p>
+                        {stats.topMaterias.length === 0 ? (
+                            <p className="text-sm text-slate-500">Ainda não há sessões registradas para montar ranking.</p>
                         ) : (
-<<<<<<< HEAD
-                            <div style={{ width: "100%", height: 320 }}>
-                                <ResponsiveContainer>
-                                    <BarChart data={charts.materias} margin={{ left: 10, right: 10 }}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis
-                                            dataKey="name"
-                                            interval={0}
-                                            angle={-20}
-                                            textAnchor="end"
-                                            height={70}
-                                        />
-                                        <YAxis />
-                                        <Tooltip formatter={(v) => `${v}h`} />
-                                        <Bar dataKey="horas" />
-                                    </BarChart>
-                                </ResponsiveContainer>
-=======
                             <div className="space-y-3">
                                 {stats.topMaterias.map((m, idx) => {
                                     const pct = stats.topMaterias[0]?.segundos ? Math.round((m.segundos / stats.topMaterias[0].segundos) * 100) : 0;
@@ -579,7 +386,7 @@ export default function DashboardGeral({ user }) {
                                         <div key={m.nome}>
                                             <div className="flex justify-between text-sm mb-1">
                                                 <span>{idx + 1}. {m.nome}</span>
-                                                <strong>{(m.segundos / 3600).toFixed(1)}h</strong>
+                                                <strong>{fmtHMS(m.segundos)}</strong>
                                             </div>
                                             <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                                                 <div className={`h-full ${materiasColors[idx % materiasColors.length]}`} style={{ width: `${pct}%` }} />
@@ -587,16 +394,8 @@ export default function DashboardGeral({ user }) {
                                         </div>
                                     );
                                 })}
->>>>>>> ad92003f8111d33626b629569850fd81fd9a902c
                             </div>
                         )}
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white dark:bg-slate-900">
-                        <h3 className="font-bold mb-2">Saúde dos flashcards</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Erros acumulados (wrong_total): <b>{stats.flashWrongTotal}</b>
-                        </p>
                     </div>
                 </>
             )}
