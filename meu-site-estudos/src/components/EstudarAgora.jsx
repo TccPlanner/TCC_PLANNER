@@ -401,6 +401,11 @@ const EstudarAgora = ({ user }) => {
     const [segundos, setSegundos] = useState(0);
     const [ativo, setAtivo] = useState(false);
     const [inicioCronometroEm, setInicioCronometroEm] = useState(null);
+    const [cronometroHidratado, setCronometroHidratado] = useState(false);
+    const cronometroStorageKey = useMemo(
+        () => (user?.id ? `estudar-agora-cronometro:${user.id}` : null),
+        [user?.id]
+    );
 
     // Alarmes (configs)
     const [alarmeTipo, setAlarmeTipo] = useState("nenhum"); // nenhum | duracao | horario
@@ -548,6 +553,51 @@ const EstudarAgora = ({ user }) => {
 
 
     const ultimoTickMsRef = useRef(null);
+
+    useEffect(() => {
+        if (!cronometroStorageKey) {
+            setCronometroHidratado(true);
+            return;
+        }
+
+        try {
+            const raw = localStorage.getItem(cronometroStorageKey);
+            if (!raw) {
+                setCronometroHidratado(true);
+                return;
+            }
+
+            const parsed = JSON.parse(raw);
+            const segundosSalvos = Math.max(0, Number(parsed?.segundos || 0));
+            const ativoSalvo = Boolean(parsed?.ativo);
+            const savedAtMs = Number(parsed?.savedAtMs || Date.now());
+            const deltaSeg = ativoSalvo ? Math.max(0, Math.floor((Date.now() - savedAtMs) / 1000)) : 0;
+
+            setSegundos(segundosSalvos + deltaSeg);
+            setAtivo(ativoSalvo);
+            setInicioCronometroEm(parsed?.inicioCronometroEm || null);
+            ultimoTickMsRef.current = ativoSalvo ? Date.now() : null;
+        } catch (e) {
+            localStorage.removeItem(cronometroStorageKey);
+        } finally {
+            setCronometroHidratado(true);
+        }
+    }, [cronometroStorageKey]);
+
+    useEffect(() => {
+        if (!cronometroHidratado || !cronometroStorageKey) return;
+
+        localStorage.setItem(
+            cronometroStorageKey,
+            JSON.stringify({
+                segundos,
+                ativo,
+                inicioCronometroEm,
+                savedAtMs: Date.now(),
+            })
+        );
+    }, [cronometroHidratado, cronometroStorageKey, segundos, ativo, inicioCronometroEm]);
+
     useEffect(() => {
         if (!ativo) {
             ultimoTickMsRef.current = null;
