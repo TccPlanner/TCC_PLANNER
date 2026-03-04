@@ -43,6 +43,7 @@ export default function DashboardGeral({ user }) {
     const [erro, setErro] = useState("");
     const [dados, setDados] = useState({
         sessoes: [],
+        materias: [],
         cicloSessoes: [],
         cicloMaterias: [],
         cicloAtual: null,
@@ -60,18 +61,16 @@ export default function DashboardGeral({ user }) {
         try {
             const [
                 { data: sessoes, error: e1 },
-                { data: cicloSessoes, error: e2 },
-                { data: cicloMaterias, error: e3 },
-                { data: cicloAtual, error: e4 },
+                { data: materias, error: e2 },
+                { data: ciclos, error: e3 },
                 { data: cards, error: e5 },
                 { data: cardsFavoritos, error: e6 },
                 { data: tarefas, error: e8 },
                 { data: revisoes, error: e9 },
             ] = await Promise.all([
                 supabase.from("sessoes_estudo").select("duracao_segundos, modo, materia, inicio_em").eq("user_id", user.id),
-                supabase.from("study_cycle_sessions").select("minutos, started_at").eq("user_id", user.id),
-                supabase.from("study_cycle_subjects").select("id, nome, minutos_planejados, minutos_feitos").eq("user_id", user.id),
-                supabase.from("study_cycles").select("id, cycles_completed").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1),
+                supabase.from("materias").select("nome").eq("user_id", user.id),
+                supabase.from("study_cycles").select("id, cycles_completed").eq("user_id", user.id).order("created_at", { ascending: true }),
                 supabase.from("flash_cards").select("id, created_at").eq("user_id", user.id),
                 supabase.from("flash_card_favorites").select("card_id").eq("user_id", user.id),
                 supabase.from("tarefas").select("id, concluida, concluida_em, created_at").eq("user_id", user.id),
@@ -89,14 +88,31 @@ export default function DashboardGeral({ user }) {
                     e7.message.includes("Could not find the table") ||
                     e7.message.includes("does not exist"));
 
-            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e8 || e9 || (!podeIgnorarErroReviews ? e7 : null);
+            const cicloAtual = ciclos?.[0] || null;
+            const cicloId = cicloAtual?.id;
+
+            const [{ data: cicloSessoes, error: e10 }, { data: cicloMaterias, error: e11 }] = await Promise.all([
+                cicloId
+                    ? supabase.from("study_cycle_sessions").select("minutos, started_at").eq("user_id", user.id).eq("cycle_id", cicloId)
+                    : Promise.resolve({ data: [], error: null }),
+                cicloId
+                    ? supabase
+                          .from("study_cycle_subjects")
+                          .select("id, nome, minutos_planejados, minutos_feitos")
+                          .eq("user_id", user.id)
+                          .eq("cycle_id", cicloId)
+                    : Promise.resolve({ data: [], error: null }),
+            ]);
+
+            const erroQuery = e1 || e2 || e3 || e5 || e6 || e8 || e9 || e10 || e11 || (!podeIgnorarErroReviews ? e7 : null);
             if (erroQuery) throw erroQuery;
 
             setDados({
                 sessoes: sessoes || [],
+                materias: materias || [],
                 cicloSessoes: cicloSessoes || [],
                 cicloMaterias: cicloMaterias || [],
-                cicloAtual: cicloAtual?.[0] || null,
+                cicloAtual,
                 cards: cards || [],
                 cardsFavoritos: cardsFavoritos || [],
                 revisoesCards: revisoesCards || [],
@@ -136,9 +152,11 @@ export default function DashboardGeral({ user }) {
         const cardsFavoritos = new Set((dados.cardsFavoritos || []).map((item) => item.card_id)).size;
         const reviewsTotal = dados.revisoesCards.length;
 
+        const materiasAtivas = new Set((dados.materias || []).map((m) => String(m.nome || "").trim().toLowerCase()).filter(Boolean));
         const topMaterias = Object.entries(
             dados.sessoes.reduce((acc, s) => {
                 const nome = (s.materia || "Sem matéria").trim() || "Sem matéria";
+                if (nome !== "Sem matéria" && !materiasAtivas.has(nome.toLowerCase())) return acc;
                 acc[nome] = (acc[nome] || 0) + Number(s.duracao_segundos || 0);
                 return acc;
             }, {})
