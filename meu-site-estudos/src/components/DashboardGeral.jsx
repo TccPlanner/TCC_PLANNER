@@ -43,6 +43,7 @@ export default function DashboardGeral({ user }) {
     const [erro, setErro] = useState("");
     const [dados, setDados] = useState({
         sessoes: [],
+        materias: [],
         cicloSessoes: [],
         cicloMaterias: [],
         cicloAtual: null,
@@ -60,18 +61,16 @@ export default function DashboardGeral({ user }) {
         try {
             const [
                 { data: sessoes, error: e1 },
-                { data: cicloSessoes, error: e2 },
-                { data: cicloMaterias, error: e3 },
-                { data: cicloAtual, error: e4 },
+                { data: materias, error: e2 },
+                { data: ciclos, error: e3 },
                 { data: cards, error: e5 },
                 { data: cardsFavoritos, error: e6 },
                 { data: tarefas, error: e8 },
                 { data: revisoes, error: e9 },
             ] = await Promise.all([
                 supabase.from("sessoes_estudo").select("duracao_segundos, modo, materia, inicio_em").eq("user_id", user.id),
-                supabase.from("study_cycle_sessions").select("minutos, started_at").eq("user_id", user.id),
-                supabase.from("study_cycle_subjects").select("id, nome, minutos_planejados, minutos_feitos").eq("user_id", user.id),
-                supabase.from("study_cycles").select("id, cycles_completed").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1),
+                supabase.from("materias").select("nome").eq("user_id", user.id),
+                supabase.from("study_cycles").select("id, cycles_completed").eq("user_id", user.id).order("created_at", { ascending: true }),
                 supabase.from("flash_cards").select("id, created_at").eq("user_id", user.id),
                 supabase.from("flash_card_favorites").select("card_id").eq("user_id", user.id),
                 supabase.from("tarefas").select("id, concluida, concluida_em, created_at").eq("user_id", user.id),
@@ -89,14 +88,31 @@ export default function DashboardGeral({ user }) {
                     e7.message.includes("Could not find the table") ||
                     e7.message.includes("does not exist"));
 
-            const erroQuery = e1 || e2 || e3 || e4 || e5 || e6 || e8 || e9 || (!podeIgnorarErroReviews ? e7 : null);
+            const cicloAtual = ciclos?.[0] || null;
+            const cicloId = cicloAtual?.id;
+
+            const [{ data: cicloSessoes, error: e10 }, { data: cicloMaterias, error: e11 }] = await Promise.all([
+                cicloId
+                    ? supabase.from("study_cycle_sessions").select("minutos, started_at").eq("user_id", user.id).eq("cycle_id", cicloId)
+                    : Promise.resolve({ data: [], error: null }),
+                cicloId
+                    ? supabase
+                          .from("study_cycle_subjects")
+                          .select("id, nome, minutos_planejados, minutos_feitos")
+                          .eq("user_id", user.id)
+                          .eq("cycle_id", cicloId)
+                    : Promise.resolve({ data: [], error: null }),
+            ]);
+
+            const erroQuery = e1 || e2 || e3 || e5 || e6 || e8 || e9 || e10 || e11 || (!podeIgnorarErroReviews ? e7 : null);
             if (erroQuery) throw erroQuery;
 
             setDados({
                 sessoes: sessoes || [],
+                materias: materias || [],
                 cicloSessoes: cicloSessoes || [],
                 cicloMaterias: cicloMaterias || [],
-                cicloAtual: cicloAtual?.[0] || null,
+                cicloAtual,
                 cards: cards || [],
                 cardsFavoritos: cardsFavoritos || [],
                 revisoesCards: revisoesCards || [],
@@ -120,7 +136,6 @@ export default function DashboardGeral({ user }) {
         const segCronometro = dados.sessoes.filter((s) => s.modo === "cronometro").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
         const segManual = dados.sessoes.filter((s) => s.modo === "manual").reduce((acc, s) => acc + Number(s.duracao_segundos || 0), 0);
 
-        const minutosCiclo = dados.cicloSessoes.reduce((acc, s) => acc + Number(s.minutos || 0), 0);
         const minutosPlanejadosCiclo = dados.cicloMaterias.reduce((acc, s) => acc + Number(s.minutos_planejados || 0), 0);
         const minutosFeitosCiclo = dados.cicloMaterias.reduce((acc, s) => acc + Number(s.minutos_feitos || 0), 0);
 
@@ -136,9 +151,11 @@ export default function DashboardGeral({ user }) {
         const cardsFavoritos = new Set((dados.cardsFavoritos || []).map((item) => item.card_id)).size;
         const reviewsTotal = dados.revisoesCards.length;
 
+        const materiasAtivas = new Set((dados.materias || []).map((m) => String(m.nome || "").trim().toLowerCase()).filter(Boolean));
         const topMaterias = Object.entries(
             dados.sessoes.reduce((acc, s) => {
                 const nome = (s.materia || "Sem matéria").trim() || "Sem matéria";
+                if (nome !== "Sem matéria" && !materiasAtivas.has(nome.toLowerCase())) return acc;
                 acc[nome] = (acc[nome] || 0) + Number(s.duracao_segundos || 0);
                 return acc;
             }, {})
@@ -155,7 +172,7 @@ export default function DashboardGeral({ user }) {
         const fontesHoras = [
             { nome: "Cronômetro", valor: segCronometro / 3600, cor: "bg-cyan-500" },
             { nome: "Manual", valor: segManual / 3600, cor: "bg-violet-500" },
-            { nome: "Ciclo", valor: minutosCiclo / 60, cor: "bg-emerald-500" },
+            { nome: "Ciclo", valor: minutosFeitosCiclo / 60, cor: "bg-emerald-500" },
         ];
         const totalFontesHoras = fontesHoras.reduce((acc, f) => acc + f.valor, 0);
 
@@ -191,6 +208,7 @@ export default function DashboardGeral({ user }) {
             mapa7[key] += Number(s.duracao_segundos || 0) / 3600;
         });
 
+        // histórico de sessões do ciclo segue sendo usado no gráfico dos últimos 7 dias
         dados.cicloSessoes.forEach((s) => {
             const key = dayKey(s.started_at);
             if (!key || !(key in mapa7)) return;
@@ -201,10 +219,10 @@ export default function DashboardGeral({ user }) {
         const pico7dias = Math.max(1, ...estudo7dias.map((d) => d.horas));
 
         return {
-            horasTotais: totalSegSessoes / 3600 + minutosCiclo / 60,
+            horasTotais: totalSegSessoes / 3600 + minutosFeitosCiclo / 60,
             horasCronometro: segCronometro / 3600,
             horasManual: segManual / 3600,
-            horasCiclo: minutosCiclo / 60,
+            horasCiclo: minutosFeitosCiclo / 60,
             ciclosConcluidos: Number(dados.cicloAtual?.cycles_completed || 0),
             progressoCiclo,
             cardsTotal,
