@@ -165,7 +165,9 @@ function Dashboard({ user }) {
                     {abaAtiva === "dashboard-geral" && <DashboardGeral user={user} />}
                     {abaAtiva === "constancia" && <Constancia user={user} />}
 
-                    {abaAtiva === "cronometro" && <EstudarAgora user={user} />}
+                    <div className={abaAtiva === "cronometro" ? "block" : "hidden"}>
+                        <EstudarAgora user={user} />
+                    </div>
                     {abaAtiva === "materias" && <Materias user={user} />}
                     {abaAtiva === "ciclo" && <CicloEstudos user={user} />}
                     {abaAtiva === "flashcards" && <Flashcards user={user} />}
