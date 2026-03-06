@@ -22,3 +22,5 @@ Veja o passo a passo em `docs/flashcards-ia-setup.md`.
 ## Navegação do Planner
 
 - Diagrama do fluxo de navegação: `docs/diagrama-fluxo-navegacao.md`.
+
+![Diagrama visual do fluxo de navegação](docs/diagrama-fluxo-navegacao.svg)

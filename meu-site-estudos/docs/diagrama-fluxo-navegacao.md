@@ -1,82 +1,19 @@
 # Diagrama de fluxo de navegação — Planner Pro
 
-Este diagrama foi gerado com base na estrutura atual de `src/App.jsx` e `src/components/Dashboard.jsx`.
+Abaixo está o **diagrama visual** do fluxo de navegação do site Planner Pro:
 
-```mermaid
-flowchart TD
-    A[App inicia] --> B{Loading + sem usuário?}
-    B -- Sim --> C[Tela de carregamento<br/>"Sincronizando..."]
-    C --> B
-    B -- Não --> D{Usuário autenticado?}
+![Diagrama visual do fluxo de navegação do Planner Pro](./diagrama-fluxo-navegacao.svg)
 
-    D -- Não --> E{Cadastro concluído?}
-    E -- Sim --> F[SuccessScreen]
-    E -- Não --> G{mostrarLogin?}
-    G -- Não --> H[Welcomescreen]
-    H -->|Get Started| I[Formulário de autenticação]
-    G -- Sim --> I
+## Fonte do fluxo
 
-    I --> J{tipoForm}
-    J -->|login| K[Login com e-mail/senha]
-    J -->|cadastro| L[Cadastro + upsert em perfis]
-    I --> M[Login com Google OAuth]
+Este fluxo foi mapeado a partir de:
 
-    K --> N{Autenticou?}
-    L --> N
-    M --> N
-    N -- Sim --> O[Dashboard]
-    N -- Não --> I
+- `src/App.jsx` (entrada, autenticação e transição para dashboard);
+- `src/components/Dashboard.jsx` (menu lateral e abas internas).
 
-    D -- Sim --> O
+## Leitura rápida
 
-    O --> P[Menu lateral]
-
-    subgraph VG[VISÃO GERAL]
-      Q[Dashboard Geral]
-      R[Workspace]
-      S[Constância]
-    end
-
-    subgraph PL[PLANEJAMENTO]
-      T[Matérias]
-      U[Ciclo de Estudos]
-      V[Calendário]
-      W[To-Do]
-    end
-
-    subgraph EX[EXECUÇÃO]
-      X[Estudar Agora]
-      Y[Flashcards]
-      Z[Anotações]
-    end
-
-    subgraph AC[ACOMPANHAMENTO]
-      AA[Revisões]
-      AB[Histórico]
-      AC1[Amizades]
-    end
-
-    P --> Q
-    P --> R
-    P --> S
-    P --> T
-    P --> U
-    P --> V
-    P --> W
-    P --> X
-    P --> Y
-    P --> Z
-    P --> AA
-    P --> AB
-    P --> AC1
-
-    O --> AD[Botão Sair]
-    AD --> D
-```
-
-## Observações rápidas
-
-- A navegação principal é controlada por estados locais (sem `react-router`).
-- `App.jsx` decide entre welcome, autenticação, sucesso de cadastro e dashboard.
-- `Dashboard.jsx` troca de módulos internos pela `abaAtiva` a partir do menu lateral.
-- O logout (`supabase.auth.signOut()`) dispara retorno para o estado não autenticado no `App`.
+- Usuário sem sessão passa por **Welcome/Login/Cadastro**;
+- Usuário autenticado entra no **Dashboard**;
+- O **menu lateral** direciona para as abas: Dashboard Geral, Workspace, Constância, Matérias, Ciclo, Calendário, To-Do, Estudar Agora, Flashcards, Anotações, Revisões, Histórico e Amizades;
+- Em **Sair**, o app faz `signOut()` e retorna ao fluxo não autenticado.
