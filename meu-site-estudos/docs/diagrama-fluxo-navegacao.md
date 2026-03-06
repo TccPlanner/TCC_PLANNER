@@ -1,25 +1,24 @@
 # Diagrama de fluxo de navegação — Planner Pro
 
-Este diagrama foi gerado com base na lógica de navegação presente em `src/App.jsx` (autenticação/entrada) e `src/components/Dashboard.jsx` (abas internas).
+Este diagrama foi gerado com base na estrutura atual de `src/App.jsx` e `src/components/Dashboard.jsx`.
 
 ```mermaid
 flowchart TD
-    A[App inicia] --> B{Sessão carregada?}
-    B -- Não --> C[Tela de loading<br/>"Sincronizando..."]
+    A[App inicia] --> B{Loading + sem usuário?}
+    B -- Sim --> C[Tela de carregamento<br/>"Sincronizando..."]
     C --> B
-
-    B -- Sim --> D{Usuário autenticado?}
+    B -- Não --> D{Usuário autenticado?}
 
     D -- Não --> E{Cadastro concluído?}
     E -- Sim --> F[SuccessScreen]
     E -- Não --> G{mostrarLogin?}
     G -- Não --> H[Welcomescreen]
-    H -->|Get Started| I[Form de autenticação]
+    H -->|Get Started| I[Formulário de autenticação]
     G -- Sim --> I
 
-    I --> J{Tipo de formulário}
+    I --> J{tipoForm}
     J -->|login| K[Login com e-mail/senha]
-    J -->|cadastro| L[Cadastro]
+    J -->|cadastro| L[Cadastro + upsert em perfis]
     I --> M[Login com Google OAuth]
 
     K --> N{Autenticou?}
@@ -32,22 +31,44 @@ flowchart TD
 
     O --> P[Menu lateral]
 
-    P --> Q[Dashboard Geral]
-    P --> R[Workspace]
-    P --> S[Constância]
+    subgraph VG[VISÃO GERAL]
+      Q[Dashboard Geral]
+      R[Workspace]
+      S[Constância]
+    end
 
-    P --> T[Matérias]
-    P --> U[Ciclo de Estudos]
-    P --> V[Calendário]
-    P --> W[To-Do]
+    subgraph PL[PLANEJAMENTO]
+      T[Matérias]
+      U[Ciclo de Estudos]
+      V[Calendário]
+      W[To-Do]
+    end
 
-    P --> X[Estudar Agora]
-    P --> Y[Flashcards]
-    P --> Z[Anotações]
+    subgraph EX[EXECUÇÃO]
+      X[Estudar Agora]
+      Y[Flashcards]
+      Z[Anotações]
+    end
 
-    P --> AA[Revisões]
-    P --> AB[Histórico]
-    P --> AC[Amizades]
+    subgraph AC[ACOMPANHAMENTO]
+      AA[Revisões]
+      AB[Histórico]
+      AC1[Amizades]
+    end
+
+    P --> Q
+    P --> R
+    P --> S
+    P --> T
+    P --> U
+    P --> V
+    P --> W
+    P --> X
+    P --> Y
+    P --> Z
+    P --> AA
+    P --> AB
+    P --> AC1
 
     O --> AD[Botão Sair]
     AD --> D
@@ -55,6 +76,7 @@ flowchart TD
 
 ## Observações rápidas
 
-- O `App` controla a navegação macro (welcome, autenticação, sucesso de cadastro e dashboard).
-- O `Dashboard` controla a navegação interna por abas via estado (`abaAtiva`), sem `react-router`.
-- Ao clicar em **Sair**, ocorre `supabase.auth.signOut()` e o fluxo retorna para estado não autenticado.
+- A navegação principal é controlada por estados locais (sem `react-router`).
+- `App.jsx` decide entre welcome, autenticação, sucesso de cadastro e dashboard.
+- `Dashboard.jsx` troca de módulos internos pela `abaAtiva` a partir do menu lateral.
+- O logout (`supabase.auth.signOut()`) dispara retorno para o estado não autenticado no `App`.
