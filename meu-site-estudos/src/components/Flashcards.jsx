@@ -591,7 +591,7 @@ export default function Flashcards({ user }) {
                 await callWrite("create_deck", {
                     name,
                     topic_id: targetTopicId,
-                    subject_id: subjectId || null,
+                    subject_id: isLegacySubjects ? null : subjectId || null,
                 });
 
                 setNewName("");
