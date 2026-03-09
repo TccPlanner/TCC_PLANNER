@@ -584,16 +584,18 @@ export default function Flashcards({ user }) {
 
             if (level === "decks") {
                 // ✅ modo novo: deck por topicId
-                if (!topicId) return alert("Selecione um tópico.");
+                // ✅ legado: a seleção de "assunto" já representa um topic_id
+                const targetTopicId = isLegacySubjects ? subjectId : topicId;
+                if (!targetTopicId) return alert("Selecione um tópico.");
 
                 await callWrite("create_deck", {
                     name,
-                    topic_id: topicId,
+                    topic_id: targetTopicId,
                     subject_id: subjectId || null,
                 });
 
                 setNewName("");
-                await loadDecks(topicId, "topic");
+                await loadDecks(targetTopicId, "topic");
                 return;
             }
         } catch (e) {
