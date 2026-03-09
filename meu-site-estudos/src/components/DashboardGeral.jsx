@@ -299,6 +299,8 @@ export default function DashboardGeral({ user }) {
         };
     }, [dados, periodoEstudo, customInicio, customFim]);
 
+    const isMonthlyView = periodoEstudo === "mes";
+
     const Card = ({ title, value, subtitle, icon: Icon, theme = cardThemes[0] }) => (
         <div className={`rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 bg-gradient-to-br ${theme.wrap} shadow-sm`}>
             <div className="flex items-center justify-between gap-2">
@@ -373,49 +375,83 @@ export default function DashboardGeral({ user }) {
                                     )}
                                 </div>
                             </div>
-                            <div className="overflow-x-auto">
-                                <div
-                                    className="grid gap-2 items-end h-40 min-w-full"
-                                    style={{ gridTemplateColumns: `repeat(${Math.max(1, stats.estudoSeries.length)}, minmax(44px, 1fr))` }}
-                                >
-                                {stats.estudoSeries.map((dia) => {
-                                    const altura = Math.max(8, Math.round((dia.horas / stats.picoEstudoSeries) * 100));
-                                    return (
-                                        <div key={dia.key} className="flex flex-col items-center gap-1 min-w-0">
-                                            <div className="w-full rounded-md bg-slate-100 dark:bg-slate-800 h-28 flex items-end overflow-hidden">
-                                                <div className="w-full bg-gradient-to-t from-cyan-500 via-violet-500 to-fuchsia-500 rounded-md" style={{ height: `${altura}%` }} />
-                                            </div>
-                                            <span className="text-[11px] text-slate-500 uppercase truncate max-w-full">{dia.label}</span>
-                                            <span className="text-[11px] font-semibold">{dia.horas.toFixed(1)}h</span>
-                                        </div>
-                                    );
-                                })}
+                            {isMonthlyView ? (
+                                <div className="space-y-3">
+                                    <svg viewBox="0 0 100 30" className="w-full h-28 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 p-2">
+                                        <polyline
+                                            fill="none"
+                                            stroke="url(#estudoGradientMes)"
+                                            strokeWidth="2"
+                                            points={stats.estudoSeries
+                                                .map((dia, index) => {
+                                                    const divisor = Math.max(1, stats.estudoSeries.length - 1);
+                                                    const x = (index / divisor) * 100;
+                                                    const y = 27 - (dia.horas / stats.picoEstudoSeries) * 23;
+                                                    return `${x},${Number.isFinite(y) ? y : 27}`;
+                                                })
+                                                .join(" ")}
+                                        />
+                                        <defs>
+                                            <linearGradient id="estudoGradientMes" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#06b6d4" />
+                                                <stop offset="50%" stopColor="#8b5cf6" />
+                                                <stop offset="100%" stopColor="#d946ef" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                    <div className="grid grid-cols-4 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                        {stats.estudoSeries.filter((_, idx) => idx % 7 === 0 || idx === stats.estudoSeries.length - 1).slice(0, 4).map((dia) => (
+                                            <span key={dia.key} className="text-center">{dia.label}</span>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="mt-4">
-                                <svg viewBox="0 0 100 30" className="w-full h-20">
-                                    <polyline
-                                        fill="none"
-                                        stroke="url(#estudoGradient)"
-                                        strokeWidth="1.6"
-                                        points={stats.estudoSeries
-                                            .map((dia, index) => {
-                                                const divisor = Math.max(1, stats.estudoSeries.length - 1);
-                                                const x = (index / divisor) * 100;
-                                                const y = 28 - (dia.horas / stats.picoEstudoSeries) * 24;
-                                                return `${x},${Number.isFinite(y) ? y : 28}`;
-                                            })
-                                            .join(" ")}
-                                    />
-                                    <defs>
-                                        <linearGradient id="estudoGradient" x1="0" y1="0" x2="1" y2="0">
-                                            <stop offset="0%" stopColor="#06b6d4" />
-                                            <stop offset="50%" stopColor="#8b5cf6" />
-                                            <stop offset="100%" stopColor="#d946ef" />
-                                        </linearGradient>
-                                    </defs>
-                                </svg>
-                            </div>
+                            ) : (
+                                <>
+                                    <div className="overflow-x-auto">
+                                        <div
+                                            className="grid gap-2 items-end h-40 min-w-full"
+                                            style={{ gridTemplateColumns: `repeat(${Math.max(1, stats.estudoSeries.length)}, minmax(44px, 1fr))` }}
+                                        >
+                                        {stats.estudoSeries.map((dia) => {
+                                            const altura = Math.max(8, Math.round((dia.horas / stats.picoEstudoSeries) * 100));
+                                            return (
+                                                <div key={dia.key} className="flex flex-col items-center gap-1 min-w-0">
+                                                    <div className="w-full rounded-md bg-slate-100 dark:bg-slate-800 h-28 flex items-end overflow-hidden">
+                                                        <div className="w-full bg-gradient-to-t from-cyan-500 via-violet-500 to-fuchsia-500 rounded-md" style={{ height: `${altura}%` }} />
+                                                    </div>
+                                                    <span className="text-[11px] text-slate-500 uppercase truncate max-w-full">{dia.label}</span>
+                                                    <span className="text-[11px] font-semibold">{dia.horas.toFixed(1)}h</span>
+                                                </div>
+                                            );
+                                        })}
+                                        </div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <svg viewBox="0 0 100 30" className="w-full h-20">
+                                            <polyline
+                                                fill="none"
+                                                stroke="url(#estudoGradient)"
+                                                strokeWidth="1.6"
+                                                points={stats.estudoSeries
+                                                    .map((dia, index) => {
+                                                        const divisor = Math.max(1, stats.estudoSeries.length - 1);
+                                                        const x = (index / divisor) * 100;
+                                                        const y = 28 - (dia.horas / stats.picoEstudoSeries) * 24;
+                                                        return `${x},${Number.isFinite(y) ? y : 28}`;
+                                                    })
+                                                    .join(" ")}
+                                            />
+                                            <defs>
+                                                <linearGradient id="estudoGradient" x1="0" y1="0" x2="1" y2="0">
+                                                    <stop offset="0%" stopColor="#06b6d4" />
+                                                    <stop offset="50%" stopColor="#8b5cf6" />
+                                                    <stop offset="100%" stopColor="#d946ef" />
+                                                </linearGradient>
+                                            </defs>
+                                        </svg>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40">
