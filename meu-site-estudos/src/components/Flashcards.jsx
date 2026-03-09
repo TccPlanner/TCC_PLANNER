@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { ChevronLeft, Pencil, Plus, Sparkles, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Pencil, Plus, Sparkles, Trash2, Upload, XCircle } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 
 // ✅ worker do pdfjs (Vite/React)
@@ -134,11 +134,20 @@ export default function Flashcards({ user }) {
 
     const [pdfLoading, setPdfLoading] = useState(false);
     const [pdfInfo, setPdfInfo] = useState("");
+    const [studyIndex, setStudyIndex] = useState(0);
+    const [showAnswer, setShowAnswer] = useState(false);
+    const [wrongCards, setWrongCards] = useState([]);
 
     const selectedDeck = useMemo(
         () => tree.decks.find((d) => d.id === deckId),
         [tree.decks, deckId]
     );
+
+    useEffect(() => {
+        setStudyIndex(0);
+        setShowAnswer(false);
+        setWrongCards([]);
+    }, [deckId, tree.cards.length]);
 
     const breadcrumb = useMemo(() => {
         const parts = [{ key: "courses", label: "Cursos" }];
@@ -591,7 +600,7 @@ export default function Flashcards({ user }) {
                 await callWrite("create_deck", {
                     name,
                     topic_id: targetTopicId,
-                    subject_id: subjectId || null,
+                    subject_id: isLegacySubjects ? null : subjectId || null,
                 });
 
                 setNewName("");
@@ -747,6 +756,81 @@ export default function Flashcards({ user }) {
             return 0;
         } finally {
             setBulkLoading(false);
+        }
+    }
+
+    async function marcarResultado(card, acertou) {
+        if (!card?.id || !userId) return;
+
+        await supabase
+            .from("flash_card_reviews")
+            .insert([{ user_id: userId, card_id: card.id, resultado: acertou ? "acerto" : "erro" }]);
+
+        if (!acertou) {
+            setWrongCards((prev) => {
+                if (prev.some((c) => c.id === card.id)) return prev;
+                return [...prev, card];
+            });
+        }
+
+        setShowAnswer(false);
+        setStudyIndex((prev) => Math.min(prev + 1, Math.max(0, tree.cards.length)));
+    }
+
+    async function criarDeckComErros() {
+        const cardsErro = wrongCards;
+        if (!cardsErro.length) return alert("Você ainda não marcou erros nesta rodada.");
+
+        const targetTopicId = selectedDeck?.topic_id || (isLegacySubjects ? subjectId : topicId);
+        if (!targetTopicId) return alert("Não consegui identificar o tópico deste deck.");
+
+        const errorsDeckName = `🚨 Erros: ${selectedDeck?.nome || "Deck"}`;
+        let errorDeckId = "";
+
+        try {
+            const { data: sameTopicDecks } = await supabase
+                .from("flash_decks")
+                .select("id,nome,name")
+                .eq("user_id", userId)
+                .eq("topic_id", targetTopicId);
+
+            const existing = (sameTopicDecks || []).find((d) => (d.nome || d.name) === errorsDeckName);
+            if (existing?.id) {
+                errorDeckId = existing.id;
+            } else {
+                errorDeckId = await callWrite("create_deck", {
+                    name: errorsDeckName,
+                    topic_id: targetTopicId,
+                    subject_id: isLegacySubjects ? null : subjectId || null,
+                });
+            }
+
+            const { data: existingCards } = await supabase
+                .from("flash_cards")
+                .select("pergunta,resposta")
+                .eq("user_id", userId)
+                .eq("deck_id", errorDeckId);
+
+            const existingKey = new Set((existingCards || []).map((c) => `${c.pergunta}__${c.resposta}`));
+            const toInsert = cardsErro
+                .filter((c) => !existingKey.has(`${c.pergunta}__${c.resposta}`))
+                .map((c) => ({
+                    user_id: userId,
+                    deck_id: errorDeckId,
+                    tipo: "normal",
+                    pergunta: c.pergunta,
+                    resposta: c.resposta,
+                    tags: Array.from(new Set([...(Array.isArray(c.tags) ? c.tags : []), "erro"])).slice(0, 8),
+                }));
+
+            if (toInsert.length) {
+                const { error } = await supabase.from("flash_cards").insert(toInsert);
+                if (error) throw error;
+            }
+
+            alert(`✅ Deck de erros atualizado: ${toInsert.length} card(s) adicionados.`);
+        } catch (e) {
+            alert(e.message || "Não consegui criar o deck de erros.");
         }
     }
 
@@ -926,17 +1010,70 @@ export default function Flashcards({ user }) {
                             {!tree.cards.length ? (
                                 <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">Nenhum card ainda.</p>
                             ) : (
-                                <ul className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                                    {tree.cards.map((card) => (
-                                        <li
-                                            key={card.id}
-                                            className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                                        <span>
+                                            Card {Math.min(studyIndex + 1, tree.cards.length)} de {tree.cards.length}
+                                        </span>
+                                        <span>Erros na rodada: {wrongCards.length}</span>
+                                    </div>
+
+                                    {tree.cards[studyIndex] ? (
+                                        <button
+                                            onClick={() => setShowAnswer((v) => !v)}
+                                            className="w-full [perspective:1000px]"
+                                            type="button"
                                         >
-                                            <p className="font-black text-slate-900 dark:text-white">{card.pergunta}</p>
-                                            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 font-bold">{card.resposta}</p>
-                                        </li>
-                                    ))}
-                                </ul>
+                                            <div
+                                                className="relative min-h-[220px] rounded-3xl border border-slate-200 dark:border-slate-800 transition-transform duration-500 [transform-style:preserve-3d]"
+                                                style={{ transform: showAnswer ? "rotateY(180deg)" : "rotateY(0deg)" }}
+                                            >
+                                                <div className="absolute inset-0 p-6 rounded-3xl bg-white dark:bg-slate-900 [backface-visibility:hidden] flex flex-col justify-center">
+                                                    <span className="text-[11px] uppercase tracking-widest text-slate-500 font-black">Pergunta</span>
+                                                    <p className="text-lg md:text-xl font-black text-slate-900 dark:text-white mt-3">{tree.cards[studyIndex].pergunta}</p>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 font-bold">Clique para virar o card</p>
+                                                </div>
+                                                <div className="absolute inset-0 p-6 rounded-3xl bg-slate-900 text-white [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col justify-center">
+                                                    <span className="text-[11px] uppercase tracking-widest text-slate-300 font-black">Resposta</span>
+                                                    <p className="text-lg md:text-xl font-black mt-3">{tree.cards[studyIndex].resposta}</p>
+                                                    <p className="text-xs text-slate-300 mt-4 font-bold">Clique novamente para voltar</p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ) : (
+                                        <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center">
+                                            <p className="font-black text-slate-900 dark:text-white">Você terminou os cards desta rodada 🎉</p>
+                                            <button onClick={() => setStudyIndex(0)} className="mt-3 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-black text-xs">
+                                                Recomeçar rodada
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => tree.cards[studyIndex] && marcarResultado(tree.cards[studyIndex], false)}
+                                            disabled={!showAnswer || !tree.cards[studyIndex]}
+                                            className="px-4 py-3 rounded-2xl bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 font-black text-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                                        >
+                                            <XCircle size={16} /> Errei
+                                        </button>
+                                        <button
+                                            onClick={() => tree.cards[studyIndex] && marcarResultado(tree.cards[studyIndex], true)}
+                                            disabled={!showAnswer || !tree.cards[studyIndex]}
+                                            className="px-4 py-3 rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 font-black text-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                                        >
+                                            <CheckCircle2 size={16} /> Acertei
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        onClick={criarDeckComErros}
+                                        disabled={!wrongCards.length}
+                                        className="w-full px-4 py-3 rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-black text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Criar/atualizar deck com os erros desta rodada
+                                    </button>
+                                </div>
                             )}
                         </div>
 
