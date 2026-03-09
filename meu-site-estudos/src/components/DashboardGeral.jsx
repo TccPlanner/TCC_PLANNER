@@ -38,9 +38,65 @@ const dayKey = (dateValue) => {
     return date.toISOString().slice(0, 10);
 };
 
+const toInputDate = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+    return dayKey(date);
+};
+
+const shiftDays = (base, days) => {
+    const d = new Date(base);
+    d.setDate(d.getDate() + days);
+    return d;
+};
+
+const buildEstudoPeriodo = (periodo, customStart, customEnd) => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    if (periodo === "ano") {
+        const ano = hoje.getFullYear();
+        return Array.from({ length: 12 }, (_, i) => {
+            const d = new Date(ano, i, 1);
+            return {
+                key: `${ano}-${String(i + 1).padStart(2, "0")}`,
+                label: d.toLocaleDateString("pt-BR", { month: "short" }).slice(0, 3),
+                horas: 0,
+            };
+        });
+    }
+
+    const dias = periodo === "mes" ? 30 : 7;
+
+    let inicio = shiftDays(hoje, -(dias - 1));
+    let fim = new Date(hoje);
+
+    if (periodo === "custom") {
+        const startDate = customStart ? new Date(`${customStart}T00:00:00`) : null;
+        const endDate = customEnd ? new Date(`${customEnd}T00:00:00`) : null;
+
+        if (startDate && !Number.isNaN(startDate.getTime())) inicio = startDate;
+        if (endDate && !Number.isNaN(endDate.getTime())) fim = endDate;
+
+        if (inicio > fim) [inicio, fim] = [fim, inicio];
+    }
+
+    const totalDias = Math.max(1, Math.floor((fim - inicio) / 86400000) + 1);
+    return Array.from({ length: totalDias }, (_, i) => {
+        const d = shiftDays(inicio, i);
+        return {
+            key: dayKey(d),
+            label: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+            horas: 0,
+        };
+    });
+};
+
 export default function DashboardGeral({ user }) {
     const [loading, setLoading] = useState(true);
     const [erro, setErro] = useState("");
+    const [periodoEstudo, setPeriodoEstudo] = useState("7d");
+    const [customInicio, setCustomInicio] = useState(() => toInputDate(shiftDays(new Date(), -6)));
+    const [customFim, setCustomFim] = useState(() => toInputDate(new Date()));
     const [dados, setDados] = useState({
         sessoes: [],
         materias: [],
@@ -188,35 +244,33 @@ export default function DashboardGeral({ user }) {
         ];
         const reviewsResultadoTotal = reviewsPorResultado.reduce((acc, r) => acc + r.valor, 0);
 
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
-        const ultimos7dias = Array.from({ length: 7 }, (_, i) => {
-            const d = new Date(hoje);
-            d.setDate(hoje.getDate() - (6 - i));
-            return {
-                key: dayKey(d),
-                label: d.toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 3),
-                horas: 0,
-            };
-        });
-
-        const mapa7 = Object.fromEntries(ultimos7dias.map((d) => [d.key, 0]));
+        const estudoPeriodo = buildEstudoPeriodo(periodoEstudo, customInicio, customFim);
+        const mapaPeriodo = Object.fromEntries(estudoPeriodo.map((d) => [d.key, 0]));
 
         dados.sessoes.forEach((s) => {
-            const key = dayKey(s.inicio_em);
-            if (!key || !(key in mapa7)) return;
-            mapa7[key] += Number(s.duracao_segundos || 0) / 3600;
+            const dt = new Date(s.inicio_em);
+            if (Number.isNaN(dt.getTime())) return;
+            const key =
+                periodoEstudo === "ano"
+                    ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
+                    : dayKey(dt);
+            if (!key || !(key in mapaPeriodo)) return;
+            mapaPeriodo[key] += Number(s.duracao_segundos || 0) / 3600;
         });
 
-        // histórico de sessões do ciclo segue sendo usado no gráfico dos últimos 7 dias
         dados.cicloSessoes.forEach((s) => {
-            const key = dayKey(s.started_at);
-            if (!key || !(key in mapa7)) return;
-            mapa7[key] += Number(s.minutos || 0) / 60;
+            const dt = new Date(s.started_at);
+            if (Number.isNaN(dt.getTime())) return;
+            const key =
+                periodoEstudo === "ano"
+                    ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
+                    : dayKey(dt);
+            if (!key || !(key in mapaPeriodo)) return;
+            mapaPeriodo[key] += Number(s.minutos || 0) / 60;
         });
 
-        const estudo7dias = ultimos7dias.map((d) => ({ ...d, horas: Number((mapa7[d.key] || 0).toFixed(2)) }));
-        const pico7dias = Math.max(1, ...estudo7dias.map((d) => d.horas));
+        const estudoSeries = estudoPeriodo.map((d) => ({ ...d, horas: Number((mapaPeriodo[d.key] || 0).toFixed(2)) }));
+        const picoEstudoSeries = Math.max(1, ...estudoSeries.map((d) => d.horas));
 
         return {
             horasTotais: totalSegSessoes / 3600 + minutosFeitosCiclo / 60,
@@ -240,10 +294,10 @@ export default function DashboardGeral({ user }) {
             totalFontesHoras,
             reviewsPorResultado,
             reviewsResultadoTotal,
-            estudo7dias,
-            pico7dias,
+            estudoSeries,
+            picoEstudoSeries,
         };
-    }, [dados]);
+    }, [dados, periodoEstudo, customInicio, customFim]);
 
     const Card = ({ title, value, subtitle, icon: Icon, theme = cardThemes[0] }) => (
         <div className={`rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 bg-gradient-to-br ${theme.wrap} shadow-sm`}>
@@ -288,20 +342,55 @@ export default function DashboardGeral({ user }) {
 
                     <div className="grid xl:grid-cols-3 gap-4">
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40 xl:col-span-2">
-                            <h3 className="font-bold mb-4 flex items-center gap-2"><Activity size={16} /> Estudo nos últimos 7 dias</h3>
-                            <div className="grid grid-cols-7 gap-2 items-end h-40">
-                                {stats.estudo7dias.map((dia) => {
-                                    const altura = Math.max(8, Math.round((dia.horas / stats.pico7dias) * 100));
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <h3 className="font-bold flex items-center gap-2"><Activity size={16} /> Estudo por período</h3>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <select
+                                        value={periodoEstudo}
+                                        onChange={(e) => setPeriodoEstudo(e.target.value)}
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                                    >
+                                        <option value="7d">Últimos 7 dias</option>
+                                        <option value="mes">Último mês</option>
+                                        <option value="ano">Último ano</option>
+                                        <option value="custom">Personalizado</option>
+                                    </select>
+                                    {periodoEstudo === "custom" && (
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <input
+                                                type="date"
+                                                value={customInicio}
+                                                onChange={(e) => setCustomInicio(e.target.value)}
+                                                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                                            />
+                                            <input
+                                                type="date"
+                                                value={customFim}
+                                                onChange={(e) => setCustomFim(e.target.value)}
+                                                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <div
+                                    className="grid gap-2 items-end h-40 min-w-full"
+                                    style={{ gridTemplateColumns: `repeat(${Math.max(1, stats.estudoSeries.length)}, minmax(44px, 1fr))` }}
+                                >
+                                {stats.estudoSeries.map((dia) => {
+                                    const altura = Math.max(8, Math.round((dia.horas / stats.picoEstudoSeries) * 100));
                                     return (
-                                        <div key={dia.key} className="flex flex-col items-center gap-1">
+                                        <div key={dia.key} className="flex flex-col items-center gap-1 min-w-0">
                                             <div className="w-full rounded-md bg-slate-100 dark:bg-slate-800 h-28 flex items-end overflow-hidden">
                                                 <div className="w-full bg-gradient-to-t from-cyan-500 via-violet-500 to-fuchsia-500 rounded-md" style={{ height: `${altura}%` }} />
                                             </div>
-                                            <span className="text-[11px] text-slate-500 uppercase">{dia.label}</span>
+                                            <span className="text-[11px] text-slate-500 uppercase truncate max-w-full">{dia.label}</span>
                                             <span className="text-[11px] font-semibold">{dia.horas.toFixed(1)}h</span>
                                         </div>
                                     );
                                 })}
+                                </div>
                             </div>
                             <div className="mt-4">
                                 <svg viewBox="0 0 100 30" className="w-full h-20">
@@ -309,10 +398,11 @@ export default function DashboardGeral({ user }) {
                                         fill="none"
                                         stroke="url(#estudoGradient)"
                                         strokeWidth="1.6"
-                                        points={stats.estudo7dias
+                                        points={stats.estudoSeries
                                             .map((dia, index) => {
-                                                const x = (index / 6) * 100;
-                                                const y = 28 - (dia.horas / stats.pico7dias) * 24;
+                                                const divisor = Math.max(1, stats.estudoSeries.length - 1);
+                                                const x = (index / divisor) * 100;
+                                                const y = 28 - (dia.horas / stats.picoEstudoSeries) * 24;
                                                 return `${x},${Number.isFinite(y) ? y : 28}`;
                                             })
                                             .join(" ")}
