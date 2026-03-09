@@ -794,7 +794,7 @@ export default function Flashcards({ user }) {
             (level === "disciplines" && courseId) ||
             (level === "subjects" && disciplineId) ||
             (level === "topics" && subjectId && !isLegacySubjects) ||
-            (level === "decks" && topicId));
+            (level === "decks" && (isLegacySubjects ? subjectId : topicId)));
 
     return (
         <div className={ui.wrap}>
