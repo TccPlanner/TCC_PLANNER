@@ -1052,27 +1052,29 @@ export default function Flashcards({ user }) {
                                     <div className="grid grid-cols-2 gap-2">
                                         <button
                                             onClick={() => tree.cards[studyIndex] && marcarResultado(tree.cards[studyIndex], false)}
-                                            disabled={!showAnswer || !tree.cards[studyIndex]}
+                                            disabled={!tree.cards[studyIndex]}
                                             className="px-4 py-3 rounded-2xl bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 font-black text-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                                         >
                                             <XCircle size={16} /> Errei
                                         </button>
                                         <button
                                             onClick={() => tree.cards[studyIndex] && marcarResultado(tree.cards[studyIndex], true)}
-                                            disabled={!showAnswer || !tree.cards[studyIndex]}
+                                            disabled={!tree.cards[studyIndex]}
                                             className="px-4 py-3 rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 font-black text-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                                         >
                                             <CheckCircle2 size={16} /> Acertei
                                         </button>
                                     </div>
 
-                                    <button
-                                        onClick={criarDeckComErros}
-                                        disabled={!wrongCards.length}
-                                        className="w-full px-4 py-3 rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-black text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Criar/atualizar deck com os erros desta rodada
-                                    </button>
+                                    {editMode && (
+                                        <button
+                                            onClick={criarDeckComErros}
+                                            disabled={!wrongCards.length}
+                                            className="w-full px-4 py-3 rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-black text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Criar/atualizar deck com os erros desta rodada
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>

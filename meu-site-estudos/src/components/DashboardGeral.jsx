@@ -299,8 +299,6 @@ export default function DashboardGeral({ user }) {
         };
     }, [dados, periodoEstudo, customInicio, customFim]);
 
-    const isMonthlyView = periodoEstudo === "mes";
-
     const Card = ({ title, value, subtitle, icon: Icon, theme = cardThemes[0] }) => (
         <div className={`rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 bg-gradient-to-br ${theme.wrap} shadow-sm`}>
             <div className="flex items-center justify-between gap-2">
@@ -375,38 +373,7 @@ export default function DashboardGeral({ user }) {
                                     )}
                                 </div>
                             </div>
-                            {isMonthlyView ? (
-                                <div className="space-y-3">
-                                    <svg viewBox="0 0 100 30" className="w-full h-28 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 p-2">
-                                        <polyline
-                                            fill="none"
-                                            stroke="url(#estudoGradientMes)"
-                                            strokeWidth="2"
-                                            points={stats.estudoSeries
-                                                .map((dia, index) => {
-                                                    const divisor = Math.max(1, stats.estudoSeries.length - 1);
-                                                    const x = (index / divisor) * 100;
-                                                    const y = 27 - (dia.horas / stats.picoEstudoSeries) * 23;
-                                                    return `${x},${Number.isFinite(y) ? y : 27}`;
-                                                })
-                                                .join(" ")}
-                                        />
-                                        <defs>
-                                            <linearGradient id="estudoGradientMes" x1="0" y1="0" x2="1" y2="0">
-                                                <stop offset="0%" stopColor="#06b6d4" />
-                                                <stop offset="50%" stopColor="#8b5cf6" />
-                                                <stop offset="100%" stopColor="#d946ef" />
-                                            </linearGradient>
-                                        </defs>
-                                    </svg>
-                                    <div className="grid grid-cols-4 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                                        {stats.estudoSeries.filter((_, idx) => idx % 7 === 0 || idx === stats.estudoSeries.length - 1).slice(0, 4).map((dia) => (
-                                            <span key={dia.key} className="text-center">{dia.label}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <>
+                            <>
                                     <div className="overflow-x-auto">
                                         <div
                                             className="grid gap-2 items-end h-40 min-w-full"
@@ -451,7 +418,6 @@ export default function DashboardGeral({ user }) {
                                         </svg>
                                     </div>
                                 </>
-                            )}
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-white/60 dark:bg-slate-900/40">
