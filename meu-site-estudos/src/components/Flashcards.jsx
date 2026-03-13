@@ -1,9 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { ChevronLeft, Pencil, Plus, Sparkles, Trash2, Upload } from "lucide-react";
+import {
+    ChevronLeft,
+    Pencil,
+    Plus,
+    Sparkles,
+    Trash2,
+    Upload,
+    CheckCircle2,
+    XCircle,
+    RotateCcw,
+    CopyPlus,
+} from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 
-// ✅ worker do pdfjs (Vite/React)
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.min.js",
     import.meta.url
@@ -39,7 +49,6 @@ function safeTags(text) {
         .slice(0, 8);
 }
 
-// ====== “A partir dos erros” (colando Pergunta | Resposta) ======
 function parsePairs(text) {
     const lines = String(text || "")
         .split("\n")
@@ -61,7 +70,6 @@ function parsePairs(text) {
     return pairs.slice(0, 60);
 }
 
-// ====== UI ======
 const ui = {
     wrap: "w-full max-w-3xl mx-auto",
     headerTitle: "text-2xl font-black text-slate-900 dark:text-white",
@@ -101,6 +109,23 @@ const ui = {
         "p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition text-left",
     modalTitle: "text-lg font-black text-slate-900 dark:text-white",
     modalText: "text-xs text-slate-500 dark:text-slate-400 font-bold",
+
+    statBox:
+        "flex-1 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-center",
+    statLabel:
+        "text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400",
+    statValue:
+        "mt-1 text-lg font-black text-slate-900 dark:text-white",
+
+    flipWrap: "perspective-[1200px]",
+    flipInner:
+        "relative w-full min-h-[280px] transition-transform duration-500 [transform-style:preserve-3d]",
+    flipFace:
+        "absolute inset-0 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-sm [backface-visibility:hidden]",
+    flipFront:
+        "bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white",
+    flipBack:
+        "bg-white dark:bg-slate-900 text-slate-900 dark:text-white [transform:rotateY(180deg)]",
 };
 
 export default function Flashcards({ user }) {
@@ -135,17 +160,44 @@ export default function Flashcards({ user }) {
     const [pdfLoading, setPdfLoading] = useState(false);
     const [pdfInfo, setPdfInfo] = useState("");
 
-    const selectedDeck = useMemo(
-        () => tree.decks.find((d) => d.id === deckId),
-        [tree.decks, deckId]
+    const [studyIndex, setStudyIndex] = useState(0);
+    const [studyFlipped, setStudyFlipped] = useState(false);
+    const [studyHits, setStudyHits] = useState(0);
+    const [studyMisses, setStudyMisses] = useState(0);
+    const [answeredIds, setAnsweredIds] = useState([]);
+    const [wrongCards, setWrongCards] = useState([]);
+
+    const selectedDeck = useMemo(() => {
+        const deck = tree.decks.find((d) => d.id === deckId);
+        if (!deck) return null;
+
+        return {
+            ...deck,
+            nome: deck.nome ?? deck.name ?? "",
+            topic_id: deck.topic_id ?? null,
+            subject_id: deck.subject_id ?? null,
+        };
+    }, [tree.decks, deckId]);
+
+    const currentCard = useMemo(
+        () => tree.cards[studyIndex] || null,
+        [tree.cards, studyIndex]
     );
+
+    const totalCards = tree.cards.length;
+    const currentQuestion = totalCards ? studyIndex + 1 : 0;
+    const sessionFinished = totalCards > 0 && answeredIds.length === totalCards;
+
+    const studyStorageKey = useMemo(() => {
+        if (!userId || !deckId) return null;
+        return `flashcards-study-${userId}-${deckId}`;
+    }, [userId, deckId]);
 
     const breadcrumb = useMemo(() => {
         const parts = [{ key: "courses", label: "Cursos" }];
 
         if (courseId) parts.push({ key: "disciplines", label: "Disciplinas" });
         if (disciplineId) parts.push({ key: "subjects", label: "Assuntos" });
-
         if (!isLegacySubjects && subjectId) parts.push({ key: "topics", label: "Tópicos" });
 
         const decksReady = isLegacySubjects ? Boolean(subjectId) : Boolean(topicId);
@@ -163,7 +215,6 @@ export default function Flashcards({ user }) {
         return token;
     }
 
-    // ✅ CORRIGIDO: CRUD usa flashcards-write
     async function callWrite(action, payload) {
         const token = await getTokenOrThrow();
 
@@ -171,11 +222,6 @@ export default function Flashcards({ user }) {
             body: { action, ...payload },
             headers: { Authorization: `Bearer ${token}` },
         });
-
-        console.log("flashcards-write action:", action);
-        console.log("flashcards-write payload:", payload);
-        console.log("flashcards-write data:", data);
-        console.log("flashcards-write error:", error);
 
         if (error) {
             const msg =
@@ -190,28 +236,18 @@ export default function Flashcards({ user }) {
         return data?.data?.id;
     }
 
-    async function selectList({ table, selectModern, selectLegacy, filter = {} }) {
-        let q1 = supabase.from(table).select(selectModern).eq("user_id", userId);
-        Object.entries(filter).forEach(([k, v]) => (q1 = q1.eq(k, v)));
-        const modern = await q1.order("created_at", { ascending: false });
-        if (!modern.error) return (modern.data || []).map(normalizeNameRow);
-
-        let q2 = supabase.from(table).select(selectLegacy).eq("user_id", userId);
-        Object.entries(filter).forEach(([k, v]) => (q2 = q2.eq(k, v)));
-        const legacy = await q2.order("created_at", { ascending: false });
-        if (legacy.error) throw modern.error;
-        return (legacy.data || []).map(normalizeNameRow);
-    }
-
     const loadCourses = useCallback(async () => {
+        if (!userId) return;
         setLoading(true);
         try {
-            const rows = await selectList({
-                table: "flash_courses",
-                selectModern: "id,nome,created_at",
-                selectLegacy: "id,name,created_at",
-            });
-            setTree((p) => ({ ...p, courses: rows }));
+            const { data, error } = await supabase
+                .from("flash_courses")
+                .select("id,name,created_at")
+                .eq("user_id", userId)
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+            setTree((p) => ({ ...p, courses: (data || []).map(normalizeNameRow) }));
         } finally {
             setLoading(false);
         }
@@ -219,15 +255,18 @@ export default function Flashcards({ user }) {
 
     const loadDisciplines = useCallback(
         async (course_id) => {
+            if (!userId) return;
             setLoading(true);
             try {
-                const rows = await selectList({
-                    table: "flash_disciplines",
-                    selectModern: "id,nome,course_id,created_at",
-                    selectLegacy: "id,name,course_id,created_at",
-                    filter: { course_id },
-                });
-                setTree((p) => ({ ...p, disciplines: rows }));
+                const { data, error } = await supabase
+                    .from("flash_disciplines")
+                    .select("id,name,course_id,created_at")
+                    .eq("user_id", userId)
+                    .eq("course_id", course_id)
+                    .order("created_at", { ascending: false });
+
+                if (error) throw error;
+                setTree((p) => ({ ...p, disciplines: (data || []).map(normalizeNameRow) }));
             } finally {
                 setLoading(false);
             }
@@ -237,34 +276,35 @@ export default function Flashcards({ user }) {
 
     const loadSubjects = useCallback(
         async (discipline_id) => {
+            if (!userId) return;
             setLoading(true);
             try {
-                const res = await supabase
+                const { data, error } = await supabase
                     .from("flash_subjects")
-                    .select("id,nome,discipline_id,created_at")
-                    .eq("user_id", userId)
-                    .eq("discipline_id", discipline_id)
-                    .order("created_at", { ascending: false });
-
-                if (!res.error) {
-                    setIsLegacySubjects(false);
-                    setTree((p) => ({ ...p, subjects: (res.data || []).map(normalizeNameRow) }));
-                    return;
-                }
-
-                const legacy = await supabase
-                    .from("flash_topics")
                     .select("id,name,discipline_id,created_at")
                     .eq("user_id", userId)
                     .eq("discipline_id", discipline_id)
                     .order("created_at", { ascending: false });
 
-                if (legacy.error) throw res.error;
+                if (!error) {
+                    setIsLegacySubjects(false);
+                    setTree((p) => ({ ...p, subjects: (data || []).map(normalizeNameRow) }));
+                    return;
+                }
+
+                const legacy = await supabase
+                    .from("fc_topics")
+                    .select("id,name,discipline_id,created_at")
+                    .eq("user_id", userId)
+                    .eq("discipline_id", discipline_id)
+                    .order("created_at", { ascending: false });
+
+                if (legacy.error) throw error;
 
                 setIsLegacySubjects(true);
                 setTree((p) => ({
                     ...p,
-                    subjects: (legacy.data || []).map((r) => ({ ...r, nome: r.name })),
+                    subjects: (legacy.data || []).map(normalizeNameRow),
                 }));
             } finally {
                 setLoading(false);
@@ -273,21 +313,28 @@ export default function Flashcards({ user }) {
         [userId]
     );
 
-    // ✅ Topic dentro de subject: filtra por subject_id
     const loadTopics = useCallback(
         async (subject_id) => {
+            if (!userId) return;
             setLoading(true);
             try {
-                const res = await supabase
+                const { data, error } = await supabase
                     .from("flash_topics")
-                    .select("id,name,subject_id,created_at")
+                    .select("id,name,subject_id,discipline_id,created_at")
                     .eq("user_id", userId)
                     .eq("subject_id", subject_id)
                     .order("created_at", { ascending: false });
 
+                if (error) throw error;
+
                 setTree((p) => ({
                     ...p,
-                    topics: (res.data || []).map((r) => ({ id: r.id, nome: r.name })),
+                    topics: (data || []).map((r) => ({
+                        id: r.id,
+                        nome: r.name ?? "",
+                        subject_id: r.subject_id ?? null,
+                        discipline_id: r.discipline_id ?? null,
+                    })),
                 }));
             } finally {
                 setLoading(false);
@@ -296,9 +343,9 @@ export default function Flashcards({ user }) {
         [userId]
     );
 
-    // ✅ Deck: sempre por topic_id (e opcional por subject_id)
     const loadDecks = useCallback(
         async (baseId, mode = "topic") => {
+            if (!userId) return;
             setLoading(true);
             try {
                 let q = supabase
@@ -309,8 +356,16 @@ export default function Flashcards({ user }) {
                 if (mode === "topic") q = q.eq("topic_id", baseId);
                 if (mode === "subject") q = q.eq("subject_id", baseId);
 
-                const res = await q.order("created_at", { ascending: false });
-                setTree((p) => ({ ...p, decks: (res.data || []).map(normalizeNameRow) }));
+                const { data, error } = await q.order("created_at", { ascending: false });
+                if (error) throw error;
+
+                setTree((p) => ({
+                    ...p,
+                    decks: (data || []).map((r) => ({
+                        ...r,
+                        nome: r.name ?? "",
+                    })),
+                }));
             } finally {
                 setLoading(false);
             }
@@ -319,16 +374,18 @@ export default function Flashcards({ user }) {
     );
 
     const loadCards = useCallback(
-        async (deck_id) => {
+        async (currentDeckId) => {
+            if (!userId) return;
             setLoading(true);
             try {
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .from("flash_cards")
-                    .select("id,pergunta,resposta,tags,created_at")
+                    .select("id,pergunta,resposta,tags,created_at,deck_id")
                     .eq("user_id", userId)
-                    .eq("deck_id", deck_id)
-                    .order("created_at", { ascending: false });
+                    .eq("deck_id", currentDeckId)
+                    .order("created_at", { ascending: true });
 
+                if (error) throw error;
                 setTree((p) => ({ ...p, cards: data || [] }));
             } finally {
                 setLoading(false);
@@ -336,6 +393,149 @@ export default function Flashcards({ user }) {
         },
         [userId]
     );
+
+    function resetStudySession(removeStorage = false) {
+        setStudyIndex(0);
+        setStudyFlipped(false);
+        setStudyHits(0);
+        setStudyMisses(0);
+        setAnsweredIds([]);
+        setWrongCards([]);
+
+        if (removeStorage && studyStorageKey) {
+            localStorage.removeItem(studyStorageKey);
+        }
+    }
+
+    function answerCurrentCard(type) {
+        if (!currentCard) return;
+        if (!studyFlipped) return;
+        if (answeredIds.includes(currentCard.id)) return;
+
+        if (type === "hit") {
+            setStudyHits((prev) => prev + 1);
+        } else {
+            setStudyMisses((prev) => prev + 1);
+            setWrongCards((prev) => {
+                if (prev.some((c) => c.id === currentCard.id)) return prev;
+                return [...prev, currentCard];
+            });
+        }
+
+        const nextAnswered = [...answeredIds, currentCard.id];
+        setAnsweredIds(nextAnswered);
+
+        const nextIndex = studyIndex + 1;
+        if (nextIndex < tree.cards.length) {
+            setTimeout(() => {
+                setStudyIndex(nextIndex);
+                setStudyFlipped(false);
+            }, 150);
+        }
+    }
+
+    async function createDeckFromWrongCards() {
+        if (!wrongCards.length) {
+            alert("Você ainda não marcou nenhum card como erro.");
+            return;
+        }
+
+        try {
+            let currentTopicId = selectedDeck?.topic_id || topicId || null;
+            let currentSubjectId = selectedDeck?.subject_id || null;
+
+            if ((!currentTopicId || currentSubjectId === undefined) && deckId) {
+                const { data: deckRow, error: deckErr } = await supabase
+                    .from("flash_decks")
+                    .select("id,name,topic_id,subject_id")
+                    .eq("id", deckId)
+                    .eq("user_id", userId)
+                    .maybeSingle();
+
+                if (deckErr) throw new Error(deckErr.message);
+
+                currentTopicId = deckRow?.topic_id || currentTopicId;
+                currentSubjectId =
+                    deckRow?.subject_id === undefined ? currentSubjectId : deckRow?.subject_id;
+            }
+
+            if (!currentTopicId) {
+                alert("Não foi possível encontrar o tópico do deck atual.");
+                return;
+            }
+
+            if (!currentSubjectId) {
+                const { data: topicRow, error: topicErr } = await supabase
+                    .from("flash_topics")
+                    .select("id,subject_id")
+                    .eq("id", currentTopicId)
+                    .maybeSingle();
+
+                if (topicErr) throw new Error(topicErr.message);
+                currentSubjectId = topicRow?.subject_id || null;
+            }
+
+            const baseName =
+                selectedDeck?.nome?.trim() ||
+                selectedDeck?.name?.trim() ||
+                "Deck";
+
+            const newDeckName = `${baseName} - Erros`;
+
+            const payload = {
+                name: newDeckName,
+                topic_id: currentTopicId,
+                ...(currentSubjectId ? { subject_id: currentSubjectId } : {}),
+            };
+
+            const newDeckId = await callWrite("create_deck", payload);
+
+            if (!newDeckId) {
+                throw new Error("Não consegui criar o novo deck de erros.");
+            }
+
+            for (const card of wrongCards) {
+                await callWrite("create_card", {
+                    deck_id: newDeckId,
+                    tipo: "normal",
+                    pergunta: card.pergunta,
+                    resposta: card.resposta,
+                    tags: Array.isArray(card.tags)
+                        ? [...card.tags, "erro"].slice(0, 8)
+                        : ["erro"],
+                });
+            }
+
+            await loadDecks(currentTopicId, "topic");
+            alert(`✅ Deck "${newDeckName}" criado com ${wrongCards.length} card(s)!`);
+        } catch (e) {
+            alert(e.message);
+        }
+    }
+
+    async function deleteCard(cardId) {
+        const ok = window.confirm("Deseja apagar este card?");
+        if (!ok) return;
+
+        try {
+            await callWrite("delete_card", { id: cardId });
+
+            setAnsweredIds((prev) => prev.filter((id) => id !== cardId));
+            setWrongCards((prev) => prev.filter((card) => card.id !== cardId));
+
+            await loadCards(deckId);
+
+            setTimeout(() => {
+                setStudyIndex((prev) => {
+                    const newTotal = Math.max(0, tree.cards.length - 1);
+                    if (newTotal === 0) return 0;
+                    return Math.min(prev, newTotal - 1);
+                });
+            }, 0);
+        } catch (e) {
+            alert(e.message);
+        }
+    }
 
     useEffect(() => {
         if (!userId) return;
@@ -359,8 +559,90 @@ export default function Flashcards({ user }) {
         setPdfInfo("");
         setPdfLoading(false);
 
+        resetStudySession(true);
         loadCourses();
     }, [userId, loadCourses]);
+
+    useEffect(() => {
+        if (!studyStorageKey || !deckId) return;
+
+        if (!tree.cards.length) {
+            setStudyIndex(0);
+            setStudyFlipped(false);
+            setStudyHits(0);
+            setStudyMisses(0);
+            setAnsweredIds([]);
+            setWrongCards([]);
+            return;
+        }
+
+        try {
+            const raw = localStorage.getItem(studyStorageKey);
+            if (!raw) {
+                setStudyIndex(0);
+                setStudyFlipped(false);
+                setStudyHits(0);
+                setStudyMisses(0);
+                setAnsweredIds([]);
+                setWrongCards([]);
+                return;
+            }
+
+            const saved = JSON.parse(raw);
+            const validIds = new Set(tree.cards.map((c) => c.id));
+
+            const restoredAnswered = Array.isArray(saved.answeredIds)
+                ? saved.answeredIds.filter((id) => validIds.has(id))
+                : [];
+
+            const restoredWrong = Array.isArray(saved.wrongCards)
+                ? saved.wrongCards.filter((c) => c?.id && validIds.has(c.id))
+                : [];
+
+            const maxIndex = Math.max(0, tree.cards.length - 1);
+            const restoredIndex =
+                typeof saved.studyIndex === "number"
+                    ? Math.min(saved.studyIndex, maxIndex)
+                    : Math.min(restoredAnswered.length, maxIndex);
+
+            setStudyIndex(restoredIndex);
+            setStudyFlipped(false);
+            setStudyHits(Number(saved.studyHits || 0));
+            setStudyMisses(Number(saved.studyMisses || 0));
+            setAnsweredIds(restoredAnswered);
+            setWrongCards(restoredWrong);
+        } catch {
+            setStudyIndex(0);
+            setStudyFlipped(false);
+            setStudyHits(0);
+            setStudyMisses(0);
+            setAnsweredIds([]);
+            setWrongCards([]);
+        }
+    }, [studyStorageKey, deckId, tree.cards]);
+
+    useEffect(() => {
+        if (!studyStorageKey || !deckId || !tree.cards.length) return;
+
+        const payload = {
+            studyIndex,
+            studyHits,
+            studyMisses,
+            answeredIds,
+            wrongCards,
+        };
+
+        localStorage.setItem(studyStorageKey, JSON.stringify(payload));
+    }, [
+        studyStorageKey,
+        deckId,
+        tree.cards.length,
+        studyIndex,
+        studyHits,
+        studyMisses,
+        answeredIds,
+        wrongCards,
+    ]);
 
     function clearBelow(nextLevel) {
         if (nextLevel === "courses") {
@@ -441,7 +723,7 @@ export default function Flashcards({ user }) {
                 setSubjectId(id);
                 clearBelow("decks");
                 setLevel("decks");
-                await loadDecks(id, "topic"); // legacy: subjectId é topicId
+                await loadDecks(id, "topic");
                 return;
             }
 
@@ -457,7 +739,6 @@ export default function Flashcards({ user }) {
             clearBelow("cards");
             setLevel("cards");
             await loadCards(id);
-            return;
         }
     }
 
@@ -516,7 +797,6 @@ export default function Flashcards({ user }) {
             setIsLegacySubjects(false);
             setTree((p) => ({ ...p, disciplines: [], subjects: [], topics: [], decks: [], cards: [] }));
             setLevel("courses");
-            return;
         }
     }
 
@@ -583,18 +863,18 @@ export default function Flashcards({ user }) {
             }
 
             if (level === "decks") {
-                // ✅ modo novo: deck por topicId
                 if (!topicId) return alert("Selecione um tópico.");
 
-                await callWrite("create_deck", {
+                const payload = {
                     name,
                     topic_id: topicId,
-                    subject_id: subjectId || null,
-                });
+                    ...(subjectId ? { subject_id: subjectId } : {}),
+                };
+
+                await callWrite("create_deck", payload);
 
                 setNewName("");
                 await loadDecks(topicId, "topic");
-                return;
             }
         } catch (e) {
             alert(e.message);
@@ -622,10 +902,7 @@ export default function Flashcards({ user }) {
             if (level === "disciplines") await loadDisciplines(courseId);
             if (level === "subjects") await loadSubjects(disciplineId);
             if (level === "topics") await loadTopics(subjectId);
-
-            if (level === "decks") {
-                await loadDecks(topicId, "topic");
-            }
+            if (level === "decks") await loadDecks(topicId, "topic");
         } catch (e) {
             alert(e.message);
         }
@@ -653,7 +930,6 @@ export default function Flashcards({ user }) {
         }
     }
 
-    // IA continua separada: chama generate-flashcards
     async function generateWithAI() {
         if (!deckId) return alert("Entre em um deck antes de gerar por IA.");
         if (!aiForm.text.trim()) return alert("Cole um texto base para a IA.");
@@ -717,7 +993,7 @@ export default function Flashcards({ user }) {
         }
     }
 
-    async function createCardsFromErrorsPaste() {
+    async function createCardsFromLinePaste() {
         if (!deckId) return alert("Entre em um deck.");
         const pairs = parsePairs(errorsPaste);
         if (!pairs.length) return alert('Cole no formato "Pergunta | Resposta" (um por linha).');
@@ -731,14 +1007,14 @@ export default function Flashcards({ user }) {
                     tipo: "normal",
                     pergunta: p.pergunta,
                     resposta: p.resposta,
-                    tags: ["erro"],
+                    tags: [],
                 });
                 saved += 1;
             }
 
             await loadCards(deckId);
             setErrorsPaste("");
-            alert(`✅ ${saved} cards criados a partir dos erros!`);
+            alert(`✅ ${saved} cards criados em linha única!`);
             return saved;
         } catch (e) {
             alert(e.message);
@@ -760,7 +1036,7 @@ export default function Flashcards({ user }) {
             const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
 
             let text = "";
-            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
                 const page = await pdf.getPage(pageNum);
                 const content = await page.getTextContent();
                 const strings = content.items.map((it) => it.str);
@@ -775,7 +1051,7 @@ export default function Flashcards({ user }) {
             setPdfInfo(`✅ PDF carregado (${pdf.numPages} páginas). Texto extraído e aplicado.`);
         } catch (e) {
             console.error(e);
-            alert("Não consegui ler esse PDF. Tente outro arquivo (ou um PDF com texto selecionável).");
+            alert("Não consegui ler esse PDF. Tente outro arquivo.");
             setPdfInfo("");
         } finally {
             setPdfLoading(false);
@@ -809,7 +1085,7 @@ export default function Flashcards({ user }) {
 
             <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 flex-wrap font-bold">
-                    {[...breadcrumb].map((b, idx) => (
+                    {breadcrumb.map((b, idx) => (
                         <span key={b.key} className={b.key === level ? "text-slate-900 dark:text-white font-black" : ""}>
                             {idx > 0 ? " / " : ""}
                             {b.label}
@@ -898,45 +1174,211 @@ export default function Flashcards({ user }) {
                     )
                 ) : (
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between flex-wrap gap-3">
                             <div className="text-sm text-slate-500 dark:text-slate-400 font-bold">
                                 Deck:{" "}
                                 <span className="text-slate-900 dark:text-white font-black">{selectedDeck?.nome || "-"}</span>
                             </div>
 
-                            {editMode && (
-                                <button
-                                    onClick={() => {
-                                        setCreateCardsOpen(true);
-                                        setCreateMode("");
-                                        setPdfInfo("");
-                                    }}
-                                    className={ui.btnDark}
-                                >
-                                    Criar cards
-                                </button>
-                            )}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {editMode && (
+                                    <button
+                                        onClick={() => {
+                                            setCreateCardsOpen(true);
+                                            setCreateMode("");
+                                            setPdfInfo("");
+                                        }}
+                                        className={ui.btnDark}
+                                    >
+                                        Criar cards
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
-                        <div className={ui.panelSoft}>
-                            <h4 className="text-base font-black text-slate-900 dark:text-white mb-3">Cards deste deck</h4>
+                        <div className={`${ui.panelSoft} space-y-4`}>
+                            <div className="flex gap-3 flex-wrap">
+                                <div className={ui.statBox}>
+                                    <div className={ui.statLabel}>Acertei</div>
+                                    <div className={ui.statValue}>{studyHits}</div>
+                                </div>
+
+                                <div className={ui.statBox}>
+                                    <div className={ui.statLabel}>Errei</div>
+                                    <div className={ui.statValue}>{studyMisses}</div>
+                                </div>
+
+                                <div className={ui.statBox}>
+                                    <div className={ui.statLabel}>Questão</div>
+                                    <div className={ui.statValue}>
+                                        {currentQuestion}/{totalCards}
+                                    </div>
+                                </div>
+                            </div>
 
                             {!tree.cards.length ? (
-                                <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">Nenhum card ainda.</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">
+                                    Nenhum card ainda.
+                                </p>
                             ) : (
-                                <ul className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                                    {tree.cards.map((card) => (
-                                        <li
-                                            key={card.id}
-                                            className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStudyFlipped((v) => !v)}
+                                        className={`${ui.flipWrap} block w-full text-left`}
+                                    >
+                                        <div
+                                            className={ui.flipInner}
+                                            style={{
+                                                transform: studyFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+                                            }}
                                         >
-                                            <p className="font-black text-slate-900 dark:text-white">{card.pergunta}</p>
-                                            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 font-bold">{card.resposta}</p>
-                                        </li>
-                                    ))}
-                                </ul>
+                                            <div className={`${ui.flipFace} ${ui.flipFront}`}>
+                                                <div className="flex h-full flex-col justify-between p-6">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <span className="text-[11px] uppercase tracking-widest font-black text-white/80">
+                                                            Pergunta
+                                                        </span>
+                                                        <span className="text-[11px] font-black px-3 py-1 rounded-full bg-white/15">
+                                                            Clique para virar
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex-1 flex items-center justify-center text-center">
+                                                        <p className="text-xl md:text-2xl font-black leading-relaxed">
+                                                            {currentCard?.pergunta || "Sem pergunta"}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="text-xs font-bold text-white/80">
+                                                        Card {currentQuestion} de {totalCards}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className={`${ui.flipFace} ${ui.flipBack}`}>
+                                                <div className="flex h-full flex-col justify-between p-6">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <span className="text-[11px] uppercase tracking-widest font-black text-indigo-500">
+                                                            Resposta
+                                                        </span>
+                                                        <span className="text-[11px] font-black px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                            Clique para voltar
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex-1 flex items-center justify-center text-center">
+                                                        <p className="text-xl md:text-2xl font-black leading-relaxed">
+                                                            {currentCard?.resposta || "Sem resposta"}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                        Agora marque se você acertou ou errou.
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <div className="flex flex-wrap gap-3 justify-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => answerCurrentCard("hit")}
+                                            disabled={!studyFlipped || !currentCard || answeredIds.includes(currentCard.id)}
+                                            className="flex items-center justify-center gap-2 min-w-[150px] px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 hover:-translate-y-0.5 hover:shadow-lg text-white transition font-black text-sm disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                                        >
+                                            <CheckCircle2 size={18} /> Acertei
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => answerCurrentCard("miss")}
+                                            disabled={!studyFlipped || !currentCard || answeredIds.includes(currentCard.id)}
+                                            className="flex items-center justify-center gap-2 min-w-[150px] px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 hover:-translate-y-0.5 hover:shadow-lg text-white transition font-black text-sm disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                                        >
+                                            <XCircle size={18} /> Errei
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => resetStudySession(true)}
+                                            className="flex items-center justify-center gap-2 min-w-[150px] px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition font-black text-sm"
+                                        >
+                                            <RotateCcw size={18} /> Reiniciar
+                                        </button>
+                                    </div>
+
+                                    {sessionFinished && (
+                                        <div className="p-4 rounded-3xl border border-indigo-200 dark:border-indigo-900/40 bg-indigo-50 dark:bg-indigo-950/20">
+                                            <p className="font-black text-slate-900 dark:text-white">
+                                                Sessão concluída
+                                            </p>
+                                            <p className="text-sm text-slate-600 dark:text-slate-300 font-bold mt-1">
+                                                Você acertou {studyHits} e errou {studyMisses}.
+                                            </p>
+
+                                            {!!wrongCards.length && (
+                                                <button
+                                                    onClick={createDeckFromWrongCards}
+                                                    className="mt-4 flex items-center gap-2 px-4 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white transition font-black text-xs"
+                                                >
+                                                    <CopyPlus size={16} /> Criar deck com os cards errados
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
+
+                        {editMode && (
+                            <div className={ui.panelSoft}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white">
+                                        Gerenciar cards criados
+                                    </h4>
+                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                        {tree.cards.length} card(s)
+                                    </span>
+                                </div>
+
+                                {!tree.cards.length ? (
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">
+                                        Nenhum card para apagar.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                                        {tree.cards.map((card, idx) => (
+                                            <div
+                                                key={card.id}
+                                                className="flex items-start justify-between gap-3 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40"
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
+                                                        Card {idx + 1}
+                                                    </p>
+                                                    <p className="font-black text-slate-900 dark:text-white break-words">
+                                                        {card.pergunta}
+                                                    </p>
+                                                    <p className="text-sm text-slate-600 dark:text-slate-300 font-bold mt-2 break-words">
+                                                        {card.resposta}
+                                                    </p>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => deleteCard(card.id)}
+                                                    className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white transition font-black text-xs"
+                                                >
+                                                    <Trash2 size={14} /> Apagar
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {createCardsOpen && (
                             <div className={ui.overlay}>
@@ -963,7 +1405,9 @@ export default function Flashcards({ user }) {
                                             </button>
 
                                             <button onClick={() => setCreateMode("errors")} className={ui.modalCard}>
-                                                <div className="font-black text-slate-900 dark:text-white">A partir dos erros</div>
+                                                <div className="font-black text-slate-900 dark:text-white">
+                                                    Criar cards em linha única
+                                                </div>
                                                 <div className={ui.modalText}>Cole “Pergunta | Resposta” (1 por linha)</div>
                                             </button>
 
@@ -1026,7 +1470,9 @@ export default function Flashcards({ user }) {
                                     {createMode === "errors" && (
                                         <div className="mt-4">
                                             <div className="flex items-center justify-between">
-                                                <div className="font-black text-slate-900 dark:text-white">Criar a partir dos erros</div>
+                                                <div className="font-black text-slate-900 dark:text-white">
+                                                    Criar cards em linha única
+                                                </div>
                                                 <button
                                                     onClick={() => setCreateMode("")}
                                                     className="text-sm font-black underline text-slate-600 dark:text-slate-300"
@@ -1041,7 +1487,7 @@ export default function Flashcards({ user }) {
 
                                             <textarea
                                                 className={ui.textarea}
-                                                placeholder={`Ex:\nO que é phishing? | É um golpe para roubar dados...\nRansomware faz o quê? | Criptografa arquivos e pede resgate`}
+                                                placeholder={`Ex:\nO que é phishing? | É um golpe para roubar dados\nRansomware faz o quê? | Criptografa arquivos e pede resgate`}
                                                 value={errorsPaste}
                                                 onChange={(e) => setErrorsPaste(e.target.value)}
                                             />
@@ -1049,7 +1495,7 @@ export default function Flashcards({ user }) {
                                             <div className="flex justify-end mt-4">
                                                 <button
                                                     onClick={async () => {
-                                                        const saved = await createCardsFromErrorsPaste();
+                                                        const saved = await createCardsFromLinePaste();
                                                         if (saved > 0) {
                                                             setCreateCardsOpen(false);
                                                             setCreateMode("");
@@ -1144,10 +1590,6 @@ export default function Flashcards({ user }) {
                                                     {aiLoading ? "Gerando..." : "Gerar com IA"}
                                                 </button>
                                             </div>
-
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-3">
-                                                Se o PDF for scan/imagem, o texto pode não sair (aí precisa OCR).
-                                            </p>
                                         </div>
                                     )}
                                 </div>
