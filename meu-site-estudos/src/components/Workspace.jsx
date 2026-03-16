@@ -13,6 +13,7 @@ import {
     Flame,
     PartyPopper,
     Check,
+    LayoutGrid,
 } from "lucide-react";
 
 import {
@@ -813,23 +814,31 @@ export default function Workspace({ user }) {
     return (
         <div className="space-y-4">
             {/* Top bar */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">
-                        Workspace
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Arraste para reorganizar • Salva automaticamente
-                    </p>
-                </div>
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 rounded-xl bg-cyan-600 text-white">
+                            <LayoutGrid size={20} />
+                        </div>
 
-                <button
-                    onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
-                    className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer"
-                >
-                    <Plus size={18} />
-                    Adicionar widget
-                </button>
+                        <div>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                                Workspace
+                            </p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                Arraste para reorganizar • Salva automaticamente
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer sm:self-auto self-start"
+                    >
+                        <Plus size={18} />
+                        Adicionar widget
+                    </button>
+                </div>
             </div>
 
             {/* Empty state */}
