@@ -13,6 +13,7 @@ import {
     Flame,
     PartyPopper,
     Check,
+    LayoutGrid,
 } from "lucide-react";
 
 import {
@@ -812,60 +813,68 @@ export default function Workspace({ user }) {
 
     return (
         <div className="space-y-4">
-            {/* Top bar */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">
-                        Workspace
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Arraste para reorganizar • Salva automaticamente
-                    </p>
-                </div>
-
-                <button
-                    onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
-                    className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer"
-                >
-                    <Plus size={18} />
-                    Adicionar widget
-                </button>
-            </div>
-
-            {/* Empty state */}
-            {widgets.length === 0 && (
-                <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center">
-                    <p className="font-black text-slate-800 dark:text-slate-100 text-lg">
-                        Seu workspace está vazio
-                    </p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Clique em <span className="font-black">Adicionar widget</span> para montar do seu jeito.
-                    </p>
-                </div>
-            )}
-
-            {/* Widgets grid */}
-            {widgets.length > 0 && (
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                >
-                    <SortableContext items={ids} strategy={rectSortingStrategy}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {widgets.map((w) => (
-                                <SortableWidgetCard
-                                    key={w.id}
-                                    widget={w}
-                                    onRemove={removeWidget}
-                                >
-                                    <WidgetContent widget={w} user={user} />
-                                </SortableWidgetCard>
-                            ))}
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-lg space-y-4">
+                {/* Top bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 rounded-xl bg-cyan-600 text-white">
+                            <LayoutGrid size={20} />
                         </div>
-                    </SortableContext>
-                </DndContext>
-            )}
+
+                        <div>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                                Workspace
+                            </p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                Arraste para reorganizar • Salva automaticamente
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer sm:self-auto self-start"
+                    >
+                        <Plus size={18} />
+                        Adicionar widget
+                    </button>
+                </div>
+
+                {/* Empty state */}
+                {widgets.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-950/40 p-8 text-center">
+                        <p className="font-black text-slate-800 dark:text-slate-100 text-lg">
+                            Seu workspace está vazio
+                        </p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                            Clique em <span className="font-black">Adicionar widget</span> para montar do seu jeito.
+                        </p>
+                    </div>
+                )}
+
+                {/* Widgets grid */}
+                {widgets.length > 0 && (
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext items={ids} strategy={rectSortingStrategy}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {widgets.map((w) => (
+                                    <SortableWidgetCard
+                                        key={w.id}
+                                        widget={w}
+                                        onRemove={removeWidget}
+                                    >
+                                        <WidgetContent widget={w} user={user} />
+                                    </SortableWidgetCard>
+                                ))}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
+                )}
+            </div>
 
             {/* Widget Picker modal */}
             {pickerOpen && (
