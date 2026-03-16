@@ -813,8 +813,8 @@ export default function Workspace({ user }) {
 
     return (
         <div className="space-y-4">
-            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-lg space-y-4">
-                {/* Top bar */}
+            {/* Top bar */}
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-lg">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="p-3 rounded-xl bg-cyan-600 text-white">
@@ -830,6 +830,16 @@ export default function Workspace({ user }) {
                             </p>
                         </div>
                     </div>
+
+                    <button
+                        onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer sm:self-auto self-start"
+                    >
+                        <Plus size={18} />
+                        Adicionar widget
+                    </button>
+                </div>
+            </div>
 
                     <button
                         onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
