@@ -11,6 +11,7 @@ import {
     ChevronUp,
     CheckCircle,
     Clock,
+    Repeat,
 } from "lucide-react";
 
 const AgendaRevisoes = ({ user }) => {
@@ -19,25 +20,18 @@ const AgendaRevisoes = ({ user }) => {
     const [revisoes, setRevisoes] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Controle de expansão do formulário
     const [formAberto, setFormAberto] = useState(false);
 
-    // Filtro Personalizado
     const [dataInicio, setDataInicio] = useState("");
     const [dataFim, setDataFim] = useState("");
 
-    // ✅ NOVO: Sub-aba das revisões
-    const [filtroStatus, setFiltroStatus] = useState("pendentes"); // pendentes | concluidas
+    const [filtroStatus, setFiltroStatus] = useState("pendentes");
 
-    // Modal e Finalização
     const [revisaoParaFinalizar, setRevisaoParaFinalizar] = useState(null);
-    // ✅ NOVO: Modal de apagar revisões
     const [modalApagarOpen, setModalApagarOpen] = useState(false);
 
     const [res, setRes] = useState({ feitas: "", acertos: "", erros: "" });
 
-
-    // Estado do formulário manual
     const [form, setForm] = useState({
         materia: "",
         conteudo: "",
@@ -48,6 +42,7 @@ const AgendaRevisoes = ({ user }) => {
 
     useEffect(() => {
         if (user?.id) buscarRevisoes();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
     const buscarRevisoes = async () => {
@@ -64,7 +59,6 @@ const AgendaRevisoes = ({ user }) => {
         setLoading(false);
     };
 
-    // ✅ REALTIME: atualiza automaticamente quando qualquer revisão mudar
     useEffect(() => {
         if (!user?.id) return;
 
@@ -85,12 +79,8 @@ const AgendaRevisoes = ({ user }) => {
         return () => {
             supabase.removeChannel(ch);
         };
-        // eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
-
-
-    // ✅ Revisões filtradas por período
-    // ✅ SUBSTITUA o useMemo revisoesFiltradas POR ESTE:
 
     const revisoesFiltradas = useMemo(() => {
         const hoje = new Date();
@@ -99,14 +89,12 @@ const AgendaRevisoes = ({ user }) => {
         return revisoes.filter((rev) => {
             const dataRev = new Date(rev.data_revisao + "T12:00:00");
 
-            // ✅ semana = próximos 7 dias (inclui hoje)
             if (view === "semana") {
                 const fim = new Date(hoje);
                 fim.setDate(hoje.getDate() + 6);
                 return dataRev >= hoje && dataRev <= fim;
             }
 
-            // ✅ mês = mês atual
             if (view === "mes") {
                 return (
                     dataRev.getMonth() === hoje.getMonth() &&
@@ -114,12 +102,10 @@ const AgendaRevisoes = ({ user }) => {
                 );
             }
 
-            // ✅ ano = ano atual
             if (view === "ano") {
                 return dataRev.getFullYear() === hoje.getFullYear();
             }
 
-            // ✅ personalizado = intervalo (se vazio, mostra tudo)
             if (view === "personalizado") {
                 if (!dataInicio || !dataFim) return true;
 
@@ -128,20 +114,15 @@ const AgendaRevisoes = ({ user }) => {
                 return dataRev >= ini && dataRev <= fim;
             }
 
-            // fallback
             return true;
         });
     }, [revisoes, view, dataInicio, dataFim]);
 
-
-
-    // ✅ NOVO: aplica filtro de status (pendentes/concluídas)
     const revisoesFiltradasPorStatus = useMemo(() => {
         return revisoesFiltradas.filter((r) =>
             filtroStatus === "pendentes" ? !r.executada : !!r.executada
         );
     }, [revisoesFiltradas, filtroStatus]);
-
 
     const handleSalvarManual = async () => {
         if (!form.materia.trim()) return;
@@ -155,7 +136,7 @@ const AgendaRevisoes = ({ user }) => {
                 tipo_revisao: form.tipo,
                 meta_questoes: Number(form.meta) || 0,
                 origem: "Manual",
-                executada: false, // ✅ garante que inicia pendente
+                executada: false,
             },
         ]);
 
@@ -173,12 +154,10 @@ const AgendaRevisoes = ({ user }) => {
         }
     };
 
-    // ✅ AGORA: abre modal ao invés de apagar direto
     const limparTudo = () => {
         setModalApagarOpen(true);
     };
 
-    // ✅ Executa o apagamento conforme opção escolhida
     const executarApagarRevisoes = async (modo) => {
         try {
             if (!user?.id) return;
@@ -188,7 +167,6 @@ const AgendaRevisoes = ({ user }) => {
                 .delete()
                 .eq("user_id", user.id);
 
-            // modo: "pendentes" | "concluidas" | "todas"
             if (modo === "pendentes") query = query.eq("executada", false);
             if (modo === "concluidas") query = query.eq("executada", true);
 
@@ -207,18 +185,14 @@ const AgendaRevisoes = ({ user }) => {
         }
     };
 
-
     const deletarRevisao = async (id) => {
         await supabase.from("revisoes_agendadas").delete().eq("id", id);
         buscarRevisoes();
     };
 
-    // ✅ FINALIZAR: marca como executada + salva desempenho
-    // ✅ e automaticamente vai para "Concluídas"
     const handleFinalizar = async () => {
         if (!revisaoParaFinalizar?.id) return;
 
-        // ✅ payload do update
         const payload = {
             executada: true,
             qtd_feitas: Number(res.feitas) || 0,
@@ -226,7 +200,6 @@ const AgendaRevisoes = ({ user }) => {
             qtd_erros: Number(res.erros) || 0,
         };
 
-        // ✅ faz update e já pede o registro atualizado
         const { data, error } = await supabase
             .from("revisoes_agendadas")
             .update(payload)
@@ -240,24 +213,18 @@ const AgendaRevisoes = ({ user }) => {
             return;
         }
 
-        // ✅ 1) Atualiza o estado local NA HORA
         setRevisoes((prev) =>
             prev.map((r) => (r.id === data.id ? data : r))
         );
 
-        // ✅ 2) Fecha modal e limpa campos
         setRevisaoParaFinalizar(null);
         setRes({ feitas: "", acertos: "", erros: "" });
 
-        // ✅ 3) Troca para Concluídas automaticamente
         setFiltroStatus("concluidas");
 
-        // ✅ 4) garante sync com banco
         buscarRevisoes();
     };
 
-
-    // ✅ STAT HELPERS
     const stats = useMemo(() => {
         const total = revisoes.length;
         const concluidas = revisoes.filter((r) => r.executada).length;
@@ -275,11 +242,10 @@ const AgendaRevisoes = ({ user }) => {
 
         const porTipo = {
             Teoria: revisoes.filter((r) => r.tipo_revisao === "Teoria").length,
-            "Questões": revisoes.filter((r) => r.tipo_revisao === "Questões").length,
+            Questões: revisoes.filter((r) => r.tipo_revisao === "Questões").length,
             Simulado: revisoes.filter((r) => r.tipo_revisao === "Simulado").length,
         };
 
-        // ✅ streak simples: dias seguidos com revisão concluída
         const diasConcluidos = Array.from(
             new Set(
                 revisoes
@@ -291,13 +257,11 @@ const AgendaRevisoes = ({ user }) => {
 
         let streak = 0;
         if (diasConcluidos.length > 0) {
-            // começa do final (hoje ou ontem)
             const hoje = new Date();
             hoje.setHours(0, 0, 0, 0);
 
             const diasSet = new Set(diasConcluidos);
 
-            // tenta contar streak retroativo (hoje, ontem, anteontem...)
             for (let i = 0; i < 365; i++) {
                 const d = new Date(hoje);
                 d.setDate(hoje.getDate() - i);
@@ -321,7 +285,6 @@ const AgendaRevisoes = ({ user }) => {
         };
     }, [revisoes]);
 
-    // ✅ agrupamento por data (já com filtro de status aplicado)
     const revisoesAgrupadas = useMemo(() => {
         return Object.entries(
             revisoesFiltradasPorStatus.reduce((acc, r) => {
@@ -335,13 +298,29 @@ const AgendaRevisoes = ({ user }) => {
 
     return (
         <div className="max-w-2xl mx-auto space-y-6">
+            {/* Header padronizado */}
+            <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+                    <Repeat className="h-6 w-6" />
+                </div>
+
+                <div>
+                    <p className="text-2xl font-black text-white leading-tight">
+                        Revisões
+                    </p>
+                    <p className="text-sm text-cyan-100">
+                        Agende, acompanhe e registre seu desempenho nas revisões
+                    </p>
+                </div>
+            </div>
+
             {/* TABS PRINCIPAIS */}
             <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-2xl shadow-inner">
                 <button
                     onClick={() => setAbaInterna("revisoes")}
                     className={`flex-1 py-3 rounded-xl font-black transition-all ${abaInterna === "revisoes"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "text-slate-600"
+                            ? "bg-indigo-600 text-white shadow-md"
+                            : "text-slate-600"
                         }`}
                 >
                     Revisões
@@ -349,8 +328,8 @@ const AgendaRevisoes = ({ user }) => {
                 <button
                     onClick={() => setAbaInterna("estatisticas")}
                     className={`flex-1 py-3 rounded-xl font-black transition-all ${abaInterna === "estatisticas"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "text-slate-600"
+                            ? "bg-indigo-600 text-white shadow-md"
+                            : "text-slate-600"
                         }`}
                 >
                     Estatísticas
@@ -359,7 +338,6 @@ const AgendaRevisoes = ({ user }) => {
 
             {abaInterna === "revisoes" ? (
                 <div className="space-y-6">
-                    {/* FILTROS E LIMPEZA */}
                     <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="flex gap-1.5">
@@ -368,8 +346,8 @@ const AgendaRevisoes = ({ user }) => {
                                         key={f}
                                         onClick={() => setView(f)}
                                         className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${view === f
-                                            ? "bg-indigo-600 text-white"
-                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                                                ? "bg-indigo-600 text-white"
+                                                : "bg-slate-100 dark:bg-slate-800 text-slate-500"
                                             }`}
                                     >
                                         {f}
@@ -402,13 +380,12 @@ const AgendaRevisoes = ({ user }) => {
                             </div>
                         )}
 
-                        {/* ✅ NOVO: Pendentes / Concluídas */}
                         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
                             <button
                                 onClick={() => setFiltroStatus("pendentes")}
                                 className={`flex-1 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${filtroStatus === "pendentes"
-                                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                                    : "text-slate-500"
+                                        ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                                        : "text-slate-500"
                                     }`}
                             >
                                 Pendentes
@@ -416,8 +393,8 @@ const AgendaRevisoes = ({ user }) => {
                             <button
                                 onClick={() => setFiltroStatus("concluidas")}
                                 className={`flex-1 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${filtroStatus === "concluidas"
-                                    ? "bg-emerald-600 text-white"
-                                    : "text-slate-500"
+                                        ? "bg-emerald-600 text-white"
+                                        : "text-slate-500"
                                     }`}
                             >
                                 Concluídas
@@ -425,7 +402,6 @@ const AgendaRevisoes = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* BOTÃO EXPANSÍVEL DE CADASTRO */}
                     <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden transition-all duration-300">
                         <button
                             onClick={() => setFormAberto(!formAberto)}
@@ -437,12 +413,16 @@ const AgendaRevisoes = ({ user }) => {
                         >
                             <div className="flex items-center gap-3 uppercase tracking-widest text-[11px]">
                                 <div
-                                    className={`p-1.5 rounded-lg ${formAberto ? "bg-slate-200 dark:bg-slate-700" : "bg-white/20"
+                                    className={`p-1.5 rounded-lg ${formAberto
+                                            ? "bg-slate-200 dark:bg-slate-700"
+                                            : "bg-white/20"
                                         }`}
                                 >
                                     <Plus
                                         size={18}
-                                        className={`transition-transform duration-500 ${formAberto ? "rotate-45 text-slate-500" : "text-white"
+                                        className={`transition-transform duration-500 ${formAberto
+                                                ? "rotate-45 text-slate-500"
+                                                : "text-white"
                                             }`}
                                     />
                                 </div>
@@ -544,7 +524,6 @@ const AgendaRevisoes = ({ user }) => {
                         )}
                     </div>
 
-                    {/* LISTAGEM */}
                     <div className="space-y-6">
                         {loading ? (
                             <div className="text-center py-10 text-slate-400 font-bold uppercase text-[10px] tracking-widest">
@@ -573,15 +552,15 @@ const AgendaRevisoes = ({ user }) => {
                                         <div
                                             key={rev.id}
                                             className={`p-4 rounded-3xl border-2 flex items-center justify-between transition-all ${rev.executada
-                                                ? "bg-emerald-50/20 border-emerald-100"
-                                                : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm"
+                                                    ? "bg-emerald-50/20 border-emerald-100"
+                                                    : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm"
                                                 }`}
                                         >
                                             <div className="flex items-center gap-4 text-left">
                                                 <div
                                                     className={`w-10 h-10 rounded-2xl flex items-center justify-center ${rev.executada
-                                                        ? "bg-emerald-500 text-white"
-                                                        : "bg-slate-100 dark:bg-slate-800 text-indigo-600"
+                                                            ? "bg-emerald-500 text-white"
+                                                            : "bg-slate-100 dark:bg-slate-800 text-indigo-600"
                                                         }`}
                                                 >
                                                     {rev.tipo_revisao?.includes("Quest") ||
@@ -601,7 +580,6 @@ const AgendaRevisoes = ({ user }) => {
                                                         {rev.conteudo} • {rev.tipo_revisao}
                                                     </p>
 
-                                                    {/* ✅ NOVO: selo concluída (aparece no card) */}
                                                     {rev.executada && (
                                                         <div className="mt-1 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
                                                             <CheckCircle size={12} />
@@ -638,12 +616,19 @@ const AgendaRevisoes = ({ user }) => {
                     </div>
                 </div>
             ) : (
-                // ✅ ESTATÍSTICAS MAIS ELABORADAS
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                         <CardStat label="TOTAL" value={stats.total} icon={<BarChart3 size={16} />} />
-                        <CardStat label="CUMPRIMENTO" value={`${stats.cumprimento}%`} icon={<CheckCircle size={16} />} />
-                        <CardStat label="CONCLUÍDAS" value={stats.concluidas} icon={<CheckCircle size={16} />} />
+                        <CardStat
+                            label="CUMPRIMENTO"
+                            value={`${stats.cumprimento}%`}
+                            icon={<CheckCircle size={16} />}
+                        />
+                        <CardStat
+                            label="CONCLUÍDAS"
+                            value={stats.concluidas}
+                            icon={<CheckCircle size={16} />}
+                        />
                         <CardStat label="PENDENTES" value={stats.pendentes} icon={<Clock size={16} />} />
                     </div>
 
@@ -672,7 +657,7 @@ const AgendaRevisoes = ({ user }) => {
 
                         <div className="grid grid-cols-3 gap-2 pt-2">
                             <MiniPill label="📖 Teoria" value={stats.porTipo.Teoria} />
-                            <MiniPill label="📝 Questões" value={stats.porTipo["Questões"]} />
+                            <MiniPill label="📝 Questões" value={stats.porTipo.Questões} />
                             <MiniPill label="📊 Simulado" value={stats.porTipo.Simulado} />
                         </div>
 
@@ -693,7 +678,6 @@ const AgendaRevisoes = ({ user }) => {
                 </div>
             )}
 
-            {/* ✅ MODAL APAGAR REVISÕES */}
             {modalApagarOpen && (
                 <div className="fixed inset-0 z-[99998] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/60 p-5">
@@ -765,8 +749,6 @@ const AgendaRevisoes = ({ user }) => {
                 </div>
             )}
 
-
-            {/* MODAL REVISEI (COLETA DE DADOS) */}
             {revisaoParaFinalizar && (
                 <div className="fixed inset-0 z-[99999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[40px] p-8 shadow-2xl border border-slate-200 dark:border-slate-800">
@@ -830,7 +812,6 @@ const AgendaRevisoes = ({ user }) => {
     );
 };
 
-// ✅ Componentinhos de UI (não altera seu layout, só deixa clean)
 const CardStat = ({ label, value, icon }) => (
     <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 text-center shadow-xl">
         <div className="flex items-center justify-center gap-2 mb-1 text-slate-400">

@@ -12,6 +12,10 @@ import {
   Trash2,
   Edit3,
   X,
+  NotebookPen,
+  Link as LinkIcon,
+  Type,
+  Eraser,
 } from "lucide-react";
 
 const textoInicial = `<h1>Bem-vindo(a)!</h1><p>Use este espaço como um Notion pessoal para organizar seus estudos.</p><ul><li>Crie cadernos por matéria</li><li>Separe notas por tema</li><li>Monte checklists com [ ] tarefas</li></ul>`;
@@ -33,7 +37,6 @@ const htmlSeguro = (conteudo = "") => {
   const texto = conteudo.trim();
   if (!texto) return "";
 
-  // Se parece ser HTML, usa como está; se não, escapa e transforma quebras de linha em <br>
   if (/<\/?[a-z][\s\S]*>/i.test(texto)) return texto;
 
   return texto
@@ -89,9 +92,10 @@ function Anotacoes({ user }) {
   const [tamanhoFonte, setTamanhoFonte] = useState("3");
   const [modoEdicao, setModoEdicao] = useState(false);
   const [conteudoEdicao, setConteudoEdicao] = useState("");
+  const [corTexto, setCorTexto] = useState("#111827");
+  const [corGrifo, setCorGrifo] = useState(COR_GRIFO);
   const editorRef = useRef(null);
 
-  // Menus de ações (sem prompt de “renomear/apagar”)
   const [menuCadernoAberto, setMenuCadernoAberto] = useState(false);
   const [menuNotaAberto, setMenuNotaAberto] = useState(false);
   const menuCadernoRef = useRef(null);
@@ -120,7 +124,9 @@ function Anotacoes({ user }) {
       setCadernos(dados);
       setCadernoId(primeiroCadernoId);
       setNotaId(primeiraNotaId);
-      setConteudoEdicao(dados[0]?.notas?.find((n) => n.id === primeiraNotaId)?.conteudo || "");
+      setConteudoEdicao(
+        dados[0]?.notas?.find((n) => n.id === primeiraNotaId)?.conteudo || ""
+      );
     } catch {
       localStorage.removeItem(storageKey);
       salvarInicial();
@@ -142,7 +148,6 @@ function Anotacoes({ user }) {
     [cadernoAtual, notaId]
   );
 
-  // Fecha menus clicando fora
   useEffect(() => {
     const onDown = (e) => {
       const alvo = e.target;
@@ -163,6 +168,12 @@ function Anotacoes({ user }) {
     return () => document.removeEventListener("mousedown", onDown);
   }, [menuCadernoAberto, menuNotaAberto]);
 
+  useEffect(() => {
+    if (modoEdicao && editorRef.current) {
+      editorRef.current.innerHTML = htmlSeguro(conteudoEdicao);
+    }
+  }, [modoEdicao, notaId]);
+
   const abrirNota = (proximoNotaId) => {
     setNotaId(proximoNotaId || "");
     setModoEdicao(false);
@@ -180,7 +191,9 @@ function Anotacoes({ user }) {
     setModoEdicao(false);
     setMenuCadernoAberto(false);
     setMenuNotaAberto(false);
-    setConteudoEdicao(caderno?.notas?.find((n) => n.id === primeiraNotaId)?.conteudo || "");
+    setConteudoEdicao(
+      caderno?.notas?.find((n) => n.id === primeiraNotaId)?.conteudo || ""
+    );
   };
 
   const criarCaderno = () => {
@@ -281,11 +294,15 @@ function Anotacoes({ user }) {
     abrirNota(restantes[0]?.id || "");
   };
 
+  const sincronizarEditor = () => {
+    setConteudoEdicao(editorRef.current?.innerHTML || "");
+  };
+
   const aplicarComando = (comando, valor = null) => {
     if (!notaAtual || !modoEdicao) return;
     editorRef.current?.focus();
     document.execCommand(comando, false, valor);
-    setConteudoEdicao(editorRef.current?.innerHTML || "");
+    sincronizarEditor();
   };
 
   const aplicarTitulo = () => {
@@ -299,7 +316,54 @@ function Anotacoes({ user }) {
     aplicarComando("insertHTML", html);
   };
 
-  const alternarGrifo = () => {
+  const aplicarTamanhoFonte = (valor) => {
+    setTamanhoFonte(valor);
+    aplicarComando("fontSize", valor);
+  };
+
+  const aplicarCorTexto = (cor) => {
+    setCorTexto(cor);
+    aplicarComando("foreColor", cor);
+  };
+
+  const limparFormatacao = () => {
+    if (!notaAtual || !modoEdicao) return;
+
+    editorRef.current?.focus();
+
+    document.execCommand("removeFormat", false, null);
+    document.execCommand("formatBlock", false, "p");
+
+    sincronizarEditor();
+  };
+  const inserirLink = () => {
+    if (!notaAtual || !modoEdicao) return;
+
+    const urlInformada = window.prompt("Cole o link:");
+    if (!urlInformada) return;
+
+    let url = urlInformada.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = `https://${url}`;
+    }
+
+    editorRef.current?.focus();
+
+    const selecao = window.getSelection();
+    const textoSelecionado = selecao?.toString()?.trim();
+
+    if (textoSelecionado) {
+      document.execCommand("createLink", false, url);
+    } else {
+      const textoLink = window.prompt("Texto do link:", url)?.trim() || url;
+      const html = `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;">${textoLink}</a>`;
+      document.execCommand("insertHTML", false, html);
+    }
+
+    sincronizarEditor();
+  };
+
+  const alternarGrifo = (cor = corGrifo) => {
     if (!notaAtual || !modoEdicao) return;
 
     const selecao = window.getSelection();
@@ -320,14 +384,14 @@ function Anotacoes({ user }) {
       grifoInicio.textContent?.trim() === selecionado
     ) {
       removerGrifoDoSpan(grifoInicio);
-      setConteudoEdicao(editorRef.current?.innerHTML || "");
+      sincronizarEditor();
       return;
     }
 
     const conteudoSelecionado = range.extractContents();
     const span = document.createElement("span");
     span.dataset.grifado = "true";
-    span.style.backgroundColor = COR_GRIFO;
+    span.style.backgroundColor = cor;
     span.style.color = COR_TEXTO_GRIFO;
     span.appendChild(conteudoSelecionado);
 
@@ -338,7 +402,7 @@ function Anotacoes({ user }) {
     novoRange.selectNodeContents(span);
     selecao.addRange(novoRange);
 
-    setConteudoEdicao(editorRef.current?.innerHTML || "");
+    sincronizarEditor();
   };
 
   const iniciarEdicao = () => {
@@ -359,301 +423,362 @@ function Anotacoes({ user }) {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[230px_270px_1fr] gap-4 h-[65vh]">
-      {/* CADERNOS */}
-      <aside className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/40">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Cadernos</h3>
-
-          <div className="flex items-center gap-1 relative" ref={menuCadernoRef}>
-            <button
-              onClick={() => setMenuCadernoAberto((v) => !v)}
-              disabled={!cadernoAtual}
-              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-40"
-              title="Ações do caderno"
-              aria-label="Ações do caderno"
-            >
-              <Pencil size={16} />
-            </button>
-
-            {menuCadernoAberto && cadernoAtual && (
-              <div className="absolute right-0 top-10 z-20 w-40 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2">
-                <button
-                  onClick={() => {
-                    setMenuCadernoAberto(false);
-                    renomearCadernoAtual();
-                  }}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm"
-                  title="Renomear"
-                >
-                  <Edit3 size={16} />
-                  <span>Renomear</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setMenuCadernoAberto(false);
-                    excluirCadernoAtual();
-                  }}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm text-red-600"
-                  title="Excluir"
-                >
-                  <Trash2 size={16} />
-                  <span>Excluir</span>
-                </button>
-
-                <button
-                  onClick={() => setMenuCadernoAberto(false)}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm opacity-80"
-                  title="Fechar"
-                >
-                  <X size={16} />
-                  <span>Fechar</span>
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={criarCaderno}
-              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-              title="Novo caderno"
-              aria-label="Novo caderno"
-            >
-              <BookPlus size={18} />
-            </button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+          <NotebookPen className="h-6 w-6" />
         </div>
 
-        <div className="space-y-2 overflow-y-auto max-h-[56vh] pr-1">
-          {cadernos.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => abrirCaderno(c.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer ${cadernoId === c.id
-                ? "bg-cyan-600 text-white"
-                : "hover:bg-slate-200 dark:hover:bg-slate-700"
-                }`}
-            >
-              <p className="font-medium truncate">{c.titulo}</p>
-              <p className="text-xs opacity-75">{(c.notas || []).length} nota(s)</p>
-            </button>
-          ))}
+        <div>
+          <p className="text-2xl font-black text-white leading-tight">
+            Anotações
+          </p>
+          <p className="text-sm text-cyan-100">
+            Organize cadernos, notas e resumos em um só lugar
+          </p>
         </div>
-      </aside>
+      </div>
 
-      {/* NOTAS */}
-      <aside className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/40">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Notas</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-[230px_270px_1fr] gap-4 h-[65vh]">
+        <aside className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/40">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Cadernos</h3>
 
-          <div className="flex items-center gap-1 relative" ref={menuNotaRef}>
-            <button
-              onClick={() => setMenuNotaAberto((v) => !v)}
-              disabled={!notaAtual}
-              className="p-2 rounded-lg hover:bg-slate-200 disabled:opacity-40 dark:hover:bg-slate-700 cursor-pointer"
-              title="Ações da nota"
-              aria-label="Ações da nota"
-            >
-              <Pencil size={16} />
-            </button>
+            <div className="flex items-center gap-1 relative" ref={menuCadernoRef}>
+              <button
+                onClick={() => setMenuCadernoAberto((v) => !v)}
+                disabled={!cadernoAtual}
+                className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-40"
+                title="Ações do caderno"
+                aria-label="Ações do caderno"
+              >
+                <Pencil size={16} />
+              </button>
 
-            {menuNotaAberto && notaAtual && (
-              <div className="absolute right-0 top-10 z-20 w-40 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2">
-                <button
-                  onClick={() => {
-                    setMenuNotaAberto(false);
-                    renomearNotaAtual();
-                  }}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm"
-                  title="Renomear"
-                >
-                  <Edit3 size={16} />
-                  <span>Renomear</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setMenuNotaAberto(false);
-                    excluirNotaAtual();
-                  }}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm text-red-600"
-                  title="Excluir"
-                >
-                  <Trash2 size={16} />
-                  <span>Excluir</span>
-                </button>
-
-                <button
-                  onClick={() => setMenuNotaAberto(false)}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm opacity-80"
-                  title="Fechar"
-                >
-                  <X size={16} />
-                  <span>Fechar</span>
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={criarNota}
-              disabled={!cadernoAtual}
-              className="p-2 rounded-lg hover:bg-slate-200 disabled:opacity-40 dark:hover:bg-slate-700 cursor-pointer"
-              title="Nova nota"
-              aria-label="Nova nota"
-            >
-              <FilePlus2 size={18} />
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-2 overflow-y-auto max-h-[56vh] pr-1">
-          {cadernoAtual?.notas?.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => abrirNota(n.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer ${notaId === n.id
-                ? "bg-cyan-600 text-white"
-                : "hover:bg-slate-200 dark:hover:bg-slate-700"
-                }`}
-            >
-              <p className="font-medium truncate">{n.titulo || "Sem título"}</p>
-              <p className="text-xs opacity-75">
-                {new Date(n.atualizadoEm).toLocaleDateString("pt-BR")}
-              </p>
-            </button>
-          ))}
-          {!cadernoAtual?.notas.length && (
-            <p className="text-sm text-slate-500">Crie a primeira nota deste caderno.</p>
-          )}
-        </div>
-      </aside>
-
-      {/* EDITOR */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-900">
-        {!notaAtual ? (
-          <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-            Selecione ou crie uma nota para começar.
-          </div>
-        ) : (
-          <div className="h-full flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h4 className="font-semibold text-lg truncate">{notaAtual.titulo}</h4>
-              </div>
-
-              {!modoEdicao ? (
-                <button
-                  onClick={iniciarEdicao}
-                  className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700"
-                >
-                  Editar
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
+              {menuCadernoAberto && cadernoAtual && (
+                <div className="absolute right-0 top-10 z-20 w-40 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2">
                   <button
-                    onClick={cancelarEdicao}
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                    onClick={() => {
+                      setMenuCadernoAberto(false);
+                      renomearCadernoAtual();
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm"
+                    title="Renomear"
                   >
-                    Cancelar
+                    <Edit3 size={16} />
+                    <span>Renomear</span>
                   </button>
+
                   <button
-                    onClick={salvarEdicao}
-                    className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700"
+                    onClick={() => {
+                      setMenuCadernoAberto(false);
+                      excluirCadernoAtual();
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm text-red-600"
+                    title="Excluir"
                   >
-                    Salvar
+                    <Trash2 size={16} />
+                    <span>Excluir</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMenuCadernoAberto(false)}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm opacity-80"
+                    title="Fechar"
+                  >
+                    <X size={16} />
+                    <span>Fechar</span>
                   </button>
                 </div>
               )}
+
+              <button
+                onClick={criarCaderno}
+                className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                title="Novo caderno"
+                aria-label="Novo caderno"
+              >
+                <BookPlus size={18} />
+              </button>
             </div>
-
-            {modoEdicao && (
-              <div className="flex flex-wrap items-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80">
-                <button
-                  onClick={aplicarTitulo}
-                  className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
-                  title="Título no texto selecionado"
-                >
-                  <Heading1 size={16} />
-                </button>
-                <button
-                  onClick={() => aplicarComando("bold")}
-                  className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
-                  title="Negrito"
-                >
-                  <Bold size={16} />
-                </button>
-                <button
-                  onClick={() => aplicarComando("italic")}
-                  className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
-                  title="Itálico"
-                >
-                  <Italic size={16} />
-                </button>
-                <button
-                  onClick={() => aplicarComando("underline")}
-                  className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
-                  title="Sublinhado"
-                >
-                  <Underline size={16} />
-                </button>
-                <button
-                  onClick={alternarGrifo}
-                  className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
-                  title="Grifado"
-                >
-                  <Highlighter size={16} />
-                </button>
-                <button
-                  onClick={() => aplicarComando("insertUnorderedList")}
-                  className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
-                  title="Lista"
-                >
-                  <List size={16} />
-                </button>
-
-                <select
-                  value={tamanhoFonte}
-                  onChange={(e) => {
-                    setTamanhoFonte(e.target.value);
-                    aplicarComando("fontSize", e.target.value);
-                  }}
-                  className="ml-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
-                  title="Tamanho da fonte"
-                >
-                  <option value="2">Pequena</option>
-                  <option value="3">Normal</option>
-                  <option value="4">Média</option>
-                  <option value="5">Grande</option>
-                  <option value="6">Muito grande</option>
-                </select>
-              </div>
-            )}
-
-            {modoEdicao ? (
-              <div
-                key={`${notaAtual.id}-edicao`}
-                ref={editorRef}
-                contentEditable
-                suppressContentEditableWarning
-                onInput={(e) => setConteudoEdicao(e.currentTarget.innerHTML)}
-                className="flex-1 rounded-xl border px-4 py-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 outline-none focus:border-cyan-500 overflow-y-auto leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: htmlSeguro(conteudoEdicao) }}
-              />
-            ) : (
-              <div
-                className="flex-1 rounded-xl border px-4 py-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 overflow-y-auto leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: htmlSeguro(notaAtual.conteudo) }}
-              />
-            )}
-
-            <p className="text-xs text-slate-500">
-              {modoEdicao
-                ? "Dica: use a barra acima para formatar texto e salvar quando terminar."
-                : "Nota em modo leitura. Clique em Editar para alterar o conteúdo."}
-            </p>
           </div>
-        )}
-      </section>
+
+          <div className="space-y-2 overflow-y-auto max-h-[56vh] pr-1">
+            {cadernos.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => abrirCaderno(c.id)}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer ${cadernoId === c.id
+                  ? "bg-cyan-600 text-white"
+                  : "hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+              >
+                <p className="font-medium truncate">{c.titulo}</p>
+                <p className="text-xs opacity-75">{(c.notas || []).length} nota(s)</p>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <aside className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/40">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Notas</h3>
+
+            <div className="flex items-center gap-1 relative" ref={menuNotaRef}>
+              <button
+                onClick={() => setMenuNotaAberto((v) => !v)}
+                disabled={!notaAtual}
+                className="p-2 rounded-lg hover:bg-slate-200 disabled:opacity-40 dark:hover:bg-slate-700 cursor-pointer"
+                title="Ações da nota"
+                aria-label="Ações da nota"
+              >
+                <Pencil size={16} />
+              </button>
+
+              {menuNotaAberto && notaAtual && (
+                <div className="absolute right-0 top-10 z-20 w-40 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2">
+                  <button
+                    onClick={() => {
+                      setMenuNotaAberto(false);
+                      renomearNotaAtual();
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm"
+                    title="Renomear"
+                  >
+                    <Edit3 size={16} />
+                    <span>Renomear</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setMenuNotaAberto(false);
+                      excluirNotaAtual();
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm text-red-600"
+                    title="Excluir"
+                  >
+                    <Trash2 size={16} />
+                    <span>Excluir</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMenuNotaAberto(false)}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sm opacity-80"
+                    title="Fechar"
+                  >
+                    <X size={16} />
+                    <span>Fechar</span>
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={criarNota}
+                disabled={!cadernoAtual}
+                className="p-2 rounded-lg hover:bg-slate-200 disabled:opacity-40 dark:hover:bg-slate-700 cursor-pointer"
+                title="Nova nota"
+                aria-label="Nova nota"
+              >
+                <FilePlus2 size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2 overflow-y-auto max-h-[56vh] pr-1">
+            {cadernoAtual?.notas?.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => abrirNota(n.id)}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer ${notaId === n.id
+                  ? "bg-cyan-600 text-white"
+                  : "hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+              >
+                <p className="font-medium truncate">{n.titulo || "Sem título"}</p>
+                <p className="text-xs opacity-75">
+                  {new Date(n.atualizadoEm).toLocaleDateString("pt-BR")}
+                </p>
+              </button>
+            ))}
+            {!cadernoAtual?.notas.length && (
+              <p className="text-sm text-slate-500">Crie a primeira nota deste caderno.</p>
+            )}
+          </div>
+        </aside>
+
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-900">
+          {!notaAtual ? (
+            <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+              Selecione ou crie uma nota para começar.
+            </div>
+          ) : (
+            <div className="h-full flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h4 className="font-semibold text-lg truncate">{notaAtual.titulo}</h4>
+                </div>
+
+                {!modoEdicao ? (
+                  <button
+                    onClick={iniciarEdicao}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700"
+                  >
+                    Editar
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={cancelarEdicao}
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={salvarEdicao}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {modoEdicao && (
+                <div className="flex flex-wrap items-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80">
+                  <button
+                    onClick={aplicarTitulo}
+                    className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
+                    title="Título no texto selecionado"
+                    type="button"
+                  >
+                    <Heading1 size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => aplicarComando("bold")}
+                    className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
+                    title="Negrito"
+                    type="button"
+                  >
+                    <Bold size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => aplicarComando("italic")}
+                    className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
+                    title="Itálico"
+                    type="button"
+                  >
+                    <Italic size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => aplicarComando("underline")}
+                    className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
+                    title="Sublinhado"
+                    type="button"
+                  >
+                    <Underline size={16} />
+                  </button>
+
+                  <button
+                    onClick={limparFormatacao}
+                    className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
+                    title="Limpar formatação"
+                    type="button"
+                  >
+                    <Eraser size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => alternarGrifo(corGrifo)}
+                    className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
+                    title="Grifado"
+                    type="button"
+                  >
+                    <Highlighter size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => aplicarComando("insertUnorderedList")}
+                    className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
+                    title="Lista"
+                    type="button"
+                  >
+                    <List size={16} />
+                  </button>
+
+                  <button
+                    onClick={inserirLink}
+                    className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
+                    title="Inserir link"
+                    type="button"
+                  >
+                    <LinkIcon size={16} />
+                  </button>
+
+                  <div className="flex items-center gap-2 ml-2 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900">
+                    <Type size={14} />
+                    <input
+                      type="color"
+                      value={corTexto}
+                      onChange={(e) => aplicarCorTexto(e.target.value)}
+                      className="w-8 h-8 cursor-pointer bg-transparent border-0 p-0"
+                      title="Cor da fonte"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900">
+                    <Highlighter size={14} />
+                    <input
+                      type="color"
+                      value={corGrifo}
+                      onChange={(e) => setCorGrifo(e.target.value)}
+                      className="w-8 h-8 cursor-pointer bg-transparent border-0 p-0"
+                      title="Cor do grifado"
+                    />
+                  </div>
+
+                  <select
+                    value={tamanhoFonte}
+                    onChange={(e) => aplicarTamanhoFonte(e.target.value)}
+                    className="ml-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
+                    title="Tamanho da fonte"
+                  >
+                    <option value="1">Muito pequena</option>
+                    <option value="2">Pequena</option>
+                    <option value="3">Normal</option>
+                    <option value="4">Média</option>
+                    <option value="5">Grande</option>
+                    <option value="6">Muito grande</option>
+                    <option value="7">Máxima</option>
+                  </select>
+                </div>
+              )}
+
+              {modoEdicao ? (
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  dir="ltr"
+                  onInput={(e) => setConteudoEdicao(e.currentTarget.innerHTML)}
+                  onBlur={sincronizarEditor}
+                  className="flex-1 rounded-xl border px-4 py-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 outline-none focus:border-cyan-500 overflow-y-auto leading-relaxed text-left"
+                  style={{ unicodeBidi: "plaintext" }}
+                />
+              ) : (
+                <div
+                  dir="ltr"
+                  className="flex-1 rounded-xl border px-4 py-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 overflow-y-auto leading-relaxed text-left"
+                  style={{ unicodeBidi: "plaintext" }}
+                  dangerouslySetInnerHTML={{ __html: htmlSeguro(notaAtual.conteudo) }}
+                />
+              )}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { CheckCircle2, ChevronLeft, Pencil, Plus, Sparkles, Trash2, Upload, XCircle } from "lucide-react";
+import {
+    CheckCircle2,
+    ChevronLeft,
+    Pencil,
+    Plus,
+    Sparkles,
+    Trash2,
+    Upload,
+    XCircle,
+    Layers,
+} from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 
 // ✅ worker do pdfjs (Vite/React)
@@ -64,8 +74,8 @@ function parsePairs(text) {
 // ====== UI ======
 const ui = {
     wrap: "w-full max-w-3xl mx-auto",
-    headerTitle: "text-2xl font-black text-slate-900 dark:text-white",
-    headerSub: "text-sm text-slate-500 dark:text-slate-400",
+    headerTitle: "text-2xl font-black text-white leading-tight",
+    headerSub: "text-sm text-cyan-100",
 
     btnEdit:
         "flex items-center gap-2 px-4 py-2 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white transition font-black text-xs",
@@ -172,7 +182,6 @@ export default function Flashcards({ user }) {
         return token;
     }
 
-    // ✅ CORRIGIDO: CRUD usa flashcards-write
     async function callWrite(action, payload) {
         const token = await getTokenOrThrow();
 
@@ -282,7 +291,6 @@ export default function Flashcards({ user }) {
         [userId]
     );
 
-    // ✅ Topic dentro de subject: filtra por subject_id
     const loadTopics = useCallback(
         async (subject_id) => {
             setLoading(true);
@@ -305,7 +313,6 @@ export default function Flashcards({ user }) {
         [userId]
     );
 
-    // ✅ Deck: sempre por topic_id (e opcional por subject_id)
     const loadDecks = useCallback(
         async (baseId, mode = "topic") => {
             setLoading(true);
@@ -450,7 +457,7 @@ export default function Flashcards({ user }) {
                 setSubjectId(id);
                 clearBelow("decks");
                 setLevel("decks");
-                await loadDecks(id, "topic"); // legacy: subjectId é topicId
+                await loadDecks(id, "topic");
                 return;
             }
 
@@ -592,8 +599,6 @@ export default function Flashcards({ user }) {
             }
 
             if (level === "decks") {
-                // ✅ modo novo: deck por topicId
-                // ✅ legado: a seleção de "assunto" já representa um topic_id
                 const targetTopicId = isLegacySubjects ? subjectId : topicId;
                 if (!targetTopicId) return alert("Selecione um tópico.");
 
@@ -664,7 +669,6 @@ export default function Flashcards({ user }) {
         }
     }
 
-    // IA continua separada: chama generate-flashcards
     async function generateWithAI() {
         if (!deckId) return alert("Entre em um deck antes de gerar por IA.");
         if (!aiForm.text.trim()) return alert("Cole um texto base para a IA.");
@@ -882,10 +886,18 @@ export default function Flashcards({ user }) {
 
     return (
         <div className={ui.wrap}>
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h2 className={ui.headerTitle}>Flashcards</h2>
-                    <p className={ui.headerSub}>Cursos → disciplinas → assuntos → tópicos → decks → cards</p>
+            <div className="flex items-center justify-between mb-6 gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+                        <Layers className="h-6 w-6" />
+                    </div>
+
+                    <div>
+                        <p className={ui.headerTitle}>Flashcards</p>
+                        <p className={ui.headerSub}>
+                            Crie, organize e revise seus cards em uma estrutura por cursos e decks
+                        </p>
+                    </div>
                 </div>
 
                 <button onClick={() => setEditMode((v) => !v)} className={ui.btnEdit}>

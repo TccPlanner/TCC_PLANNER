@@ -22,22 +22,25 @@ const formatarHMS = (segundos) => {
     return `${h}h ${m}m ${sec}s`;
 };
 
+const normalizarTexto = (valor) =>
+    String(valor || "").trim().replace(/\s+/g, " ");
+
+const normalizarComparacao = (valor) =>
+    normalizarTexto(valor).toLowerCase();
+
 const coresPreset = [
-    "#ef4444", // vermelho
-    "#3b82f6", // azul
-    "#22c55e", // verde
-    "#facc15", // amarelo
-    "#a855f7", // roxo
-    "#fb923c", // laranja
-    "#94a3b8", // cinza
-    "#ec4899", // rosa
+    "#ef4444",
+    "#3b82f6",
+    "#22c55e",
+    "#facc15",
+    "#a855f7",
+    "#fb923c",
+    "#94a3b8",
+    "#ec4899",
 ];
 
-/* ==========================
-   ✅ NOVO: cor base pelo texto
-========================== */
 const corBasePorTexto = (texto) => {
-    const str = String(texto || "").trim().toLowerCase();
+    const str = normalizarComparacao(texto);
     if (!str) return `hsl(220 85% 55%)`;
 
     let hash = 0;
@@ -49,12 +52,8 @@ const corBasePorTexto = (texto) => {
     return `hsl(${hue} 85% 55%)`;
 };
 
-/* ==========================
-   ✅ TIPOS VÁLIDOS (sem "Geral")
-========================== */
 const TIPOS_VALIDOS = ["Teoria", "Exercícios", "Simulado", "Revisão"];
 
-/* ✅ label mais amigável */
 const labelTipoConteudo = (tipo) => {
     const t = String(tipo || "").trim();
     if (!t || !TIPOS_VALIDOS.includes(t)) return "Teoria";
@@ -65,33 +64,114 @@ const labelTipoConteudo = (tipo) => {
 function Materias({ user }) {
     const [loading, setLoading] = useState(true);
 
-    // lista
     const [materias, setMaterias] = useState([]);
 
-    // detalhes
     const [materiaSelecionada, setMateriaSelecionada] = useState(null);
     const [editNome, setEditNome] = useState("");
     const [editCor, setEditCor] = useState("#ec4899");
 
-    // conteudos
     const [conteudos, setConteudos] = useState([]);
     const [novoConteudo, setNovoConteudo] = useState("");
 
-    // historico
     const [historico, setHistorico] = useState([]);
     const [verHistorico, setVerHistorico] = useState(true);
 
-    /* ==========================
-       ✅ NOVO: múltiplos conteúdos expandidos
-    ========================== */
-    const [conteudosExpandidos, setConteudosExpandidos] = useState([]); // array de IDs
+    const [conteudosExpandidos, setConteudosExpandidos] = useState([]);
 
     const toggleExpandirConteudo = (conteudoId) => {
         setConteudosExpandidos((prev) => {
             const exists = prev.includes(conteudoId);
-            if (exists) return prev.filter((id) => id !== conteudoId); // fecha só este
-            return [...prev, conteudoId]; // abre este sem fechar os outros
+            if (exists) return prev.filter((id) => id !== conteudoId);
+            return [...prev, conteudoId];
         });
+    };
+
+    /* ==========================
+       Montar conteúdos únicos vindos do histórico
+    ========================== */
+    const extrairConteudosDoHistorico = (sessoes = []) => {
+        const mapa = new Map();
+
+        (sessoes || []).forEach((s) => {
+            const titulo = normalizarTexto(s?.conteudo);
+            if (!titulo) return;
+
+            const chave = normalizarComparacao(titulo);
+
+            if (!mapa.has(chave)) {
+                mapa.set(chave, {
+                    id: `hist-${chave}`,
+                    titulo,
+                    origem: "historico",
+                    created_at: s?.inicio_em || null,
+                });
+            }
+        });
+
+        return Array.from(mapa.values());
+    };
+
+    /* ==========================
+       Tentar sincronizar com tabela materia_conteudos
+       sem depender disso para a UI funcionar
+    ========================== */
+    const sincronizarConteudosComSessoes = async (mats = [], sessoes = []) => {
+        if (!user?.id || !mats.length || !sessoes.length) return;
+
+        const materiasPorNome = {};
+        mats.forEach((m) => {
+            const nome = normalizarComparacao(m.nome);
+            if (nome) materiasPorNome[nome] = m;
+        });
+
+        const { data: atuais, error: errAtuais } = await supabase
+            .from("materia_conteudos")
+            .select("id, materia_id, titulo")
+            .eq("user_id", user.id);
+
+        if (errAtuais) {
+            console.log("Erro ao buscar conteúdos atuais:", errAtuais.message);
+            return;
+        }
+
+        const existentes = new Set(
+            (atuais || []).map(
+                (c) =>
+                    `${c.materia_id}::${normalizarComparacao(c.titulo)}`
+            )
+        );
+
+        const inserts = [];
+
+        (sessoes || []).forEach((s) => {
+            const materiaNome = normalizarComparacao(s?.materia);
+            const conteudo = normalizarTexto(s?.conteudo);
+
+            if (!materiaNome || !conteudo) return;
+
+            const materia = materiasPorNome[materiaNome];
+            if (!materia?.id) return;
+
+            const key = `${materia.id}::${normalizarComparacao(conteudo)}`;
+            if (existentes.has(key)) return;
+
+            existentes.add(key);
+            inserts.push({
+                user_id: user.id,
+                materia_id: materia.id,
+                titulo: conteudo,
+            });
+        });
+
+        if (!inserts.length) return;
+
+        const { error } = await supabase
+            .from("materia_conteudos")
+            .insert(inserts);
+
+        if (error) {
+            console.log("Erro ao sincronizar conteúdos com sessões:", error.message);
+        }
     };
 
     /* ==========================
@@ -101,7 +181,6 @@ function Materias({ user }) {
         if (!user?.id) return;
         setLoading(true);
 
-        // matérias
         const { data: mats, error: errM } = await supabase
             .from("materias")
             .select("*")
@@ -114,25 +193,25 @@ function Materias({ user }) {
             return;
         }
 
-        // sessões (para somar tempo)
         const { data: sessoes, error: errS } = await supabase
             .from("sessoes_estudo")
-            .select("materia, duracao_segundos")
+            .select("id, materia, conteudo, duracao_segundos, inicio_em")
             .eq("user_id", user.id);
 
         if (errS) console.log("Erro sessões:", errS.message);
 
-        // conteúdos (para contar por matéria)
+        await sincronizarConteudosComSessoes(mats || [], sessoes || []);
+
         const { data: conts, error: errC } = await supabase
             .from("materia_conteudos")
-            .select("materia_id")
+            .select("id, materia_id, titulo")
             .eq("user_id", user.id);
 
-        if (errC) console.log("Erro conteudos:", errC.message);
+        if (errC) console.log("Erro conteúdos:", errC.message);
 
         const somaTempoPorMateria = {};
         (sessoes || []).forEach((s) => {
-            const key = (s.materia || "").trim();
+            const key = normalizarTexto(s.materia);
             if (!key) return;
             somaTempoPorMateria[key] =
                 (somaTempoPorMateria[key] || 0) + (Number(s.duracao_segundos) || 0);
@@ -144,11 +223,33 @@ function Materias({ user }) {
                 (countConteudosPorMateriaId[c.materia_id] || 0) + 1;
         });
 
-        const matsEnriquecidas = (mats || []).map((m) => ({
-            ...m,
-            totalSegundos: somaTempoPorMateria[m.nome] || 0,
-            totalConteudos: countConteudosPorMateriaId[m.id] || 0,
-        }));
+        // ✅ fallback: contar conteúdos também a partir do histórico
+        const historicoConteudosPorMateriaNome = {};
+        (sessoes || []).forEach((s) => {
+            const materiaNome = normalizarTexto(s.materia);
+            const conteudo = normalizarTexto(s.conteudo);
+            if (!materiaNome || !conteudo) return;
+
+            if (!historicoConteudosPorMateriaNome[materiaNome]) {
+                historicoConteudosPorMateriaNome[materiaNome] = new Set();
+            }
+
+            historicoConteudosPorMateriaNome[materiaNome].add(
+                normalizarComparacao(conteudo)
+            );
+        });
+
+        const matsEnriquecidas = (mats || []).map((m) => {
+            const qtdTabela = countConteudosPorMateriaId[m.id] || 0;
+            const qtdHistorico =
+                historicoConteudosPorMateriaNome[normalizarTexto(m.nome)]?.size || 0;
+
+            return {
+                ...m,
+                totalSegundos: somaTempoPorMateria[normalizarTexto(m.nome)] || 0,
+                totalConteudos: Math.max(qtdTabela, qtdHistorico),
+            };
+        });
 
         setMaterias(matsEnriquecidas);
         setLoading(false);
@@ -156,7 +257,7 @@ function Materias({ user }) {
 
     useEffect(() => {
         buscarMaterias();
-        // eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
     /* ==========================
@@ -170,11 +271,21 @@ function Materias({ user }) {
         setConteudos([]);
         setHistorico([]);
         setVerHistorico(true);
-
-        // ✅ reseta os expandidos ao entrar na matéria
         setConteudosExpandidos([]);
 
-        // conteúdos
+        const { data: hist } = await supabase
+            .from("sessoes_estudo")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("materia", mat.nome)
+            .order("inicio_em", { ascending: false })
+            .limit(200);
+
+        const historicoAtual = hist || [];
+        setHistorico(historicoAtual);
+
+        await sincronizarConteudosComSessoes([mat], historicoAtual);
+
         const { data: conts } = await supabase
             .from("materia_conteudos")
             .select("*")
@@ -182,18 +293,31 @@ function Materias({ user }) {
             .eq("materia_id", mat.id)
             .order("created_at", { ascending: true });
 
-        setConteudos(conts || []);
+        const conteudosTabela = conts || [];
+        const conteudosHistorico = extrairConteudosDoHistorico(historicoAtual);
 
-        // histórico (sessões)
-        const { data: hist } = await supabase
-            .from("sessoes_estudo")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("materia", mat.nome)
-            .order("inicio_em", { ascending: false })
-            .limit(100);
+        // ✅ merge entre tabela + histórico
+        const mapaFinal = new Map();
 
-        setHistorico(hist || []);
+        conteudosTabela.forEach((c) => {
+            const titulo = normalizarTexto(c.titulo);
+            if (!titulo) return;
+
+            mapaFinal.set(normalizarComparacao(titulo), {
+                ...c,
+                titulo,
+                origem: "tabela",
+            });
+        });
+
+        conteudosHistorico.forEach((c) => {
+            const chave = normalizarComparacao(c.titulo);
+            if (!mapaFinal.has(chave)) {
+                mapaFinal.set(chave, c);
+            }
+        });
+
+        setConteudos(Array.from(mapaFinal.values()));
     };
 
     const voltarLista = () => {
@@ -210,14 +334,13 @@ function Materias({ user }) {
     ========================== */
     const salvarMateria = async () => {
         if (!materiaSelecionada?.id) return;
-        const nomeNovo = editNome.trim();
+        const nomeNovo = normalizarTexto(editNome);
         if (!nomeNovo) return;
 
-        // ✅ Se tentar renomear para uma que já existe
         const jaExiste = materias.find(
             (m) =>
                 m.id !== materiaSelecionada.id &&
-                (m.nome || "").trim().toLowerCase() === nomeNovo.toLowerCase()
+                normalizarComparacao(m.nome) === normalizarComparacao(nomeNovo)
         );
 
         if (jaExiste) {
@@ -287,19 +410,33 @@ function Materias({ user }) {
         }
 
         if (contsOrigem?.length) {
-            const payload = contsOrigem.map((c) => ({
-                user_id: user.id,
-                materia_id: materiaDestino.id,
-                titulo: c.titulo,
-            }));
-
-            const { error: errUp } = await supabase
+            const { data: contsDestino } = await supabase
                 .from("materia_conteudos")
-                .upsert(payload, { onConflict: "materia_id,titulo" });
+                .select("titulo")
+                .eq("user_id", user.id)
+                .eq("materia_id", materiaDestino.id);
 
-            if (errUp) {
-                alert("Erro ao transferir conteúdos: " + errUp.message);
-                return;
+            const existentesDestino = new Set(
+                (contsDestino || []).map((c) => normalizarComparacao(c.titulo))
+            );
+
+            const payload = contsOrigem
+                .filter((c) => !existentesDestino.has(normalizarComparacao(c.titulo)))
+                .map((c) => ({
+                    user_id: user.id,
+                    materia_id: materiaDestino.id,
+                    titulo: normalizarTexto(c.titulo),
+                }));
+
+            if (payload.length) {
+                const { error: errInsert } = await supabase
+                    .from("materia_conteudos")
+                    .insert(payload);
+
+                if (errInsert) {
+                    alert("Erro ao transferir conteúdos: " + errInsert.message);
+                    return;
+                }
             }
         }
 
@@ -352,21 +489,28 @@ function Materias({ user }) {
     ========================== */
     const adicionarConteudo = async () => {
         if (!materiaSelecionada?.id) return;
-        const t = novoConteudo.trim();
+        const t = normalizarTexto(novoConteudo);
         if (!t) return;
 
-        const { error } = await supabase
+        const jaExiste = conteudos.some(
+            (c) => normalizarComparacao(c.titulo) === normalizarComparacao(t)
+        );
+
+        if (jaExiste) {
+            setNovoConteudo("");
+            return;
+        }
+
+        const { data, error } = await supabase
             .from("materia_conteudos")
-            .upsert(
-                [
-                    {
-                        user_id: user.id,
-                        materia_id: materiaSelecionada.id,
-                        titulo: t,
-                    },
-                ],
-                { onConflict: "materia_id,titulo" }
-            );
+            .insert([
+                {
+                    user_id: user.id,
+                    materia_id: materiaSelecionada.id,
+                    titulo: t,
+                },
+            ])
+            .select();
 
         if (error) {
             alert("Erro ao adicionar conteúdo: " + error.message);
@@ -374,34 +518,39 @@ function Materias({ user }) {
         }
 
         setNovoConteudo("");
-
-        const { data: conts } = await supabase
-            .from("materia_conteudos")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("materia_id", materiaSelecionada.id)
-            .order("created_at", { ascending: true });
-
-        setConteudos(conts || []);
+        setConteudos((prev) => [...prev, ...(data || [])]);
         buscarMaterias();
     };
 
     /* ==========================
-       ✅ Excluir conteúdo
-       - Se for o ÚLTIMO conteúdo, confirma e também exclui a matéria
+       Excluir conteúdo
+       Se for conteúdo só do histórico, apaga apenas as sessões relacionadas
     ========================== */
     const excluirConteudo = async (conteudo) => {
-        if (!conteudo?.id) return;
+        if (!conteudo) return;
+
+        const ok = window.confirm(`Excluir o conteúdo "${conteudo.titulo}"?`);
+        if (!ok) return;
+
+        if (String(conteudo.id).startsWith("hist-")) {
+            const { error } = await supabase
+                .from("sessoes_estudo")
+                .delete()
+                .eq("user_id", user.id)
+                .eq("materia", materiaSelecionada.nome)
+                .eq("conteudo", conteudo.titulo);
+
+            if (error) {
+                alert("Erro ao excluir conteúdo do histórico: " + error.message);
+                return;
+            }
+
+            await abrirMateria(materiaSelecionada);
+            await buscarMaterias();
+            return;
+        }
 
         const vaiApagarMateriaTambem = conteudos.length === 1;
-
-        const ok = window.confirm(
-            vaiApagarMateriaTambem
-                ? `Este é o ÚLTIMO conteúdo da matéria.\n\nSe você excluir "${conteudo.titulo}", a matéria "${materiaSelecionada?.nome}" também será excluída.\n\nDeseja continuar?`
-                : `Excluir o conteúdo "${conteudo.titulo}"?`
-        );
-
-        if (!ok) return;
 
         const { error: errDelConteudo } = await supabase
             .from("materia_conteudos")
@@ -427,28 +576,18 @@ function Materias({ user }) {
                 return;
             }
 
-            alert("Conteúdo excluído ✅\nMatéria excluída também (não havia mais conteúdos).");
+            alert(
+                "Conteúdo excluído ✅\nMatéria excluída também (não havia mais conteúdos)."
+            );
 
             voltarLista();
             buscarMaterias();
             return;
         }
 
-        // fecha o painel se o conteúdo estava expandido
         setConteudosExpandidos((prev) => prev.filter((id) => id !== conteudo.id));
-
-        const { data: conts, error: errLoad } = await supabase
-            .from("materia_conteudos")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("materia_id", materiaSelecionada.id)
-            .order("created_at", { ascending: true });
-
-        if (!errLoad) {
-            setConteudos(conts || []);
-        }
-
-        buscarMaterias();
+        await abrirMateria(materiaSelecionada);
+        await buscarMaterias();
     };
 
     /* ==========================
@@ -506,32 +645,26 @@ function Materias({ user }) {
         return mat?.totalSegundos || 0;
     }, [materiaSelecionada, materias]);
 
-    /* ==========================
-       tipo mais recente por conteúdo
-    ========================== */
     const tipoMaisRecentePorConteudo = useMemo(() => {
         const map = {};
         (historico || []).forEach((h) => {
-            const titulo = (h.conteudo || "").trim();
+            const titulo = normalizarTexto(h.conteudo);
             if (!titulo) return;
 
             if (!map[titulo]) {
-                const tipo = (h.tipo_estudo || "").trim();
+                const tipo = normalizarTexto(h.tipo_estudo);
                 map[titulo] = TIPOS_VALIDOS.includes(tipo) ? tipo : "Teoria";
             }
         });
         return map;
     }, [historico]);
 
-    /* ==========================
-       ✅ mapa de cores ÚNICAS dentro da matéria
-    ========================== */
     const mapaCoresConteudos = useMemo(() => {
         const used = new Set();
         const map = {};
 
         const titulos = (conteudos || [])
-            .map((c) => String(c.titulo || "").trim())
+            .map((c) => normalizarTexto(c.titulo))
             .filter(Boolean);
 
         titulos.forEach((titulo) => {
@@ -557,21 +690,16 @@ function Materias({ user }) {
     }, [conteudos]);
 
     const getCorDoConteudo = (titulo) => {
-        const t = String(titulo || "").trim();
+        const t = normalizarTexto(titulo);
         return mapaCoresConteudos[t] || corBasePorTexto(t);
     };
 
-    /* ==========================
-       ✅ stats por conteúdo (mapa)
-       - otimiza: calcula 1x e cada painel pega só o que precisa
-    ========================== */
     const statsPorConteudoTitulo = useMemo(() => {
         const map = {};
-
-        const historicoOrdenado = [...(historico || [])]; // já vem desc
+        const historicoOrdenado = [...(historico || [])];
 
         historicoOrdenado.forEach((s) => {
-            const titulo = (s.conteudo || "").trim();
+            const titulo = normalizarTexto(s.conteudo);
             if (!titulo) return;
 
             if (!map[titulo]) {
@@ -579,7 +707,7 @@ function Materias({ user }) {
                     ultimaData: s.inicio_em
                         ? new Date(s.inicio_em).toLocaleString("pt-BR")
                         : null,
-                    tipoRecenteRaw: (s.tipo_estudo || "").trim(),
+                    tipoRecenteRaw: normalizarTexto(s.tipo_estudo),
                     feitas: 0,
                     acertos: 0,
                     erros: 0,
@@ -591,7 +719,6 @@ function Materias({ user }) {
             map[titulo].erros += Number(s.questoes_erros) || 0;
         });
 
-        // pós-processamento
         Object.keys(map).forEach((titulo) => {
             const item = map[titulo];
 
@@ -625,9 +752,6 @@ function Materias({ user }) {
         return map;
     }, [historico, tipoMaisRecentePorConteudo]);
 
-    /* ==========================
-       UI
-    ========================== */
     if (loading) {
         return (
             <div className="p-10 rounded-[32px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
@@ -638,19 +762,20 @@ function Materias({ user }) {
         );
     }
 
-    // =============================
-    // TELA LISTA
-    // =============================
     if (!materiaSelecionada) {
         return (
             <div className="w-full max-w-3xl mx-auto">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+                        <BookOpen className="h-6 w-6" />
+                    </div>
+
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+                        <p className="text-2xl font-black text-white leading-tight">
                             Matérias
-                        </h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Tudo que você estudou (tempo total + conteúdos)
+                        </p>
+                        <p className="text-sm text-cyan-100">
+                            Organize conteúdos e acompanhe o tempo estudado
                         </p>
                     </div>
                 </div>
@@ -701,12 +826,8 @@ function Materias({ user }) {
         );
     }
 
-    // =============================
-    // TELA EDITAR
-    // =============================
     return (
         <div className="w-full max-w-3xl mx-auto">
-            {/* top */}
             <div className="flex items-center justify-between mb-6">
                 <button
                     onClick={voltarLista}
@@ -723,13 +844,11 @@ function Materias({ user }) {
                 </button>
             </div>
 
-            {/* card editar */}
             <div className="p-6 rounded-[32px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
                 <h3 className="text-xl font-black text-slate-900 dark:text-white">
                     Editar matéria
                 </h3>
 
-                {/* nome */}
                 <div className="mt-6">
                     <label className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
                         Nome
@@ -742,7 +861,6 @@ function Materias({ user }) {
                     />
                 </div>
 
-                {/* cor */}
                 <div className="mt-6">
                     <label className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
                         Cor da matéria
@@ -784,7 +902,6 @@ function Materias({ user }) {
                     </div>
                 </div>
 
-                {/* resumo */}
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-200 font-black text-xs uppercase">
@@ -817,7 +934,6 @@ function Materias({ user }) {
                     </button>
                 </div>
 
-                {/* conteúdos */}
                 <div className="mt-8">
                     <div className="flex items-center justify-between">
                         <h4 className="font-black uppercase text-xs tracking-widest text-slate-500 dark:text-slate-400">
@@ -849,22 +965,21 @@ function Materias({ user }) {
                         ) : (
                             conteudos.map((c) => {
                                 const corConteudo = getCorDoConteudo(c.titulo);
-
-                                const tipoRaw = tipoMaisRecentePorConteudo[c.titulo] || "Teoria";
+                                const tipoRaw =
+                                    tipoMaisRecentePorConteudo[normalizarTexto(c.titulo)] ||
+                                    "Teoria";
                                 const tipoLabel = labelTipoConteudo(tipoRaw);
-
                                 const expanded = conteudosExpandidos.includes(c.id);
-                                const stats = statsPorConteudoTitulo[c.titulo?.trim?.() || ""] || null;
+                                const stats =
+                                    statsPorConteudoTitulo[normalizarTexto(c.titulo)] || null;
 
                                 return (
                                     <div key={c.id} className="space-y-2">
-                                        {/* CARD DO CONTEÚDO */}
                                         <button
                                             onClick={() => toggleExpandirConteudo(c.id)}
-                                            className={`w-full flex items-center justify-between p-3 rounded-2xl border transition text-left
-                                                ${expanded
-                                                    ? "border-indigo-400/60 bg-indigo-50/40 dark:bg-indigo-900/10"
-                                                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                                            className={`w-full flex items-center justify-between p-3 rounded-2xl border transition text-left ${expanded
+                                                ? "border-indigo-400/60 bg-indigo-50/40 dark:bg-indigo-900/10"
+                                                : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/40"
                                                 }`}
                                         >
                                             <div className="flex items-start gap-3">
@@ -878,12 +993,7 @@ function Materias({ user }) {
                                                         {c.titulo}
                                                     </p>
 
-                                                    {/* TAG neutra */}
-                                                    <span
-                                                        className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
-                                                        bg-slate-100 text-slate-600 border-slate-200
-                                                        dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
-                                                    >
+                                                    <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
                                                         {tipoLabel}
                                                     </span>
                                                 </div>
@@ -892,7 +1002,6 @@ function Materias({ user }) {
                                             <ChevronRight className="text-slate-400" />
                                         </button>
 
-                                        {/* ✅ EXPANDIDO LOGO ABAIXO DO ITEM */}
                                         {expanded && (
                                             <div className="p-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                                                 <div className="flex items-start justify-between gap-3">
@@ -902,11 +1011,7 @@ function Materias({ user }) {
                                                         </p>
 
                                                         <div className="mt-1 flex flex-wrap gap-2 items-center">
-                                                            <span
-                                                                className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
-                                                                bg-slate-100 text-slate-600 border-slate-200
-                                                                dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
-                                                            >
+                                                            <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
                                                                 {stats?.tipoLabel || tipoLabel}
                                                             </span>
 
@@ -926,7 +1031,6 @@ function Materias({ user }) {
                                                     </button>
                                                 </div>
 
-                                                {/* Stats SOMENTE Questões/Simulado */}
                                                 {!!stats?.tipoEhQuestoesOuSimulado && (
                                                     <>
                                                         {stats.temQuestoes ? (
@@ -983,7 +1087,6 @@ function Materias({ user }) {
                     </div>
                 </div>
 
-                {/* histórico */}
                 <div className="mt-8">
                     <div className="flex items-center justify-between">
                         <h4 className="font-black uppercase text-xs tracking-widest text-slate-500 dark:text-slate-400">
@@ -1031,7 +1134,8 @@ function Materias({ user }) {
                                                     {h.conteudo || "(sem conteúdo)"}
                                                 </p>
                                                 <p className="text-xs font-black text-slate-500 dark:text-slate-400">
-                                                    {h.duracao_hms || formatarHMS(h.duracao_segundos)}
+                                                    {h.duracao_hms ||
+                                                        formatarHMS(h.duracao_segundos)}
                                                 </p>
                                             </div>
                                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-bold">

@@ -257,9 +257,11 @@ export default function Constancia({ user }) {
                         <Flame size={20} />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold">Constância</h2>
+                        <p className="text-2xl font-black text-white leading-tight">
+                            Constância
+                        </p>
                         <p className="text-slate-600 dark:text-slate-400 text-sm">
-                            Para registrar o dia, faça alguma atividade: cronômetro, ciclo ou tarefa concluída.
+                            Mantenha-se focado!
                         </p>
                     </div>
                 </div>

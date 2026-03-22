@@ -35,13 +35,48 @@ import { CSS } from "@dnd-kit/utilities";
    ✅ Widgets disponíveis
 ================================ */
 const WIDGET_LIBRARY = [
-    { type: "streak", title: "Ofensiva (sequência)", icon: Flame, description: "Gamificado: Eu me comprometo + animação." },
-    { type: "ultimos_5_dias", title: "Últimos 5 dias", icon: BarChart3, description: "Horas líquidas reais (baseado no histórico)." },
-    { type: "motivacional", title: "Frase motivacional", icon: Quote, description: "Uma frase curta para manter o foco." },
-    { type: "todo", title: "To-do real", icon: CheckSquare, description: "Crie e conclua tarefas com progresso real." },
-    { type: "calendario_mini", title: "Agenda dos próximos 7 dias", icon: CalendarDays, description: "Resumo real de tarefas e revisões por dia." },
-    { type: "cronometro_basico", title: "Progresso semanal", icon: Timer, description: "Meta semanal de horas com base nas sessões reais." },
-    { type: "revisoes_futuras", title: "Revisões futuras", icon: Sparkles, description: "Mostra próximas revisões pendentes reais." },
+    {
+        type: "streak",
+        title: "Ofensiva (sequência)",
+        icon: Flame,
+        description: "Gamificado: Eu me comprometo + animação.",
+    },
+    {
+        type: "ultimos_5_dias",
+        title: "Últimos 5 dias",
+        icon: BarChart3,
+        description: "Horas líquidas reais (baseado no histórico).",
+    },
+    {
+        type: "motivacional",
+        title: "Frase motivacional",
+        icon: Quote,
+        description: "Uma frase curta para manter o foco.",
+    },
+    {
+        type: "todo",
+        title: "To-do real",
+        icon: CheckSquare,
+        description: "Crie e conclua tarefas com progresso real.",
+    },
+    {
+        type: "calendario_mini",
+        title: "Agenda dos próximos 7 dias",
+        icon: CalendarDays,
+        description: "Resumo real de tarefas e revisões por dia.",
+    },
+    {
+        type: "cronometro_basico",
+        title: "Progresso semanal",
+        icon: Timer,
+        description: "Meta semanal de horas com base nas sessões reais.",
+    },
+    {
+        type: "revisoes_futuras",
+        title: "Revisões futuras",
+        icon: Sparkles,
+        description: "Mostra próximas revisões pendentes reais.",
+    },
 ];
 
 /* ==============================
@@ -60,28 +95,26 @@ function SortableWidgetCard({ widget, onRemove, children }) {
         <div
             ref={setNodeRef}
             style={style}
-            className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg p-4
-      ${isDragging ? "opacity-80 ring-2 ring-cyan-500" : ""}`}
+            className={`rounded-[24px] border border-slate-800 bg-[#071433] shadow-[0_10px_30px_rgba(0,0,0,0.18)] p-4 md:p-5 ${isDragging ? "opacity-80 ring-2 ring-cyan-500" : ""
+                }`}
         >
             <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                     <button
-                        className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-grab active:cursor-grabbing"
+                        className="p-2 rounded-lg hover:bg-white/5 cursor-grab active:cursor-grabbing"
                         title="Arrastar"
                         {...attributes}
                         {...listeners}
                     >
-                        <GripVertical size={18} className="text-slate-500 dark:text-slate-300" />
+                        <GripVertical size={18} className="text-slate-400" />
                     </button>
 
-                    <p className="font-black text-slate-800 dark:text-slate-100">
-                        {widget.title}
-                    </p>
+                    <p className="font-black text-white truncate">{widget.title}</p>
                 </div>
 
                 <button
                     onClick={() => onRemove(widget.id)}
-                    className="p-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 dark:text-rose-400 cursor-pointer"
+                    className="p-2 rounded-lg hover:bg-rose-500/10 text-rose-400 cursor-pointer"
                     title="Remover widget"
                 >
                     <Trash2 size={18} />
@@ -97,7 +130,7 @@ function SortableWidgetCard({ widget, onRemove, children }) {
    ✅ Widget: Últimos 5 dias REAL
 ================================ */
 function Ultimos5DiasWidget({ user }) {
-    const [days, setDays] = useState([]); // [{date, label, seconds}]
+    const [days, setDays] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const toYMD = (d) => {
@@ -116,7 +149,6 @@ function Ultimos5DiasWidget({ user }) {
         const run = async () => {
             setLoading(true);
 
-            // pega do começo do dia de 4 dias atrás até agora
             const start = new Date();
             start.setHours(0, 0, 0, 0);
             start.setDate(start.getDate() - 4);
@@ -134,7 +166,6 @@ function Ultimos5DiasWidget({ user }) {
                 return;
             }
 
-            // monta os 5 dias
             const base = [];
             for (let i = 4; i >= 0; i--) {
                 const d = new Date();
@@ -147,7 +178,6 @@ function Ultimos5DiasWidget({ user }) {
                 });
             }
 
-            // soma por dia local
             const map = new Map(base.map((b) => [b.date, 0]));
             for (const row of data || []) {
                 const localDate = toYMD(new Date(row.inicio_em));
@@ -171,45 +201,38 @@ function Ultimos5DiasWidget({ user }) {
     const totalHours = hours.reduce((a, b) => a + b, 0);
 
     return (
-        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
+        <div className="rounded-2xl bg-white/[0.03] border border-slate-800 p-4">
             <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    Últimos 5 dias (reais)
-                </p>
-                <p className="text-xs font-black text-cyan-600 dark:text-cyan-400">
-                    {totalHours.toFixed(1)}h
-                </p>
+                <p className="text-sm font-black text-white">Últimos 5 dias (reais)</p>
+                <p className="text-xs font-black text-cyan-400">{totalHours.toFixed(1)}h</p>
             </div>
 
             {loading ? (
-                <p className="text-xs text-slate-500 dark:text-slate-300 mt-3">
-                    Carregando…
-                </p>
+                <p className="text-xs text-slate-400 mt-3">Carregando…</p>
             ) : (
                 <div className="mt-4 grid grid-cols-5 gap-3 items-end">
                     {days.map((d) => {
                         const h = d.seconds / 3600;
-                        const height = Math.max(8, Math.round((h / max) * 80)); // px
+                        const height = Math.max(8, Math.round((h / max) * 80));
                         return (
                             <div key={d.date} className="flex flex-col items-center gap-2">
-                                <div className="w-full rounded-2xl bg-slate-200 dark:bg-slate-700 h-[96px] flex items-end p-1">
+                                <div className="w-full rounded-2xl bg-slate-800 h-[96px] flex items-end p-1">
                                     <div
-                                        className="w-full rounded-2xl bg-cyan-600 dark:bg-cyan-500 transition-all"
+                                        className="w-full rounded-2xl bg-cyan-500 transition-all"
                                         style={{ height: `${height}px` }}
                                         title={`${h.toFixed(2)}h`}
                                     />
                                 </div>
-                                <p className="text-[11px] font-black text-slate-600 dark:text-slate-300">
-                                    {d.label}
-                                </p>
+                                <p className="text-[11px] font-black text-slate-300">{d.label}</p>
                             </div>
                         );
                     })}
                 </div>
             )}
 
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
-                Baseado no que você registrou em <span className="font-black">Estudar Agora</span>.
+            <p className="text-[11px] text-slate-400 mt-3">
+                Baseado no que você registrou em{" "}
+                <span className="font-black text-slate-200">Estudar Agora</span>.
             </p>
         </div>
     );
@@ -261,7 +284,6 @@ function StreakWidget({ user }) {
                 return;
             }
 
-            // se não existir ainda, cria linha padrão
             if (!data) {
                 const payload = {
                     user_id: user.id,
@@ -283,7 +305,6 @@ function StreakWidget({ user }) {
                 last_visit: data.last_visit,
             });
 
-            // ✅ Se já está comprometida, ao entrar no site no dia → animação + streak por visita
             const today = todayYMD();
             if (data.committed && data.last_visit !== today) {
                 const newStreak = Number(data.streak || 0) + 1;
@@ -313,7 +334,6 @@ function StreakWidget({ user }) {
     const commit = async () => {
         const today = todayYMD();
 
-        // ao se comprometer: inicia streak em 1 e grava visita
         await supabase
             .from("user_streaks")
             .update({
@@ -336,8 +356,7 @@ function StreakWidget({ user }) {
     };
 
     return (
-        <div className="relative rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4 overflow-hidden">
-            {/* ✅ Animação central */}
+        <div className="relative rounded-2xl bg-white/[0.03] border border-slate-800 p-4 overflow-hidden">
             {celebrate && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className="w-[92%] max-w-sm rounded-3xl border border-slate-200/20 bg-slate-950 text-white p-6 text-center shadow-2xl animate-[pop_240ms_ease-out]">
@@ -361,32 +380,29 @@ function StreakWidget({ user }) {
 
             <div className="flex items-start justify-between gap-3">
                 <div>
-                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                        Ofensiva
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">
+                    <p className="text-sm font-black text-white">Ofensiva</p>
+                    <p className="text-xs text-slate-400 mt-1">
                         Sequência de dias que você entrou e manteve o foco.
                     </p>
                 </div>
 
-                <div className="px-3 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <p className="text-xs text-slate-500 dark:text-slate-300">Maior</p>
-                    <p className="text-lg font-black text-cyan-600 dark:text-cyan-400 leading-tight">
+                <div className="px-3 py-2 rounded-2xl bg-[#081735] border border-slate-800">
+                    <p className="text-xs text-slate-400">Maior</p>
+                    <p className="text-lg font-black text-cyan-400 leading-tight">
                         {info.best}
                     </p>
                 </div>
             </div>
 
             {loading ? (
-                <p className="text-xs text-slate-500 dark:text-slate-300 mt-3">
-                    Carregando…
-                </p>
+                <p className="text-xs text-slate-400 mt-3">Carregando…</p>
             ) : (
-                <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex items-center justify-between">
+                <div className="mt-4 rounded-2xl border border-slate-800 bg-[#081735] p-4 flex items-center justify-between">
                     <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-300">Sequência atual</p>
-                        <p className="text-3xl font-black text-slate-900 dark:text-white">
-                            {info.streak} <span className="text-base font-black text-slate-500 dark:text-slate-300">dias</span>
+                        <p className="text-xs text-slate-400">Sequência atual</p>
+                        <p className="text-3xl font-black text-white">
+                            {info.streak}{" "}
+                            <span className="text-base font-black text-slate-400">dias</span>
                         </p>
                     </div>
 
@@ -398,14 +414,14 @@ function StreakWidget({ user }) {
                             EU ME COMPROMETO
                         </button>
                     ) : (
-                        <div className="px-4 py-3 rounded-2xl bg-cyan-600/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-black text-sm">
+                        <div className="px-4 py-3 rounded-2xl bg-cyan-600/10 border border-cyan-500/30 text-cyan-400 font-black text-sm">
                             Comprometida ✅
                         </div>
                     )}
                 </div>
             )}
 
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
+            <p className="text-[11px] text-slate-400 mt-3">
                 Você pode mudar essa lógica depois para contar “dias com estudo registrado”.
             </p>
         </div>
@@ -453,7 +469,9 @@ function TodoWidget({ user }) {
 
     const alternar = async (id, concluida) => {
         await supabase.from("tarefas").update({ concluida: !concluida }).eq("id", id);
-        setTarefas((prev) => prev.map((t) => (t.id === id ? { ...t, concluida: !concluida } : t)));
+        setTarefas((prev) =>
+            prev.map((t) => (t.id === id ? { ...t, concluida: !concluida } : t))
+        );
     };
 
     const remover = async (id) => {
@@ -468,14 +486,16 @@ function TodoWidget({ user }) {
         <div className="space-y-3">
             <div className="flex items-end justify-between gap-3">
                 <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-300">Progresso da lista</p>
-                    <p className="text-xl font-black text-slate-900 dark:text-white">{progresso}%</p>
+                    <p className="text-xs text-slate-400">Progresso da lista</p>
+                    <p className="text-xl font-black text-white">{progresso}%</p>
                 </div>
-                <p className="text-xs font-black text-cyan-600 dark:text-cyan-400">{concluidas}/{tarefas.length || 0} concluídas</p>
+                <p className="text-xs font-black text-cyan-400">
+                    {concluidas}/{tarefas.length || 0} concluídas
+                </p>
             </div>
 
-            <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                <div className="h-full bg-cyan-600 dark:bg-cyan-500" style={{ width: `${progresso}%` }} />
+            <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div className="h-full bg-cyan-500" style={{ width: `${progresso}%` }} />
             </div>
 
             <form onSubmit={adicionar} className="flex gap-2">
@@ -483,7 +503,7 @@ function TodoWidget({ user }) {
                     value={texto}
                     onChange={(e) => setTexto(e.target.value)}
                     placeholder="Nova tarefa"
-                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none"
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-800 bg-[#081735] text-sm text-white placeholder:text-slate-500 outline-none"
                 />
                 <button className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-black cursor-pointer">
                     Add
@@ -491,19 +511,34 @@ function TodoWidget({ user }) {
             </form>
 
             <div className="space-y-2 max-h-48 overflow-auto pr-1">
-                {loading && <p className="text-xs text-slate-500 dark:text-slate-300">Carregando…</p>}
-                {!loading && tarefas.length === 0 && <p className="text-xs text-slate-500 dark:text-slate-300">Sem tarefas ainda.</p>}
+                {loading && <p className="text-xs text-slate-400">Carregando…</p>}
+                {!loading && tarefas.length === 0 && (
+                    <p className="text-xs text-slate-400">Sem tarefas ainda.</p>
+                )}
 
                 {tarefas.map((t) => (
-                    <div key={t.id} className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-2 py-2">
+                    <div
+                        key={t.id}
+                        className="flex items-center gap-2 rounded-xl border border-slate-800 bg-white/[0.03] px-2 py-2"
+                    >
                         <button
                             onClick={() => alternar(t.id, t.concluida)}
-                            className={`w-5 h-5 rounded-md border flex items-center justify-center cursor-pointer ${t.concluida ? "bg-cyan-600 border-cyan-600" : "border-slate-300 dark:border-slate-600"}`}
+                            className={`w-5 h-5 rounded-md border flex items-center justify-center cursor-pointer ${t.concluida ? "bg-cyan-600 border-cyan-600" : "border-slate-600"
+                                }`}
                         >
                             {t.concluida && <Check size={13} className="text-white" />}
                         </button>
-                        <p className={`flex-1 text-sm ${t.concluida ? "line-through text-slate-400" : "text-slate-700 dark:text-slate-200"}`}>{t.texto}</p>
-                        <button onClick={() => remover(t.id)} className="p-1 text-rose-500 cursor-pointer" title="Apagar">
+                        <p
+                            className={`flex-1 text-sm ${t.concluida ? "line-through text-slate-500" : "text-slate-200"
+                                }`}
+                        >
+                            {t.texto}
+                        </p>
+                        <button
+                            onClick={() => remover(t.id)}
+                            className="p-1 text-rose-400 cursor-pointer"
+                            title="Apagar"
+                        >
                             <Trash2 size={14} />
                         </button>
                     </div>
@@ -540,15 +575,18 @@ function RevisoesFuturasWidget({ user }) {
 
     return (
         <div className="space-y-2">
-            <p className="text-xs text-slate-500 dark:text-slate-300">Próximas revisões pendentes</p>
-            {loading && <p className="text-xs text-slate-500 dark:text-slate-300">Carregando…</p>}
-            {!loading && items.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-300">Nada pendente nos próximos dias 🎉</p>}
+            <p className="text-xs text-slate-400">Próximas revisões pendentes</p>
+            {loading && <p className="text-xs text-slate-400">Carregando…</p>}
+            {!loading && items.length === 0 && (
+                <p className="text-sm text-slate-300">Nada pendente nos próximos dias 🎉</p>
+            )}
 
             {items.map((r) => (
-                <div key={r.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2">
-                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{r.titulo || "Sem título"}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-300">
-                        {new Date(`${r.data_revisao}T12:00:00`).toLocaleDateString("pt-BR")} • {r.tipo_revisao || "Revisão"}
+                <div key={r.id} className="rounded-xl border border-slate-800 bg-white/[0.03] px-3 py-2">
+                    <p className="text-sm font-black text-white">{r.titulo || "Sem título"}</p>
+                    <p className="text-xs text-slate-400">
+                        {new Date(`${r.data_revisao}T12:00:00`).toLocaleDateString("pt-BR")} •{" "}
+                        {r.tipo_revisao || "Revisão"}
                     </p>
                 </div>
             ))}
@@ -592,7 +630,12 @@ function AgendaMiniWidget({ user }) {
                 const d = new Date(hoje);
                 d.setDate(d.getDate() + i);
                 const key = ymd(d);
-                mapa.set(key, { key, label: d.toLocaleDateString("pt-BR", { weekday: "short" }), tarefas: 0, revisoes: 0 });
+                mapa.set(key, {
+                    key,
+                    label: d.toLocaleDateString("pt-BR", { weekday: "short" }),
+                    tarefas: 0,
+                    revisoes: 0,
+                });
             }
 
             for (const t of tarefas || []) {
@@ -610,13 +653,15 @@ function AgendaMiniWidget({ user }) {
 
     return (
         <div className="space-y-2">
-            <p className="text-xs text-slate-500 dark:text-slate-300">Próximos 7 dias</p>
+            <p className="text-xs text-slate-400">Próximos 7 dias</p>
             <div className="grid grid-cols-7 gap-2">
                 {dias.map((d) => (
-                    <div key={d.key} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-2 text-center">
-                        <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">{d.label.replace('.', '')}</p>
-                        <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-black mt-1">T {d.tarefas}</p>
-                        <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-black">R {d.revisoes}</p>
+                    <div key={d.key} className="rounded-xl border border-slate-800 bg-white/[0.03] p-2 text-center">
+                        <p className="text-[10px] font-black uppercase text-slate-400">
+                            {d.label.replace(".", "")}
+                        </p>
+                        <p className="text-[11px] text-cyan-400 font-black mt-1">T {d.tarefas}</p>
+                        <p className="text-[11px] text-indigo-400 font-black">R {d.revisoes}</p>
                     </div>
                 ))}
             </div>
@@ -644,7 +689,10 @@ function ProgressoSemanalWidget({ user }) {
                 .eq("user_id", user.id)
                 .gte("inicio_em", segunda.toISOString());
 
-            const total = (data || []).reduce((acc, x) => acc + Number(x.duracao_segundos || 0), 0);
+            const total = (data || []).reduce(
+                (acc, x) => acc + Number(x.duracao_segundos || 0),
+                0
+            );
             setHoras(total / 3600);
         };
 
@@ -656,13 +704,15 @@ function ProgressoSemanalWidget({ user }) {
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-slate-800 dark:text-slate-100">Meta da semana</p>
-                <p className="text-xs text-slate-500 dark:text-slate-300">{horas.toFixed(1)}h / {meta}h</p>
+                <p className="text-sm font-black text-white">Meta da semana</p>
+                <p className="text-xs text-slate-400">
+                    {horas.toFixed(1)}h / {meta}h
+                </p>
             </div>
-            <div className="h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+            <div className="h-3 rounded-full bg-slate-800 overflow-hidden">
                 <div className="h-full bg-emerald-500" style={{ width: `${percentual}%` }} />
             </div>
-            <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">{percentual}% concluído</p>
+            <p className="text-xs font-black text-emerald-400">{percentual}% concluído</p>
         </div>
     );
 }
@@ -676,11 +726,11 @@ function WidgetContent({ widget, user }) {
 
     if (widget.type === "motivacional") {
         return (
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                <p className="text-sm text-slate-700 dark:text-slate-200 font-semibold">
+            <div className="rounded-2xl bg-white/[0.03] border border-slate-800 p-4">
+                <p className="text-sm text-slate-200 font-semibold">
                     “Você está mandando muito bem. Continue assim!”
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                     Depois eu coloco frases aleatórias + personalizadas 💬
                 </p>
             </div>
@@ -688,11 +738,8 @@ function WidgetContent({ widget, user }) {
     }
 
     if (widget.type === "todo") return <TodoWidget user={user} />;
-
     if (widget.type === "calendario_mini") return <AgendaMiniWidget user={user} />;
-
     if (widget.type === "cronometro_basico") return <ProgressoSemanalWidget user={user} />;
-
     if (widget.type === "revisoes_futuras") return <RevisoesFuturasWidget user={user} />;
 
     return null;
@@ -707,8 +754,6 @@ export default function Workspace({ user }) {
     const [selectedTypes, setSelectedTypes] = useState([]);
 
     const saveTimer = useRef(null);
-
-    // ✅ Importantíssimo: evita o load sobrescrever seus cliques
     const didEditRef = useRef(false);
 
     const sensors = useSensors(
@@ -717,7 +762,6 @@ export default function Workspace({ user }) {
 
     const ids = useMemo(() => widgets.map((w) => w.id), [widgets]);
 
-    // ✅ Carrega layout do Supabase
     useEffect(() => {
         if (!user?.id) return;
 
@@ -728,7 +772,6 @@ export default function Workspace({ user }) {
                 .eq("user_id", user.id)
                 .maybeSingle();
 
-            // ✅ Se você já clicou/arrastou, NÃO sobrescreve
             if (didEditRef.current) return;
 
             if (!error && data?.layout?.widgets) {
@@ -741,7 +784,6 @@ export default function Workspace({ user }) {
         load();
     }, [user?.id]);
 
-    // ✅ Salva layout no Supabase (debounce)
     useEffect(() => {
         if (!user?.id) return;
 
@@ -787,7 +829,9 @@ export default function Workspace({ user }) {
 
     const addSelectedWidgets = () => {
         if (selectedTypes.length === 0) return;
+
         selectedTypes.forEach((type) => addWidget(type));
+
         setSelectedTypes([]);
         setPickerOpen(false);
     };
@@ -801,6 +845,7 @@ export default function Workspace({ user }) {
         didEditRef.current = true;
 
         const { active, over } = event;
+
         if (!over) return;
         if (active.id === over.id) return;
 
@@ -812,65 +857,78 @@ export default function Workspace({ user }) {
     };
 
     return (
-        <div className="space-y-4">
-            {/* Top bar */}
-            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-lg">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 rounded-xl bg-cyan-600 text-white">
-                            <LayoutGrid size={20} />
-                        </div>
+        <>
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
 
-                        <div>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                                Workspace
-                            </p>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Arraste para reorganizar • Salva automaticamente
-                            </p>
-                        </div>
+                <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-cyan-600 flex items-center justify-center shrink-0">
+                        <LayoutGrid size={22} className="text-white" />
                     </div>
 
-                    <button
-                        onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer sm:self-auto self-start"
-                    >
-                        <Plus size={18} />
-                        Adicionar widget
-                    </button>
+                    <div className="min-w-0">
+                        <p className="text-2xl font-black text-white leading-tight">
+                            Workspace
+                        </p>
+
+                        <p className="text-sm text-slate-300 mt-2">
+                            Personalize seus widgets e acompanhe seu estudo em um só lugar.
+                        </p>
+                    </div>
                 </div>
+
+                <button
+                    onClick={() => {
+                        setPickerOpen(true);
+                        setSelectedTypes([]);
+                    }}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 border border-cyan-500 text-white font-black text-sm cursor-pointer self-start"
+                >
+                    <Plus size={18} />
+                    Adicionar widget
+                </button>
             </div>
 
-                    <button
-                        onClick={() => { setPickerOpen(true); setSelectedTypes([]); }}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer sm:self-auto self-start"
-                    >
-                        <Plus size={18} />
-                        Adicionar widget
-                    </button>
-                </div>
 
-                {/* Empty state */}
-                {widgets.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-950/40 p-8 text-center">
-                        <p className="font-black text-slate-800 dark:text-slate-100 text-lg">
+            {/* WORKSPACE VAZIO */}
+
+            {widgets.length === 0 && (
+                <div className="w-full min-h-[320px] flex">
+
+                    <div className="flex flex-col items-center justify-center text-center w-full rounded-2xl border-2 border-dashed border-white/40 bg-slate-800/40 p-4">
+
+                        <p className="font-black text-white text-lg">
                             Seu workspace está vazio
                         </p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                            Clique em <span className="font-black">Adicionar widget</span> para montar do seu jeito.
-                        </p>
-                    </div>
-                )}
 
-                {/* Widgets grid */}
-                {widgets.length > 0 && (
+                        <p className="text-sm text-slate-300 mt-2 max-w-md">
+                            Clique em{" "}
+                            <span className="font-black text-white">
+                                Adicionar widget
+                            </span>{" "}
+                            para montar do seu jeito.
+                        </p>
+
+                    </div>
+
+                </div>
+            )}
+
+
+            {/* GRID DE WIDGETS */}
+
+            {widgets.length > 0 && (
+                <div className="mt-4">
+
                     <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
                         onDragEnd={handleDragEnd}
                     >
+
                         <SortableContext items={ids} strategy={rectSortingStrategy}>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
                                 {widgets.map((w) => (
                                     <SortableWidgetCard
                                         key={w.id}
@@ -880,44 +938,57 @@ export default function Workspace({ user }) {
                                         <WidgetContent widget={w} user={user} />
                                     </SortableWidgetCard>
                                 ))}
-                            </div>
-                        </SortableContext>
-                    </DndContext>
-                )}
-            </div>
 
-            {/* Widget Picker modal */}
+                            </div>
+
+                        </SortableContext>
+
+                    </DndContext>
+
+                </div>
+            )}
+
+
+            {/* MODAL ADICIONAR WIDGET */}
+
             {pickerOpen && (
                 <div
                     className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4"
                     onClick={() => setPickerOpen(false)}
                 >
                     <div
-                        className="w-full max-w-xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6"
+                        className="w-full max-w-xl rounded-3xl bg-[#05112b] border border-slate-800 shadow-2xl p-6"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <p className="text-xl font-black text-slate-900 dark:text-white">
+
+                        <p className="text-xl font-black text-white">
                             Adicionar widget
                         </p>
-                        <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
+
+                        <p className="text-sm text-slate-400 mt-1">
                             Selecione um bloco para colocar no workspace.
                         </p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+
                             {WIDGET_LIBRARY.map((w) => {
+
                                 const Icon = w.icon;
+
                                 return (
                                     <button
                                         key={w.type}
                                         onClick={() => toggleSelectType(w.type)}
                                         className={`text-left rounded-2xl border p-4 transition-all cursor-pointer ${selectedTypes.includes(w.type)
-                                            ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30"
-                                            : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            ? "border-cyan-500 bg-cyan-500/10"
+                                            : "border-slate-800 bg-white/[0.03] hover:bg-white/[0.05]"
                                             }`}
                                     >
+
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                                <Icon size={18} className="text-cyan-600 dark:text-cyan-400" />
+
+                                            <div className="p-2 rounded-xl bg-[#081735] border border-slate-800">
+                                                <Icon size={18} className="text-cyan-400" />
                                             </div>
 
                                             {selectedTypes.includes(w.type) && (
@@ -927,20 +998,27 @@ export default function Workspace({ user }) {
                                             )}
 
                                             <div className="flex-1">
-                                                <p className="font-black text-slate-900 dark:text-white text-sm">
+
+                                                <p className="font-black text-white text-sm">
                                                     {w.title}
                                                 </p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">
+
+                                                <p className="text-xs text-slate-400 mt-0.5">
                                                     {w.description}
                                                 </p>
+
                                             </div>
+
                                         </div>
+
                                     </button>
                                 );
                             })}
+
                         </div>
 
                         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+
                             <button
                                 onClick={addSelectedWidgets}
                                 disabled={selectedTypes.length === 0}
@@ -948,16 +1026,22 @@ export default function Workspace({ user }) {
                             >
                                 Adicionar selecionados ({selectedTypes.length})
                             </button>
+
                             <button
-                                onClick={() => { setSelectedTypes([]); setPickerOpen(false); }}
-                                className="w-full py-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-black hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                                onClick={() => {
+                                    setSelectedTypes([]);
+                                    setPickerOpen(false);
+                                }}
+                                className="w-full py-3 rounded-2xl border border-slate-800 text-slate-200 font-black hover:bg-white/[0.04] cursor-pointer"
                             >
                                 Fechar
                             </button>
+
                         </div>
+
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }

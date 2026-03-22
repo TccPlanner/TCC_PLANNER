@@ -8,6 +8,7 @@ import {
     History,
     Clock3,
     X,
+    Timer,
 } from "lucide-react";
 
 import { supabase } from "../supabaseClient";
@@ -287,10 +288,9 @@ const DuracaoModal = ({ valorInicial, onClose, onSave }) => {
    COMPONENTE PRINCIPAL
 ============================ */
 const EstudarAgora = ({ user }) => {
-    const [abaAtiva, setAbaAtiva] = useState("cronometro"); // manual | cronometro
+    const [abaAtiva, setAbaAtiva] = useState("cronometro");
     const [loading, setLoading] = useState(false);
 
-    // Inputs gerais
     const [materia, setMateria] = useState("");
     const [conteudo, setConteudo] = useState("");
     const [tipoEstudo, setTipoEstudo] = useState("Teoria");
@@ -300,11 +300,8 @@ const EstudarAgora = ({ user }) => {
     const buscarSugestoesConteudo = async () => {
         if (!user?.id) return;
 
-        // Se você tiver materiaNome no seu cronômetro:
         const materiaAtual = (materia || "").trim();
 
-        // 1) tenta puxar da tabela materia_conteudos usando o nome da matéria
-        // primeiro precisamos achar a matéria no banco
         if (materiaAtual) {
             const { data: matData, error: matErr } = await supabase
                 .from("materias")
@@ -331,7 +328,6 @@ const EstudarAgora = ({ user }) => {
             }
         }
 
-        // 2) fallback: pega conteúdos recentes digitados nas sessões
         const { data: ultimos } = await supabase
             .from("sessoes_estudo")
             .select("conteudo")
@@ -339,7 +335,6 @@ const EstudarAgora = ({ user }) => {
             .order("inicio_em", { ascending: false })
             .limit(20);
 
-        // remove repetidos
         const unicos = [];
         const seen = new Set();
         (ultimos || []).forEach((u) => {
@@ -354,20 +349,15 @@ const EstudarAgora = ({ user }) => {
         setConteudoSugestoes(unicos.slice(0, 8));
     };
 
-
-    // ✅ Matérias recentes (dropdown ao clicar)
     const [materiasRecentes, setMateriasRecentes] = useState([]);
     const [mostrarSugestoesMateria, setMostrarSugestoesMateria] = useState(false);
-    const [materiaBusca, setMateriaBusca] = useState(""); // usado para filtrar sugestões
+    const [materiaBusca, setMateriaBusca] = useState("");
     const blurMateriaTimeoutRef = useRef(null);
     const [conteudoSugestoes, setConteudoSugestoes] = useState([]);
     const [showSugestoesConteudo, setShowSugestoesConteudo] = useState(false);
     const [conteudoBusca, setConteudoBusca] = useState("");
     const blurConteudoTimeoutRef = useRef(null);
 
-
-
-    // Revisões
     const [agendarRevisao, setAgendarRevisao] = useState(false);
     const revisoesPreset = useMemo(
         () => [
@@ -381,10 +371,8 @@ const EstudarAgora = ({ user }) => {
     );
     const [revisoesSelecionadas, setRevisoesSelecionadas] = useState([1]);
 
-    // Questões
     const [questoes, setQuestoes] = useState({ feitas: 0, acertos: 0, erros: 0 });
 
-    // Manual
     const hojeISO = useMemo(() => new Date().toISOString().split("T")[0], []);
     const agoraHHMM = useMemo(() => {
         const d = new Date();
@@ -393,11 +381,9 @@ const EstudarAgora = ({ user }) => {
     const [dataInicio, setDataInicio] = useState(hojeISO);
     const [horaInicio, setHoraInicio] = useState(agoraHHMM);
 
-    // Modal duração manual
     const [duracaoModalAberto, setDuracaoModalAberto] = useState(false);
     const [duracaoManual, setDuracaoManual] = useState({ h: 0, m: 0, s: 0 });
 
-    // Cronômetro
     const [segundos, setSegundos] = useState(0);
     const [ativo, setAtivo] = useState(false);
     const [inicioCronometroEm, setInicioCronometroEm] = useState(null);
@@ -407,35 +393,28 @@ const EstudarAgora = ({ user }) => {
         [user?.id]
     );
 
-    // Alarmes (configs)
-    const [alarmeTipo, setAlarmeTipo] = useState("nenhum"); // nenhum | duracao | horario
+    const [alarmeTipo, setAlarmeTipo] = useState("nenhum");
     const [alarmeDuracaoMin, setAlarmeDuracaoMin] = useState("30");
     const [alarmeHorario, setAlarmeHorario] = useState(agoraHHMM);
 
-    // Alarmes ativos e concluídos
     const [alarmesAtivos, setAlarmesAtivos] = useState([]);
     const [alarmesConcluidos, setAlarmesConcluidos] = useState([]);
 
-    // timeouts apenas para alarmes POR HORÁRIO (para continuar mesmo pausado)
     const alarmesTimeoutsRef = useRef(new Map());
 
-    // Últimas atividades
     const [ultimasAtividades, setUltimasAtividades] = useState([]);
 
-    // Modal detalhes atividade
     const [atividadeSelecionada, setAtividadeSelecionada] = useState(null);
     const [modalAtividadeOpen, setModalAtividadeOpen] = useState(false);
 
-    // Modal Central
     const [modalCentral, setModalCentral] = useState({
         open: false,
         title: "",
         message: "",
-        variant: "info", // info | alarm
+        variant: "info",
         actions: [],
     });
 
-    // Toast
     const [toast, setToast] = useState({ show: false, title: "", message: "" });
     const toastTimer = useRef(null);
 
@@ -447,7 +426,6 @@ const EstudarAgora = ({ user }) => {
         }, 4500);
     };
 
-    /* ========= NOTIFICAÇÕES ========= */
     const suporteNotificacao = typeof window !== "undefined" && "Notification" in window;
 
     const pedirPermissaoNotificacao = async () => {
@@ -499,7 +477,6 @@ const EstudarAgora = ({ user }) => {
         }
     };
 
-    /* ========= HELPERS ========= */
     const formatarTempo = (s) => {
         const total = Math.max(0, Number(s || 0));
         const h = Math.floor(total / 3600);
@@ -531,26 +508,28 @@ const EstudarAgora = ({ user }) => {
         return h * 3600 + m * 60 + s;
     };
 
-    // soma das durações dos alarmes concluídos
     const totalAlarmesConcluidosSeg = useMemo(() => {
         return alarmesConcluidos.reduce((acc, a) => acc + (Number(a.duracaoSegundos) || 0), 0);
     }, [alarmesConcluidos]);
 
-    // ✅ total que será salvo (prévia)
+    const totalAlarmesExtrasSeg = useMemo(() => {
+        return alarmesConcluidos.reduce((acc, a) => {
+            if (a?.duplicadoComCronometro) return acc;
+            return acc + (Number(a.duracaoSegundos) || 0);
+        }, 0);
+    }, [alarmesConcluidos]);
+
     const duracaoTotalParaSalvar = useMemo(() => {
         if (abaAtiva === "manual") return duracaoManualEmSegundos();
-        if (segundos > 0) return segundos;
-        return totalAlarmesConcluidosSeg;
-    }, [abaAtiva, segundos, totalAlarmesConcluidosSeg]);
+        return segundos + totalAlarmesExtrasSeg;
+    }, [abaAtiva, segundos, totalAlarmesExtrasSeg]);
 
-    /* ========= CRONÔMETRO ========= */
     useEffect(() => {
         if (showSugestoesConteudo) {
             buscarSugestoesConteudo();
         }
         // eslint-disable-next-line
     }, [showSugestoesConteudo, materia]);
-
 
     const ultimoTickMsRef = useRef(null);
 
@@ -632,25 +611,18 @@ const EstudarAgora = ({ user }) => {
     };
 
     const iniciarOuPausar = () => {
-        if (!ativo && segundos === 0 && !inicioCronometroEm) setInicioCronometroEm(new Date().toISOString());
+        if (!ativo && segundos === 0 && !inicioCronometroEm) {
+            setInicioCronometroEm(new Date().toISOString());
+        }
         setAtivo((v) => !v);
     };
 
-    /* =========================================================
-       ✅ RESET: NÃO APAGA ALARMES CONFIGURADOS
-       - reseta apenas o cronômetro
-       - mantém alarmes ativos visíveis
-       - recalibra alarmes de duração para reiniciarem do zero
-       - NÃO mexe nos timeouts de horário (continuam existindo)
-    ========================================================== */
     const resetarCronometro = () => {
         setSegundos(0);
         setAtivo(false);
         setInicioCronometroEm(null);
         ultimoTickMsRef.current = null;
 
-        // ✅ NÃO remove alarmes ativos
-        // ✅ Apenas reinicia "duração" para contar do zero de novo
         setAlarmesAtivos((prev) =>
             prev.map((a) => {
                 if (a.tipo === "duracao") {
@@ -660,19 +632,14 @@ const EstudarAgora = ({ user }) => {
                         remaining: a.targetSeconds,
                     };
                 }
-                // horário continua como está (fireAt permanece)
                 return a;
             })
         );
-
-        // NÃO apaga concluídos (pra você poder salvar só eles)
     };
 
-    /* ========= ALARMES: add/remove ========= */
     const removerAlarmeAtivo = (id) => {
         setAlarmesAtivos((prev) => prev.filter((a) => a.id !== id));
 
-        // só existe timeout para alarme por horário
         const timeout = alarmesTimeoutsRef.current.get(id);
         if (timeout) {
             clearTimeout(timeout);
@@ -685,13 +652,12 @@ const EstudarAgora = ({ user }) => {
         showToast("⛔ Alarme cancelado", "O alarme foi removido.");
     };
 
-    /* ========= ALARMES CONCLUÍDOS: excluir (com confirmação) ========= */
     const confirmarExcluirAlarmeConcluido = (id) => {
         setModalCentral({
             open: true,
             variant: "info",
             title: "Excluir alarme concluído?",
-            message: "Tem certeza que deseja excluir este alarme concluído? O tempo será subtraído do cronômetro e do total a salvar.",
+            message: "Tem certeza que deseja excluir este alarme concluído? O tempo desse alarme será removido apenas do total salvo.",
             actions: [
                 {
                     label: "Cancelar",
@@ -702,33 +668,23 @@ const EstudarAgora = ({ user }) => {
                     label: "Excluir",
                     kind: "danger",
                     onClick: () => {
-                        const alarme = alarmesConcluidos.find((a) => a.id === id);
-                        const tempo = Number(alarme?.duracaoSegundos || 0);
-
-                        // ✅ subtrai do cronômetro
-                        setSegundos((s) => Math.max(0, s - tempo));
-
-                        // remove da lista
                         setAlarmesConcluidos((prev) => prev.filter((a) => a.id !== id));
 
                         setModalCentral((m) => ({ ...m, open: false }));
-                        showToast("🗑️ Excluído", "O alarme concluído foi removido e o tempo foi subtraído.");
+                        showToast("🗑️ Excluído", "O alarme concluído foi removido do total a salvar.");
                     },
                 },
             ],
         });
     };
 
-    /* ========= ALARME: DISPARO ========= */
     const dispararAlarme = (alarmeData, duracaoConcluidaSeg) => {
         playBeep();
         vibrar();
         dispararNotificacao();
 
-        // ✅ pausa o cronômetro, mas NÃO zera
         setAtivo(false);
 
-        // ✅ adiciona concluído COM duração
         setAlarmesConcluidos((prev) => [
             ...prev,
             {
@@ -736,6 +692,7 @@ const EstudarAgora = ({ user }) => {
                 tipo: alarmeData?.tipo,
                 label: alarmeData?.label || "Alarme concluído",
                 duracaoSegundos: Math.max(0, Number(duracaoConcluidaSeg || 0)),
+                duplicadoComCronometro: !!alarmeData?.autoStartedCronometro,
                 firedAt: Date.now(),
             },
         ]);
@@ -767,19 +724,12 @@ const EstudarAgora = ({ user }) => {
         return false;
     };
 
-    /* =========================================================
-       ✅ CRIAR ALARME ATIVO
-       REGRA NOVA:
-       - Só liga automaticamente se o cronômetro NUNCA foi iniciado.
-       - Se você deu pause manualmente, NÃO dá play sozinho.
-    ========================================================== */
     const criarAlarmeAtivo = async () => {
         if (alarmeTipo === "nenhum") {
             showToast("Selecione um tipo", "Escolha 'Por duração' ou 'Por horário'.");
             return;
         }
 
-        // ✅ Auto-play SOMENTE se nunca iniciou (parado desde sempre)
         const cronometroNuncaIniciado =
             !inicioCronometroEm && segundosRef.current === 0 && !ativo;
 
@@ -810,6 +760,7 @@ const EstudarAgora = ({ user }) => {
                 targetSeconds: alvoSeg,
                 startSeconds: segundosRef.current,
                 remaining: alvoSeg,
+                autoStartedCronometro: cronometroNuncaIniciado,
             };
 
             setAlarmesAtivos((prev) => [...prev, alarmeData]);
@@ -839,13 +790,14 @@ const EstudarAgora = ({ user }) => {
                 label: `Horário • ${alarmeHorario}`,
                 fireAt,
                 remaining: Math.ceil(ms / 1000),
+                autoStartedCronometro: cronometroNuncaIniciado,
+                duracaoSegundos: Math.ceil(ms / 1000),
             };
 
             setAlarmesAtivos((prev) => [...prev, alarmeData]);
 
-            // ✅ por horário: continua regressiva mesmo com cronômetro pausado
             const t = setTimeout(() => {
-                dispararAlarme(alarmeData, segundosRef.current);
+                dispararAlarme(alarmeData, alarmeData.duracaoSegundos);
                 removerAlarmeAtivo(id);
             }, ms);
 
@@ -855,7 +807,6 @@ const EstudarAgora = ({ user }) => {
         }
     };
 
-    /* ========= COUNTDOWN (UI) ========= */
     useEffect(() => {
         if (alarmesAtivos.length === 0) return;
 
@@ -880,7 +831,6 @@ const EstudarAgora = ({ user }) => {
         return () => clearInterval(interval);
     }, [alarmesAtivos.length]);
 
-    /* ========= DISPARO POR DURAÇÃO ========= */
     useEffect(() => {
         const duracaoAlarmes = alarmesAtivos.filter((a) => a.tipo === "duracao");
         if (duracaoAlarmes.length === 0) return;
@@ -898,7 +848,6 @@ const EstudarAgora = ({ user }) => {
         // eslint-disable-next-line
     }, [segundos, alarmesAtivos]);
 
-    /* ========= QUESTÕES: validação ========= */
     const setFeitas = (val) => {
         const feitas = Math.max(0, Number(val || 0));
         let acertos = Number(questoes.acertos || 0);
@@ -933,7 +882,6 @@ const EstudarAgora = ({ user }) => {
         setQuestoes({ ...questoes, erros: errosClamped, acertos });
     };
 
-    /* ========= REVISÕES ========= */
     const alternarDiaRevisao = (days) => {
         setRevisoesSelecionadas((atual) => {
             if (atual.includes(days)) {
@@ -945,7 +893,6 @@ const EstudarAgora = ({ user }) => {
     };
 
     const mapTipoRevisao = (tipo) => {
-        // AgendaRevisoes usa: Teoria | Questões | Simulado
         if (tipo === "Exercícios") return "Questões";
         if (tipo === "Simulado") return "Simulado";
         return "Teoria";
@@ -972,8 +919,6 @@ const EstudarAgora = ({ user }) => {
         if (error) showToast("Erro ao agendar", error.message);
     };
 
-
-    /* ========= SUPABASE: últimas atividades ========= */
     const buscarUltimasAtividades = async () => {
         const { data, error } = await supabase
             .from("sessoes_estudo")
@@ -984,7 +929,7 @@ const EstudarAgora = ({ user }) => {
 
         if (!error && data) setUltimasAtividades(data);
     };
-    // ✅ Matérias recentes: pega do histórico (últimas que você digitou)
+
     const buscarMateriasRecentes = async () => {
         try {
             const { data, error } = await supabase
@@ -1009,12 +954,8 @@ const EstudarAgora = ({ user }) => {
             });
 
             setMateriasRecentes(unicas.slice(0, 12));
-        } catch (e) {
-            // silencioso
-        }
+        } catch (e) { }
     };
-
-
 
     useEffect(() => {
         buscarUltimasAtividades();
@@ -1022,7 +963,6 @@ const EstudarAgora = ({ user }) => {
         // eslint-disable-next-line
     }, []);
 
-    /* ========= SALVAR SESSÃO ========= */
     const salvarSessao = async () => {
         if (!materia.trim()) {
             setModalCentral({
@@ -1031,7 +971,11 @@ const EstudarAgora = ({ user }) => {
                 title: "Faltou matéria",
                 message: "Defina uma matéria antes de salvar.",
                 actions: [
-                    { label: "Entendi", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) },
+                    {
+                        label: "Entendi",
+                        kind: "primary",
+                        onClick: () => setModalCentral((m) => ({ ...m, open: false })),
+                    },
                 ],
             });
             return;
@@ -1049,7 +993,11 @@ const EstudarAgora = ({ user }) => {
                     title: "Números inconsistentes",
                     message: "Acertos/Erros não podem ultrapassar Questões feitas.",
                     actions: [
-                        { label: "Ok", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) },
+                        {
+                            label: "Ok",
+                            kind: "primary",
+                            onClick: () => setModalCentral((m) => ({ ...m, open: false })),
+                        },
                     ],
                 });
                 return;
@@ -1069,13 +1017,11 @@ const EstudarAgora = ({ user }) => {
                 duracao_segundos = duracaoManualEmSegundos();
             } else {
                 inicio_em_iso = inicioCronometroEm ?? new Date().toISOString();
-
-                duracao_segundos = segundos > 0 ? segundos : totalAlarmesConcluidosSeg;
+                duracao_segundos = duracaoTotalParaSalvar;
             }
 
             const duracao_hms = formatarTempo(duracao_segundos);
 
-            // ✅ NÃO salva se não marcou tempo nenhum
             if (duracao_segundos <= 0) {
                 setLoading(false);
 
@@ -1089,14 +1035,12 @@ const EstudarAgora = ({ user }) => {
                         {
                             label: "Entendi",
                             kind: "primary",
-                            onClick: () =>
-                                setModalCentral((m) => ({ ...m, open: false })),
+                            onClick: () => setModalCentral((m) => ({ ...m, open: false })),
                         },
                     ],
                 });
                 return;
             }
-
 
             const payload = {
                 user_id: user.id,
@@ -1134,29 +1078,30 @@ const EstudarAgora = ({ user }) => {
                     title: "Erro ao salvar",
                     message: error.message,
                     actions: [
-                        { label: "Ok", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) },
+                        {
+                            label: "Ok",
+                            kind: "primary",
+                            onClick: () => setModalCentral((m) => ({ ...m, open: false })),
+                        },
                     ],
                 });
                 return;
             }
-            // ✅ GARANTIR que Matérias e Conteúdos existam (para aba Matérias preencher automaticamente)
-            // ✅ GARANTIR que Matérias e Conteúdos existam (para aba Matérias preencher automaticamente)
+
             const materiaNome = (materia || "").trim();
             const conteudoNome = (conteudo || "").trim();
 
-            // Paleta de cores (cada matéria nova ganha uma diferente)
             const PALETA_CORES = [
-                "#ef4444", // vermelho
-                "#3b82f6", // azul
-                "#22c55e", // verde
-                "#facc15", // amarelo
-                "#a855f7", // roxo
-                "#fb923c", // laranja
-                "#94a3b8", // cinza
-                "#ec4899", // rosa
+                "#ef4444",
+                "#3b82f6",
+                "#22c55e",
+                "#facc15",
+                "#a855f7",
+                "#fb923c",
+                "#94a3b8",
+                "#ec4899",
             ];
 
-            // Gera cor estável pelo nome, mas tenta evitar repetir cor já usada
             const gerarCorParaMateria = (nome, coresUsadas) => {
                 let hash = 0;
                 for (let i = 0; i < nome.length; i++) {
@@ -1165,7 +1110,6 @@ const EstudarAgora = ({ user }) => {
 
                 let cor = PALETA_CORES[hash % PALETA_CORES.length];
 
-                // Se já tiver sendo usada, tenta pegar outra livre
                 if (coresUsadas.includes(cor)) {
                     const livre = PALETA_CORES.find((c) => !coresUsadas.includes(c));
                     if (livre) cor = livre;
@@ -1174,8 +1118,7 @@ const EstudarAgora = ({ user }) => {
                 return cor;
             };
 
-            // 1) ver se matéria já existe
-            const { data: materiaExistente, error: errFindMat } = await supabase
+            const { data: materiaExistente } = await supabase
                 .from("materias")
                 .select("id, nome, cor_hex")
                 .eq("user_id", user.id)
@@ -1184,9 +1127,7 @@ const EstudarAgora = ({ user }) => {
 
             let materiaRowFinal = materiaExistente;
 
-            // 2) se não existe, cria com uma cor automática diferente
             if (!materiaExistente) {
-                // pega cores já usadas pelo usuário
                 const { data: matsCores } = await supabase
                     .from("materias")
                     .select("cor_hex")
@@ -1213,7 +1154,6 @@ const EstudarAgora = ({ user }) => {
                 if (!errInsert) materiaRowFinal = criada;
             }
 
-            // 3) adiciona conteúdo se tiver
             if (materiaRowFinal?.id && conteudoNome) {
                 await supabase
                     .from("materia_conteudos")
@@ -1221,7 +1161,7 @@ const EstudarAgora = ({ user }) => {
                         [
                             {
                                 user_id: user.id,
-                                materia_id: materiaRowFinal.id, // bigint ✅
+                                materia_id: materiaRowFinal.id,
                                 titulo: conteudoNome,
                             },
                         ],
@@ -1229,8 +1169,6 @@ const EstudarAgora = ({ user }) => {
                     );
             }
 
-
-            // ✅ Se marcou agendar revisão, cria revisões completas para aparecer em Revisões + Calendário
             if (agendarRevisao) {
                 const meta =
                     tipoEstudo === "Exercícios" || tipoEstudo === "Simulado"
@@ -1246,8 +1184,13 @@ const EstudarAgora = ({ user }) => {
                 variant: "info",
                 title: "✅ Atividade registrada!",
                 message: `📚 ${materiaNome}${conteudoNome ? ` — ${conteudoNome}` : ""}\n⏱️ ${formatarTempo(duracao_segundos)} registrado com sucesso.`,
-
-                actions: [{ label: "Fechar", kind: "primary", onClick: () => setModalCentral((m) => ({ ...m, open: false })) }],
+                actions: [
+                    {
+                        label: "Fechar",
+                        kind: "primary",
+                        onClick: () => setModalCentral((m) => ({ ...m, open: false })),
+                    },
+                ],
             });
 
             setMateria("");
@@ -1305,6 +1248,22 @@ const EstudarAgora = ({ user }) => {
                 </div>
             )}
 
+            {/* Header padronizado */}
+            <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+                    <Timer className="h-6 w-6" />
+                </div>
+
+                <div>
+                    <p className="text-2xl font-black text-white leading-tight">
+                        Estudar agora
+                    </p>
+                    <p className="text-sm text-cyan-100">
+                        Registre sessões, controle o tempo e acompanhe suas atividades
+                    </p>
+                </div>
+            </div>
+
             {/* Tabs */}
             <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-2xl shadow-inner">
                 <button
@@ -1326,7 +1285,6 @@ const EstudarAgora = ({ user }) => {
 
             {/* Card */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xl">
-                {/* Inputs Base */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="relative">
                         <input
@@ -1344,7 +1302,6 @@ const EstudarAgora = ({ user }) => {
                                 setMostrarSugestoesMateria(true);
                             }}
                             onBlur={() => {
-                                // dá tempo de clicar na sugestão sem fechar antes
                                 blurMateriaTimeoutRef.current = setTimeout(() => {
                                     setMostrarSugestoesMateria(false);
                                 }, 150);
@@ -1384,7 +1341,6 @@ const EstudarAgora = ({ user }) => {
                             </div>
                         )}
                     </div>
-
 
                     <div className="relative">
                         <input
@@ -1441,7 +1397,6 @@ const EstudarAgora = ({ user }) => {
                             </div>
                         )}
                     </div>
-
 
                     <select
                         value={tipoEstudo}
@@ -1556,7 +1511,6 @@ const EstudarAgora = ({ user }) => {
                             {formatarTempo(segundos)}
                         </div>
 
-                        {/* ✅ Total a salvar */}
                         <div className="text-xs font-black text-slate-600 dark:text-slate-300 text-center">
                             <span className="text-slate-500 dark:text-slate-400">Total a salvar: </span>
                             <span className="text-indigo-600 dark:text-indigo-400 font-mono">
@@ -1585,7 +1539,6 @@ const EstudarAgora = ({ user }) => {
                             </button>
                         </div>
 
-                        {/* ✅ Alarmes */}
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 p-4 space-y-3">
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-black flex items-center gap-2 text-slate-800 dark:text-slate-100">
@@ -1595,9 +1548,7 @@ const EstudarAgora = ({ user }) => {
                                 <select
                                     value={alarmeTipo}
                                     onChange={(e) => setAlarmeTipo(e.target.value)}
-                                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700
-                  bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100
-                  text-sm font-black outline-none cursor-pointer"
+                                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm font-black outline-none cursor-pointer"
                                 >
                                     <option value="nenhum">Nenhum</option>
                                     <option value="duracao">Por duração</option>
@@ -1612,9 +1563,7 @@ const EstudarAgora = ({ user }) => {
                                     <select
                                         value={alarmeDuracaoMin}
                                         onChange={(e) => setAlarmeDuracaoMin(e.target.value)}
-                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700
-                    bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100
-                    text-sm font-black outline-none cursor-pointer"
+                                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm font-black outline-none cursor-pointer"
                                     >
                                         <option value="15">15 min</option>
                                         <option value="30">30 min</option>
@@ -1650,7 +1599,6 @@ const EstudarAgora = ({ user }) => {
                                 </button>
                             )}
 
-                            {/* Alarmes ativos */}
                             {alarmesAtivos.length > 0 && (
                                 <div className="mt-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 space-y-2">
                                     <p className="text-xs font-black text-slate-700 dark:text-slate-200">Alarmes ativos</p>
@@ -1679,7 +1627,6 @@ const EstudarAgora = ({ user }) => {
                                 </div>
                             )}
 
-                            {/* Alarmes concluídos */}
                             {alarmesConcluidos.length > 0 && (
                                 <div className="mt-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/20 p-3 space-y-2">
                                     <p className="text-xs font-black text-emerald-700 dark:text-emerald-200">Alarmes concluídos</p>
@@ -1711,7 +1658,6 @@ const EstudarAgora = ({ user }) => {
                     </div>
                 )}
 
-                {/* Questões */}
                 {(tipoEstudo === "Exercícios" || tipoEstudo === "Simulado") && (
                     <div className="rounded-2xl border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50 dark:bg-indigo-950/20 p-4 space-y-3">
                         <div className="grid grid-cols-3 gap-3 text-xs font-black text-slate-700 dark:text-slate-200">
@@ -1746,7 +1692,6 @@ const EstudarAgora = ({ user }) => {
                     </div>
                 )}
 
-                {/* Anotações */}
                 <textarea
                     placeholder="Anotações..."
                     value={anotacao}
@@ -1754,7 +1699,6 @@ const EstudarAgora = ({ user }) => {
                     className="w-full p-4 h-24 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white"
                 />
 
-                {/* Revisões */}
                 <div className="space-y-3">
                     <button
                         onClick={() => setAgendarRevisao((v) => !v)}
@@ -1762,7 +1706,7 @@ const EstudarAgora = ({ user }) => {
                             }`}
                     >
                         <Calendar size={16} className="text-indigo-600 dark:text-indigo-400" />
-                        {agendarRevisao ? "Revisões serão agendadas ✅" : "Agendar revisões (espaçadas)?"}
+                        {agendarRevisao ? "Revisões serão agendadas ✅" : "Agendar revisões espaçadas?"}
                     </button>
 
                     {agendarRevisao && (
@@ -1787,7 +1731,6 @@ const EstudarAgora = ({ user }) => {
                     )}
                 </div>
 
-                {/* Salvar */}
                 <button
                     onClick={() => salvarSessao()}
                     disabled={loading}

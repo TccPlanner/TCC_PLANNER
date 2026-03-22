@@ -5,6 +5,7 @@ import {
     Plus,
     Trash2,
     CheckCircle,
+    CheckSquare,
     Circle,
     Trophy,
     Calendar,
@@ -946,6 +947,21 @@ const GerenciadorTarefas = ({ user }) => {
 
     return (
         <div className="max-w-6xl mx-auto space-y-6 p-2 pb-24 font-sans text-slate-900 dark:text-slate-100">
+            <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+                    <CheckSquare className="h-6 w-6" />
+                </div>
+
+                <div>
+                    <p className="text-2xl font-black text-white leading-tight">
+                        Tarefas
+                    </p>
+                    <p className="text-sm text-cyan-100">
+                        Organize tarefas, subtarefas e acompanhe seu progresso
+                    </p>
+                </div>
+            </div>
+
             {/* Toggle (To-do / Estatísticas) */}
             <div className="bg-slate-900/90 dark:bg-slate-900 rounded-2xl p-2 flex items-center gap-2 shadow-lg border border-slate-800">
                 <button

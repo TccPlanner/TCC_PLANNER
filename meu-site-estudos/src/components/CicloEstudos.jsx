@@ -1,4 +1,3 @@
-// CicloEstudos.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import {
@@ -16,19 +15,11 @@ import {
     Layers,
     LayoutGrid,
     ListChecks,
+    Repeat,
 } from "lucide-react";
 
 /* =========================================================
   CicloEstudos
-  - Setup: cadastrar matérias, peso, meta, ordem (drag)
-  - Agora (Modelo Ciclo): indicador + timer + concluir bloco + etapas
-  - Agora (Modelo Quadro): trello (drag) + concluir + reiniciar ciclo
-  - Persistência: current_index / paused / remaining_seconds
-  - Extra:
-    - Meta total como duração (H/M/S) minimalista
-    - Zerar ciclos feitos (setup)
-    - Contagem de ciclos também no modelo quadro
-    - Timer mostra "feito agora" e "total feito" (HH:MM:SS) na matéria atual
 ========================================================= */
 
 function formatHM(min) {
@@ -51,45 +42,32 @@ function clamp(n, a, b) {
 }
 
 export default function CicloEstudos({ user }) {
-    const [abaInterna, setAbaInterna] = useState("agora"); // setup | agora
+    const [abaInterna, setAbaInterna] = useState("agora");
     const [loading, setLoading] = useState(false);
 
-    // modo do usuário: "ciclo" (modelo tipo app) ou "quadro" (trello)
-    const [modoAgora, setModoAgora] = useState("ciclo"); // ciclo | quadro
+    const [modoAgora, setModoAgora] = useState("ciclo");
 
-    // ciclo
     const [cycle, setCycle] = useState(null);
-
-    // matérias
     const [subjects, setSubjects] = useState([]);
 
-    // setup form (matéria)
     const [nomeMateria, setNomeMateria] = useState("");
     const [pesoMateria, setPesoMateria] = useState(1);
     const [metaMateria, setMetaMateria] = useState(60);
 
-    // config ciclo
     const [nomeCiclo, setNomeCiclo] = useState("Meu ciclo");
-
-    // (mantido para não quebrar nada; agora a meta vem da duração)
     const [metaCicloTotal, setMetaCicloTotal] = useState(180);
 
-    // duração (H/M/S) - UI minimalista
     const [metaHoras, setMetaHoras] = useState(3);
     const [metaMin, setMetaMin] = useState(0);
     const [metaSeg, setMetaSeg] = useState(0);
 
     const [blocoDefault, setBlocoDefault] = useState(25);
 
-    // timer
     const timerRef = useRef(null);
     const [running, setRunning] = useState(false);
     const [remainingSec, setRemainingSec] = useState(0);
 
-    // drag setup reorder
     const dragIndexRef = useRef(null);
-
-    // drag trello
     const dragSubjectIdRef = useRef(null);
 
     const currentSubject = useMemo(() => {
@@ -119,7 +97,6 @@ export default function CicloEstudos({ user }) {
         return Math.max(0, meta - feito);
     }, [cycle?.meta_minutos_total, totalFeitoMaterias]);
 
-    // === Timer: quanto vale o bloco em segundos ===
     const blocoSecTotal = useMemo(() => {
         return (cycle?.bloco_minutos_default || 25) * 60;
     }, [cycle?.bloco_minutos_default]);
@@ -139,7 +116,6 @@ export default function CicloEstudos({ user }) {
     const ensureCycle = async () => {
         if (!user?.id) return;
 
-        // 1) tenta pegar um ciclo do usuário
         const { data: cycles, error } = await supabase
             .from("study_cycles")
             .select("*")
@@ -153,7 +129,6 @@ export default function CicloEstudos({ user }) {
             return cycles[0];
         }
 
-        // 2) cria ciclo padrão
         const { data: created, error: err2 } = await supabase
             .from("study_cycles")
             .insert([
@@ -180,7 +155,6 @@ export default function CicloEstudos({ user }) {
             setLoading(true);
             if (!user?.id) return;
 
-            // modo salvo local
             const lsKey = `study_cycle_mode:${user.id}`;
             const savedMode = localStorage.getItem(lsKey);
             if (savedMode === "ciclo" || savedMode === "quadro") setModoAgora(savedMode);
@@ -192,7 +166,6 @@ export default function CicloEstudos({ user }) {
             setMetaCicloTotal(c.meta_minutos_total || 180);
             setBlocoDefault(c.bloco_minutos_default || 25);
 
-            // preencher duração a partir dos minutos (carregar bonito)
             const totalMin = Number(c.meta_minutos_total || 180);
             setMetaHoras(Math.floor(totalMin / 60));
             setMetaMin(totalMin % 60);
@@ -208,7 +181,6 @@ export default function CicloEstudos({ user }) {
             if (e2) throw e2;
             setSubjects(subs || []);
 
-            // timer: carregar estado persistido
             const persisted = c.current_remaining_seconds || 0;
             if (persisted > 0) setRemainingSec(persisted);
             else setRemainingSec((c.bloco_minutos_default || 25) * 60);
@@ -224,7 +196,6 @@ export default function CicloEstudos({ user }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
-    // salva modo local quando muda
     useEffect(() => {
         if (!user?.id) return;
         const lsKey = `study_cycle_mode:${user.id}`;
@@ -259,7 +230,6 @@ export default function CicloEstudos({ user }) {
         };
     }, [running]);
 
-    // Persistir remainingSec a cada 2s
     useEffect(() => {
         const t = setTimeout(async () => {
             if (!cycle?.id || !user?.id) return;
@@ -291,7 +261,6 @@ export default function CicloEstudos({ user }) {
             setLoading(true);
             if (!cycle?.id || !user?.id) return;
 
-            // ✅ converte horas/min/seg em minutos (salva no banco)
             const metaMinutosTotal =
                 Number(metaHoras || 0) * 60 +
                 Number(metaMin || 0) +
@@ -327,7 +296,11 @@ export default function CicloEstudos({ user }) {
             setLoading(true);
             if (!cycle?.id || !user?.id) return;
 
-            const [{ data, error }, { error: resetSubjectsError }, { error: deleteSessionsError }] = await Promise.all([
+            const [
+                { data, error },
+                { error: resetSubjectsError },
+                { error: deleteSessionsError },
+            ] = await Promise.all([
                 supabase
                     .from("study_cycles")
                     .update({ cycles_completed: 0 })
@@ -337,7 +310,7 @@ export default function CicloEstudos({ user }) {
                     .single(),
                 supabase
                     .from("study_cycle_subjects")
-                    .update({ minutos_feitos: 0 })
+                    .update({ minutos_feitos: 0, status: "estudar" })
                     .eq("cycle_id", cycle.id)
                     .eq("user_id", user.id),
                 supabase
@@ -352,7 +325,9 @@ export default function CicloEstudos({ user }) {
             }
 
             setCycle(data);
-            setSubjects((prev) => prev.map((s) => ({ ...s, minutos_feitos: 0 })));
+            setSubjects((prev) =>
+                prev.map((s) => ({ ...s, minutos_feitos: 0, status: "estudar" }))
+            );
         } finally {
             setLoading(false);
         }
@@ -399,10 +374,13 @@ export default function CicloEstudos({ user }) {
     const atualizarMateria = async (id, patch) => {
         if (!user?.id) return;
 
-        // otimista
         setSubjects((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
 
-        await supabase.from("study_cycle_subjects").update(patch).eq("id", id).eq("user_id", user.id);
+        await supabase
+            .from("study_cycle_subjects")
+            .update(patch)
+            .eq("id", id)
+            .eq("user_id", user.id);
     };
 
     const reorderSubjects = async (fromIndex, toIndex) => {
@@ -506,7 +484,8 @@ export default function CicloEstudos({ user }) {
             const novoFeito = (currentSubject.minutos_feitos || 0) + minutosParaSomar;
             await atualizarMateria(currentSubject.id, { minutos_feitos: novoFeito });
 
-            const nextIndex = subjects.length > 0 ? (cycle.current_index + 1) % subjects.length : 0;
+            const nextIndex =
+                subjects.length > 0 ? (cycle.current_index + 1) % subjects.length : 0;
             const resetSec = (cycle.bloco_minutos_default || 25) * 60;
 
             const { data: newCycle, error } = await supabase
@@ -538,22 +517,44 @@ export default function CicloEstudos({ user }) {
 
             const resetSec = (cycle.bloco_minutos_default || 25) * 60;
 
-            const { data, error } = await supabase
-                .from("study_cycles")
-                .update({
-                    cycles_completed: (cycle.cycles_completed || 0) + 1,
-                    current_index: 0,
-                    current_remaining_seconds: resetSec,
-                    is_paused: true,
-                })
-                .eq("id", cycle.id)
-                .eq("user_id", user.id)
-                .select("*")
-                .single();
+            const [
+                { data, error },
+                { error: resetSubjectsError },
+            ] = await Promise.all([
+                supabase
+                    .from("study_cycles")
+                    .update({
+                        cycles_completed: (cycle.cycles_completed || 0) + 1,
+                        current_index: 0,
+                        current_remaining_seconds: resetSec,
+                        is_paused: true,
+                    })
+                    .eq("id", cycle.id)
+                    .eq("user_id", user.id)
+                    .select("*")
+                    .single(),
+                supabase
+                    .from("study_cycle_subjects")
+                    .update({
+                        minutos_feitos: 0,
+                        status: "estudar",
+                    })
+                    .eq("cycle_id", cycle.id)
+                    .eq("user_id", user.id),
+            ]);
 
-            if (error) throw error;
+            if (error || resetSubjectsError) {
+                throw error || resetSubjectsError;
+            }
 
             setCycle(data);
+            setSubjects((prev) =>
+                prev.map((s) => ({
+                    ...s,
+                    minutos_feitos: 0,
+                    status: "estudar",
+                }))
+            );
             setRemainingSec(resetSec);
             setRunning(false);
         } finally {
@@ -562,13 +563,7 @@ export default function CicloEstudos({ user }) {
     };
 
     /* =========================
-       MODELO QUADRO (Trello)
-       - arrastar para concluída:
-          -> status concluida + minutos_feitos vira meta_minutos
-       - voltar para estudar:
-          -> desfaz progresso (minutos_feitos = 0)
-       - quando todas concluídas:
-          -> botão reiniciar ciclo (volta para estudar + zera minutos + incrementa cycles)
+       MODELO QUADRO
     ========================= */
     const dropToStatus = async (status) => {
         const id = dragSubjectIdRef.current;
@@ -578,7 +573,6 @@ export default function CicloEstudos({ user }) {
         const target = subjects.find((s) => s.id === id);
         if (!target) return;
 
-        // concluida -> estudar: desfaz progresso
         if (target.status === "concluida" && status === "estudar") {
             await atualizarMateria(id, {
                 status: "estudar",
@@ -587,10 +581,9 @@ export default function CicloEstudos({ user }) {
             return;
         }
 
-        // estudar -> concluida: marca e soma automaticamente
         if (target.status !== "concluida" && status === "concluida") {
             const meta = Number(target.meta_minutos || 0);
-            const novoFeito = meta > 0 ? meta : (target.minutos_feitos || 0);
+            const novoFeito = meta > 0 ? meta : target.minutos_feitos || 0;
 
             await atualizarMateria(id, {
                 status: "concluida",
@@ -607,7 +600,6 @@ export default function CicloEstudos({ user }) {
             setLoading(true);
             if (!user?.id || !cycle?.id) return;
 
-            // 1) voltar tudo para estudar + zerar minutos feitos
             for (const s of subjects) {
                 await supabase
                     .from("study_cycle_subjects")
@@ -619,7 +611,6 @@ export default function CicloEstudos({ user }) {
                     .eq("user_id", user.id);
             }
 
-            // 2) resetar ciclo + incrementar ciclos concluídos
             const resetSec = (cycle.bloco_minutos_default || 25) * 60;
 
             const { data, error } = await supabase
@@ -638,7 +629,9 @@ export default function CicloEstudos({ user }) {
             if (error) throw error;
 
             setCycle(data);
-            setSubjects((prev) => prev.map((x) => ({ ...x, status: "estudar", minutos_feitos: 0 })));
+            setSubjects((prev) =>
+                prev.map((x) => ({ ...x, status: "estudar", minutos_feitos: 0 }))
+            );
             setRemainingSec(resetSec);
             setRunning(false);
         } finally {
@@ -647,7 +640,10 @@ export default function CicloEstudos({ user }) {
     };
 
     const quadroTotal = subjects.length;
-    const quadroConcluidas = useMemo(() => subjects.filter((s) => s.status === "concluida").length, [subjects]);
+    const quadroConcluidas = useMemo(
+        () => subjects.filter((s) => s.status === "concluida").length,
+        [subjects]
+    );
     const quadroProgresso = useMemo(() => {
         if (quadroTotal <= 0) return 0;
         return Math.round((quadroConcluidas / quadroTotal) * 100);
@@ -658,22 +654,28 @@ export default function CicloEstudos({ user }) {
     ========================= */
     return (
         <div className="w-full">
-            {/* TOP BAR */}
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Ciclo de estudos</h2>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
-                        Configure seu ciclo e execute diariamente mantendo o ponto onde parou.
-                    </p>
+                <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+                        <Repeat className="h-6 w-6" />
+                    </div>
+
+                    <div>
+                        <p className="text-2xl font-black text-white leading-tight">
+                            Ciclo de estudos
+                        </p>
+                        <p className="text-sm text-cyan-100">
+                            Configure seu ciclo e acompanhe seu progresso
+                        </p>
+                    </div>
                 </div>
 
-                {/* Abas */}
                 <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
                     <button
                         onClick={() => setAbaInterna("setup")}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${abaInterna === "setup"
-                                ? "bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-white"
-                                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                            ? "bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-white"
+                            : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                             }`}
                     >
                         Configuração
@@ -681,8 +683,8 @@ export default function CicloEstudos({ user }) {
                     <button
                         onClick={() => setAbaInterna("agora")}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${abaInterna === "agora"
-                                ? "bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-white"
-                                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                            ? "bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-white"
+                            : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                             }`}
                     >
                         Agora
@@ -690,14 +692,10 @@ export default function CicloEstudos({ user }) {
                 </div>
             </div>
 
-            {/* GRID (conteúdo + estatísticas à direita) */}
             <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
-                {/* LEFT */}
                 <div className="space-y-6">
-                    {/* AGORA */}
                     {abaInterna === "agora" && (
                         <>
-                            {/* seletor de modelo (usuário escolhe) */}
                             <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                                     <div>
@@ -705,7 +703,7 @@ export default function CicloEstudos({ user }) {
                                             Escolha o modelo do “Agora”
                                         </div>
                                         <div className="text-xs text-slate-500 dark:text-slate-400">
-                                            Modelo Ciclo (com timer e etapas) ou Modelo Quadro (arrastar estilo Trello).
+                                            Modelo Ciclo com timer e etapas ou Modelo Quadro.
                                         </div>
                                     </div>
 
@@ -713,8 +711,8 @@ export default function CicloEstudos({ user }) {
                                         <button
                                             onClick={() => setModoAgora("ciclo")}
                                             className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${modoAgora === "ciclo"
-                                                    ? "bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-white"
-                                                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                                                ? "bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-white"
+                                                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                                                 }`}
                                         >
                                             <ListChecks size={16} />
@@ -723,8 +721,8 @@ export default function CicloEstudos({ user }) {
                                         <button
                                             onClick={() => setModoAgora("quadro")}
                                             className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${modoAgora === "quadro"
-                                                    ? "bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-white"
-                                                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                                                ? "bg-white dark:bg-slate-900 shadow text-slate-900 dark:text-white"
+                                                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                                                 }`}
                                         >
                                             <LayoutGrid size={16} />
@@ -734,14 +732,14 @@ export default function CicloEstudos({ user }) {
                                 </div>
                             </div>
 
-                            {/* MODELO CICLO */}
                             {modoAgora === "ciclo" && (
                                 <>
-                                    {/* Header progresso */}
                                     <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                                         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                                             <div>
-                                                <div className="text-5xl font-black tracking-tight">{progressoCiclo}%</div>
+                                                <div className="text-5xl font-black tracking-tight">
+                                                    {progressoCiclo}%
+                                                </div>
                                                 <div className="mt-1 text-slate-600 dark:text-slate-400 text-sm">
                                                     Progresso do ciclo
                                                 </div>
@@ -758,14 +756,15 @@ export default function CicloEstudos({ user }) {
                                         </div>
 
                                         <div className="mt-4 w-full h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                                            <div className="h-full bg-cyan-500 transition-all" style={{ width: `${progressoCiclo}%` }} />
+                                            <div
+                                                className="h-full bg-cyan-500 transition-all"
+                                                style={{ width: `${progressoCiclo}%` }}
+                                            />
                                         </div>
                                     </div>
 
-                                    {/* Matéria da vez + Timer */}
                                     <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                                         <div className="flex flex-col lg:flex-row justify-between gap-6">
-                                            {/* Indicador */}
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2 mb-2 text-slate-600 dark:text-slate-300">
                                                     <Layers size={18} />
@@ -779,7 +778,8 @@ export default function CicloEstudos({ user }) {
 
                                                     <div>
                                                         <div className="text-xl font-bold">
-                                                            {currentSubject?.nome || "Nenhuma matéria cadastrada"}
+                                                            {currentSubject?.nome ||
+                                                                "Nenhuma matéria cadastrada"}
                                                         </div>
                                                         <div className="text-sm text-slate-600 dark:text-slate-400">
                                                             Peso: {currentSubject?.peso ?? "-"} • Meta:{" "}
@@ -788,11 +788,10 @@ export default function CicloEstudos({ user }) {
                                                     </div>
                                                 </div>
 
-                                                {/* ✅ progresso ao vivo em HH:MM:SS */}
                                                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-3">
                                                         <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
-                                                            Feito agora (bloco)
+                                                            Feito agora
                                                         </div>
                                                         <div className="text-lg font-black text-slate-900 dark:text-white">
                                                             {formatHMS(running ? feitoAgoraSec : 0)}
@@ -810,11 +809,10 @@ export default function CicloEstudos({ user }) {
                                                 </div>
 
                                                 <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                                                    ✅ O ciclo salva automaticamente onde você parou (matéria e tempo).
+                                                    O ciclo salva automaticamente onde você parou.
                                                 </div>
                                             </div>
 
-                                            {/* Timer box */}
                                             <div className="w-full lg:w-[320px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-5">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-semibold">
@@ -826,14 +824,16 @@ export default function CicloEstudos({ user }) {
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-3 text-4xl font-black tracking-tight">{displayTime}</div>
+                                                <div className="mt-3 text-4xl font-black tracking-tight">
+                                                    {displayTime}
+                                                </div>
 
                                                 <div className="mt-4 flex gap-2">
                                                     <button
                                                         onClick={pausarOuRetomar}
                                                         className={`flex-1 rounded-xl px-4 py-3 font-semibold transition-all flex items-center justify-center gap-2 ${running
-                                                                ? "bg-amber-500 text-white hover:bg-amber-600"
-                                                                : "bg-cyan-600 text-white hover:bg-cyan-700"
+                                                            ? "bg-amber-500 text-white hover:bg-amber-600"
+                                                            : "bg-cyan-600 text-white hover:bg-cyan-700"
                                                             }`}
                                                     >
                                                         {running ? <Pause size={18} /> : <Play size={18} />}
@@ -860,7 +860,6 @@ export default function CicloEstudos({ user }) {
                                         </div>
                                     </div>
 
-                                    {/* Etapas */}
                                     <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="text-lg font-bold">Etapas</div>
@@ -876,19 +875,31 @@ export default function CicloEstudos({ user }) {
                                         ) : (
                                             <div className="space-y-3">
                                                 {subjects.map((s, idx) => {
-                                                    const isCurrent = idx === (cycle?.current_index ?? 0);
+                                                    const isCurrent =
+                                                        idx === (cycle?.current_index ?? 0);
                                                     const perc = s.meta_minutos
-                                                        ? Math.min(100, Math.round(((s.minutos_feitos || 0) / s.meta_minutos) * 100))
+                                                        ? Math.min(
+                                                            100,
+                                                            Math.round(
+                                                                ((s.minutos_feitos || 0) /
+                                                                    s.meta_minutos) *
+                                                                100
+                                                            )
+                                                        )
                                                         : 0;
 
-                                                    const falta = Math.max(0, (s.meta_minutos || 0) - (s.minutos_feitos || 0));
+                                                    const falta = Math.max(
+                                                        0,
+                                                        (s.meta_minutos || 0) -
+                                                        (s.minutos_feitos || 0)
+                                                    );
 
                                                     return (
                                                         <div
                                                             key={s.id}
                                                             className={`rounded-xl border p-4 transition-all ${isCurrent
-                                                                    ? "border-cyan-500 bg-cyan-500/5"
-                                                                    : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+                                                                ? "border-cyan-500 bg-cyan-500/5"
+                                                                : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
                                                                 }`}
                                                         >
                                                             <div className="flex items-center justify-between gap-3">
@@ -909,9 +920,14 @@ export default function CicloEstudos({ user }) {
                                                                 </div>
 
                                                                 <div className="flex items-center gap-3">
-                                                                    <div className="text-sm text-slate-500 dark:text-slate-400">{perc}%</div>
+                                                                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                                                                        {perc}%
+                                                                    </div>
                                                                     <div className="w-28 h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                                        <div className="h-full bg-cyan-500" style={{ width: `${perc}%` }} />
+                                                                        <div
+                                                                            className="h-full bg-cyan-500"
+                                                                            style={{ width: `${perc}%` }}
+                                                                        />
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -926,7 +942,9 @@ export default function CicloEstudos({ user }) {
                                                 <Trophy size={18} className="text-amber-500" />
                                                 <span>
                                                     Ciclos concluídos:{" "}
-                                                    <b className="text-slate-900 dark:text-white">{cycle?.cycles_completed ?? 0}</b>
+                                                    <b className="text-slate-900 dark:text-white">
+                                                        {cycle?.cycles_completed ?? 0}
+                                                    </b>
                                                 </span>
                                             </div>
 
@@ -941,14 +959,14 @@ export default function CicloEstudos({ user }) {
                                 </>
                             )}
 
-                            {/* MODELO QUADRO */}
                             {modoAgora === "quadro" && (
                                 <>
-                                    {/* Header minimalista + ciclos */}
                                     <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                                         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                                             <div>
-                                                <div className="text-5xl font-black tracking-tight">{quadroProgresso}%</div>
+                                                <div className="text-5xl font-black tracking-tight">
+                                                    {quadroProgresso}%
+                                                </div>
                                                 <div className="mt-1 text-slate-600 dark:text-slate-400 text-sm">
                                                     Progresso do quadro
                                                 </div>
@@ -965,25 +983,30 @@ export default function CicloEstudos({ user }) {
                                         </div>
 
                                         <div className="mt-4 w-full h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                                            <div className="h-full bg-emerald-500 transition-all" style={{ width: `${quadroProgresso}%` }} />
+                                            <div
+                                                className="h-full bg-emerald-500 transition-all"
+                                                style={{ width: `${quadroProgresso}%` }}
+                                            />
                                         </div>
                                     </div>
 
-                                    {/* Quadro */}
                                     <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                                         <div className="flex items-center gap-2 mb-4">
                                             <BarChart3 size={18} className="text-cyan-500" />
-                                            <h3 className="text-lg font-bold">Quadro (arrastar para concluir)</h3>
+                                            <h3 className="text-lg font-bold">
+                                                Quadro (arrastar para concluir)
+                                            </h3>
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {/* Estudar */}
                                             <div
                                                 onDragOver={(e) => e.preventDefault()}
                                                 onDrop={() => dropToStatus("estudar")}
                                                 className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4 min-h-[220px]"
                                             >
-                                                <div className="font-bold mb-3 text-slate-700 dark:text-slate-200">Estudar</div>
+                                                <div className="font-bold mb-3 text-slate-700 dark:text-slate-200">
+                                                    Estudar
+                                                </div>
 
                                                 <div className="space-y-3">
                                                     {subjects
@@ -992,28 +1015,37 @@ export default function CicloEstudos({ user }) {
                                                             <div
                                                                 key={s.id}
                                                                 draggable
-                                                                onDragStart={() => (dragSubjectIdRef.current = s.id)}
+                                                                onDragStart={() =>
+                                                                    (dragSubjectIdRef.current = s.id)
+                                                                }
                                                                 className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 shadow-sm cursor-grab active:cursor-grabbing"
                                                             >
-                                                                <div className="font-semibold">{s.nome}</div>
+                                                                <div className="font-semibold">
+                                                                    {s.nome}
+                                                                </div>
                                                                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                    Peso: {s.peso} • Meta: {formatHM(s.meta_minutos || 0)}
+                                                                    Peso: {s.peso} • Meta:{" "}
+                                                                    {formatHM(s.meta_minutos || 0)}
                                                                 </div>
                                                                 <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                                                                    Feito: {formatHMS((s.minutos_feitos || 0) * 60)}
+                                                                    Feito:{" "}
+                                                                    {formatHMS(
+                                                                        (s.minutos_feitos || 0) * 60
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         ))}
                                                 </div>
                                             </div>
 
-                                            {/* Concluídas */}
                                             <div
                                                 onDragOver={(e) => e.preventDefault()}
                                                 onDrop={() => dropToStatus("concluida")}
                                                 className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-emerald-500/5 p-4 min-h-[220px]"
                                             >
-                                                <div className="font-bold mb-3 text-emerald-600 dark:text-emerald-300">Concluídas</div>
+                                                <div className="font-bold mb-3 text-emerald-600 dark:text-emerald-300">
+                                                    Concluídas
+                                                </div>
 
                                                 <div className="space-y-3">
                                                     {subjects
@@ -1022,12 +1054,19 @@ export default function CicloEstudos({ user }) {
                                                             <div
                                                                 key={s.id}
                                                                 draggable
-                                                                onDragStart={() => (dragSubjectIdRef.current = s.id)}
+                                                                onDragStart={() =>
+                                                                    (dragSubjectIdRef.current = s.id)
+                                                                }
                                                                 className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 shadow-sm cursor-grab active:cursor-grabbing"
                                                             >
-                                                                <div className="font-semibold">{s.nome}</div>
+                                                                <div className="font-semibold">
+                                                                    {s.nome}
+                                                                </div>
                                                                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                    Feito: {formatHMS((s.minutos_feitos || 0) * 60)}
+                                                                    Feito:{" "}
+                                                                    {formatHMS(
+                                                                        (s.minutos_feitos || 0) * 60
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -1035,21 +1074,21 @@ export default function CicloEstudos({ user }) {
                                             </div>
                                         </div>
 
-                                        {/* botão aparece quando todas concluídas */}
-                                        {subjects.length > 0 && subjects.every((s) => s.status === "concluida") && (
-                                            <div className="mt-4 flex justify-end">
-                                                <button
-                                                    onClick={reiniciarCicloQuadro}
-                                                    className="rounded-xl px-5 py-3 font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
-                                                >
-                                                    Reiniciar ciclo (voltar disciplinas para Estudar)
-                                                </button>
-                                            </div>
-                                        )}
+                                        {subjects.length > 0 &&
+                                            subjects.every((s) => s.status === "concluida") && (
+                                                <div className="mt-4 flex justify-end">
+                                                    <button
+                                                        onClick={reiniciarCicloQuadro}
+                                                        className="rounded-xl px-5 py-3 font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+                                                    >
+                                                        Reiniciar ciclo (voltar disciplinas para Estudar)
+                                                    </button>
+                                                </div>
+                                            )}
 
                                         <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                                            Dica: arraste uma matéria para <b>Concluídas</b> para marcar. Se voltar para{" "}
-                                            <b>Estudar</b>, o progresso é desfeito (zera feito).
+                                            Arraste uma matéria para <b>Concluídas</b> para marcar.
+                                            Se voltar para <b>Estudar</b>, o progresso é desfeito.
                                         </p>
                                     </div>
                                 </>
@@ -1057,15 +1096,14 @@ export default function CicloEstudos({ user }) {
                         </>
                     )}
 
-                    {/* SETUP */}
                     {abaInterna === "setup" && (
                         <>
-                            {/* Config do ciclo */}
                             <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                                <div className="text-lg font-bold mb-4">Configuração do Ciclo (Setup)</div>
+                                <div className="text-lg font-bold mb-4">
+                                    Configuração do Ciclo
+                                </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    {/* Nome */}
                                     <div>
                                         <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
                                             Nome do ciclo
@@ -1077,7 +1115,6 @@ export default function CicloEstudos({ user }) {
                                         />
                                     </div>
 
-                                    {/* Meta total (duração) minimalista */}
                                     <div className="md:col-span-2">
                                         <div className="flex items-center justify-between mb-2">
                                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
@@ -1085,17 +1122,22 @@ export default function CicloEstudos({ user }) {
                                             </label>
 
                                             <span className="text-[11px] px-2 py-1 rounded-full border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-950/40 text-slate-500 dark:text-slate-400">
-                                                {String(metaHoras).padStart(2, "0")}:{String(metaMin).padStart(2, "0")}:
+                                                {String(metaHoras).padStart(2, "0")}:
+                                                {String(metaMin).padStart(2, "0")}:
                                                 {String(metaSeg).padStart(2, "0")}
                                             </span>
                                         </div>
 
                                         <div className="flex items-center gap-2">
                                             <div className="flex-1">
-                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">Horas</div>
+                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                                                    Horas
+                                                </div>
                                                 <select
                                                     value={metaHoras}
-                                                    onChange={(e) => setMetaHoras(Number(e.target.value))}
+                                                    onChange={(e) =>
+                                                        setMetaHoras(Number(e.target.value))
+                                                    }
                                                     className="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-500"
                                                 >
                                                     {Array.from({ length: 13 }).map((_, i) => (
@@ -1107,10 +1149,14 @@ export default function CicloEstudos({ user }) {
                                             </div>
 
                                             <div className="flex-1">
-                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">Min</div>
+                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                                                    Min
+                                                </div>
                                                 <select
                                                     value={metaMin}
-                                                    onChange={(e) => setMetaMin(Number(e.target.value))}
+                                                    onChange={(e) =>
+                                                        setMetaMin(Number(e.target.value))
+                                                    }
                                                     className="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-500"
                                                 >
                                                     {Array.from({ length: 60 }).map((_, i) => (
@@ -1122,10 +1168,14 @@ export default function CicloEstudos({ user }) {
                                             </div>
 
                                             <div className="flex-1">
-                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">Seg</div>
+                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                                                    Seg
+                                                </div>
                                                 <select
                                                     value={metaSeg}
-                                                    onChange={(e) => setMetaSeg(Number(e.target.value))}
+                                                    onChange={(e) =>
+                                                        setMetaSeg(Number(e.target.value))
+                                                    }
                                                     className="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-500"
                                                 >
                                                     {Array.from({ length: 60 }).map((_, i) => (
@@ -1138,11 +1188,10 @@ export default function CicloEstudos({ user }) {
                                         </div>
 
                                         <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                                            Dica: use horas para metas maiores (ex: 4h).
+                                            Use horas para metas maiores.
                                         </div>
                                     </div>
 
-                                    {/* Bloco padrão */}
                                     <div>
                                         <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
                                             Bloco padrão (minutos)
@@ -1163,11 +1212,12 @@ export default function CicloEstudos({ user }) {
                                     Salvar configurações
                                 </button>
 
-                                {/* zerar ciclos */}
                                 <div className="mt-4 flex items-center justify-between flex-col sm:flex-row gap-3">
                                     <div className="text-xs text-slate-500 dark:text-slate-400">
                                         Ciclos concluídos atualmente:{" "}
-                                        <b className="text-slate-900 dark:text-white">{cycle?.cycles_completed ?? 0}</b>
+                                        <b className="text-slate-900 dark:text-white">
+                                            {cycle?.cycles_completed ?? 0}
+                                        </b>
                                     </div>
 
                                     <button
@@ -1179,12 +1229,11 @@ export default function CicloEstudos({ user }) {
                                 </div>
                             </div>
 
-                            {/* Adicionar matéria */}
                             <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                                 <div className="flex items-center justify-between gap-3 mb-4">
                                     <div className="text-lg font-bold">Matérias</div>
                                     <div className="text-sm text-slate-500 dark:text-slate-400">
-                                        Total de metas (somadas): <b>{formatHM(totalMetaMaterias)}</b>
+                                        Total de metas: <b>{formatHM(totalMetaMaterias)}</b>
                                     </div>
                                 </div>
 
@@ -1202,7 +1251,9 @@ export default function CicloEstudos({ user }) {
                                     </div>
 
                                     <div>
-                                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Peso</div>
+                                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                                            Peso
+                                        </div>
                                         <input
                                             type="number"
                                             value={pesoMateria}
@@ -1234,14 +1285,15 @@ export default function CicloEstudos({ user }) {
                                     Adicionar matéria
                                 </button>
 
-                                {/* Lista com drag order */}
                                 <div className="mt-6">
                                     <div className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-3">
-                                        Ordem de execução (arraste para reordenar)
+                                        Ordem de execução
                                     </div>
 
                                     {subjects.length === 0 ? (
-                                        <div className="py-10 text-center text-slate-500">Nenhuma matéria cadastrada.</div>
+                                        <div className="py-10 text-center text-slate-500">
+                                            Nenhuma matéria cadastrada.
+                                        </div>
                                     ) : (
                                         <div className="space-y-2">
                                             {subjects.map((s, idx) => (
@@ -1265,7 +1317,8 @@ export default function CicloEstudos({ user }) {
                                                         <div>
                                                             <div className="font-bold">{s.nome}</div>
                                                             <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                Peso: {s.peso} • Meta: {formatHM(s.meta_minutos || 0)} • Status:{" "}
+                                                                Peso: {s.peso} • Meta:{" "}
+                                                                {formatHM(s.meta_minutos || 0)} • Status:{" "}
                                                                 <b>{s.status}</b>
                                                             </div>
                                                         </div>
@@ -1275,8 +1328,14 @@ export default function CicloEstudos({ user }) {
                                                         <button
                                                             onClick={() =>
                                                                 atualizarMateria(s.id, {
-                                                                    status: s.status === "concluida" ? "estudar" : "concluida",
-                                                                    minutos_feitos: s.status === "concluida" ? 0 : (s.meta_minutos || 0),
+                                                                    status:
+                                                                        s.status === "concluida"
+                                                                            ? "estudar"
+                                                                            : "concluida",
+                                                                    minutos_feitos:
+                                                                        s.status === "concluida"
+                                                                            ? 0
+                                                                            : s.meta_minutos || 0,
                                                                 })
                                                             }
                                                             className="rounded-xl px-4 py-2 font-semibold border border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-900"
@@ -1285,7 +1344,11 @@ export default function CicloEstudos({ user }) {
                                                         </button>
 
                                                         <button
-                                                            onClick={() => atualizarMateria(s.id, { minutos_feitos: 0 })}
+                                                            onClick={() =>
+                                                                atualizarMateria(s.id, {
+                                                                    minutos_feitos: 0,
+                                                                })
+                                                            }
                                                             className="rounded-xl px-4 py-2 font-semibold border border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-900"
                                                             title="Zerar minutos feitos desta matéria"
                                                         >
@@ -1298,8 +1361,8 @@ export default function CicloEstudos({ user }) {
                                     )}
 
                                     <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                                        ✅ Quando você mudar a ordem, o sistema ajusta o <b>ponto onde parou</b> para continuar
-                                        na mesma matéria.
+                                        Quando você muda a ordem, o sistema ajusta o ponto onde
+                                        parou para continuar na mesma matéria.
                                     </div>
                                 </div>
                             </div>
@@ -1307,9 +1370,7 @@ export default function CicloEstudos({ user }) {
                     )}
                 </div>
 
-                {/* RIGHT - STATISTICS */}
                 <aside className="space-y-6">
-                    {/* Estatísticas */}
                     <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                         <div className="flex items-center gap-2 mb-4">
                             <Target size={18} className="text-cyan-500" />
@@ -1326,7 +1387,9 @@ export default function CicloEstudos({ user }) {
 
                             <div className="flex justify-between text-slate-600 dark:text-slate-300">
                                 <span>Feito</span>
-                                <b className="text-slate-900 dark:text-white">{formatHM(totalFeitoMaterias)}</b>
+                                <b className="text-slate-900 dark:text-white">
+                                    {formatHM(totalFeitoMaterias)}
+                                </b>
                             </div>
 
                             <div className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -1336,30 +1399,39 @@ export default function CicloEstudos({ user }) {
 
                             <div className="flex justify-between text-slate-600 dark:text-slate-300">
                                 <span>Bloco padrão</span>
-                                <b className="text-slate-900 dark:text-white">{cycle?.bloco_minutos_default || 25} min</b>
+                                <b className="text-slate-900 dark:text-white">
+                                    {cycle?.bloco_minutos_default || 25} min
+                                </b>
                             </div>
 
                             <div className="flex justify-between text-slate-600 dark:text-slate-300">
                                 <span>Matérias</span>
-                                <b className="text-slate-900 dark:text-white">{subjects.length}</b>
+                                <b className="text-slate-900 dark:text-white">
+                                    {subjects.length}
+                                </b>
                             </div>
 
                             <div className="flex justify-between text-slate-600 dark:text-slate-300">
                                 <span>Ciclos concluídos</span>
-                                <b className="text-slate-900 dark:text-white">{cycle?.cycles_completed || 0}</b>
+                                <b className="text-slate-900 dark:text-white">
+                                    {cycle?.cycles_completed || 0}
+                                </b>
                             </div>
 
                             <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
-                                <div className="text-slate-500 dark:text-slate-400 text-xs mb-2">Matéria atual</div>
+                                <div className="text-slate-500 dark:text-slate-400 text-xs mb-2">
+                                    Matéria atual
+                                </div>
                                 <div className="font-bold">{currentSubject?.nome || "—"}</div>
-                                <div className="text-xs text-slate-500 dark:text-slate-400">Você volta exatamente daqui.</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                    Você volta exatamente daqui.
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Ranking de esforço (peso) - barra lateral */}
                     <div className="rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                        <div className="text-sm font-bold mb-3">Ranking de esforço (peso)</div>
+                        <div className="text-sm font-bold mb-3">Ranking de esforço</div>
 
                         {subjects.length === 0 ? (
                             <div className="text-sm text-slate-500">Sem matérias.</div>
@@ -1377,7 +1449,12 @@ export default function CicloEstudos({ user }) {
                                             <div className="mt-1 w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full bg-indigo-500"
-                                                    style={{ width: `${Math.min(100, (s.peso || 0) * 20)}%` }}
+                                                    style={{
+                                                        width: `${Math.min(
+                                                            100,
+                                                            (s.peso || 0) * 20
+                                                        )}%`,
+                                                    }}
                                                 />
                                             </div>
                                         </div>

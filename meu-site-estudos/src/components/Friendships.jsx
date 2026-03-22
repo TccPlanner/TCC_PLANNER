@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { Users } from "lucide-react";
 
 function Friendships() {
   const [inviteCodeInput, setInviteCodeInput] = useState("");
@@ -40,24 +41,24 @@ function Friendships() {
 
     setMyUserId(user.id);
 
-    // Busca perfil
     let { data, error } = await supabase
       .from("perfis")
       .select("invite_code, nome")
       .eq("id", user.id)
       .single();
 
-    // Se não existir, tenta UPSERT (fallback seguro)
-    if (error && (error.code === "PGRST116" || String(error.message || "").includes("0 rows"))) {
-      const { error: upErr } = await supabase
-        .from("perfis")
-        .upsert(
-          {
-            id: user.id,
-            nome: user.user_metadata?.name ?? user.email ?? null,
-          },
-          { onConflict: "id" }
-        );
+    if (
+      error &&
+      (error.code === "PGRST116" ||
+        String(error.message || "").includes("0 rows"))
+    ) {
+      const { error: upErr } = await supabase.from("perfis").upsert(
+        {
+          id: user.id,
+          nome: user.user_metadata?.name ?? user.email ?? null,
+        },
+        { onConflict: "id" }
+      );
 
       if (upErr) throw upErr;
 
@@ -77,7 +78,6 @@ function Friendships() {
     setMyName(data?.nome ?? "");
   };
 
-  // ✅ Agora lê da VIEW que já traz requester_nome
   const loadIncomingRequests = async () => {
     setLoadingPending(true);
 
@@ -105,10 +105,11 @@ function Friendships() {
     }
 
     const rankingBase = data ?? [];
-    const idsParaCodigo = Array.from(new Set([
-      ...rankingBase.map((row) => row.user_id),
-      myUserId,
-    ].filter(Boolean)));
+    const idsParaCodigo = Array.from(
+      new Set(
+        [...rankingBase.map((row) => row.user_id), myUserId].filter(Boolean)
+      )
+    );
 
     let mapaCodigos = {};
     if (idsParaCodigo.length > 0) {
@@ -122,7 +123,9 @@ function Friendships() {
         throw perfisError;
       }
 
-      mapaCodigos = Object.fromEntries((perfisData ?? []).map((perfil) => [perfil.id, perfil.invite_code]));
+      mapaCodigos = Object.fromEntries(
+        (perfisData ?? []).map((perfil) => [perfil.id, perfil.invite_code])
+      );
     }
 
     const meuRegistro = rankingBase.find((row) => row.user_id === myUserId);
@@ -147,10 +150,7 @@ function Friendships() {
   };
 
   const sendFriendRequestByCode = async (inviteCode) => {
-    const code = inviteCode
-      .trim()
-      .toUpperCase()
-      .replace(/\s+/g, "");
+    const code = inviteCode.trim().toUpperCase().replace(/\s+/g, "");
 
     const {
       data: { user },
@@ -159,10 +159,12 @@ function Friendships() {
 
     if (authError || !user) throw new Error("Não logado");
 
-    // ✅ RPC segura
-    const { data: friendId, error: rpcErr } = await supabase.rpc("resolve_invite_code", {
-      code,
-    });
+    const { data: friendId, error: rpcErr } = await supabase.rpc(
+      "resolve_invite_code",
+      {
+        code,
+      }
+    );
 
     if (rpcErr || !friendId) throw new Error("Código inválido.");
 
@@ -192,7 +194,6 @@ function Friendships() {
     return true;
   };
 
-  // ✅ bootstrap resiliente (não quebra tudo se 1 chamada falhar)
   const bootstrap = async () => {
     try {
       await loadMyInviteCode();
@@ -225,7 +226,6 @@ function Friendships() {
       await sendFriendRequestByCode(inviteCodeInput);
       setInviteCodeInput("");
       alert("Convite enviado com sucesso.");
-      // (Pendentes são os recebidos; aqui não muda, mas pode manter)
       await Promise.all([loadIncomingRequests(), loadFriendsRanking()]);
     } catch (error) {
       alert(error.message || "Não foi possível enviar o convite.");
@@ -244,6 +244,22 @@ function Friendships() {
 
   return (
     <div className="space-y-8">
+      {/* Header padronizado */}
+      <div className="flex items-center gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+          <Users className="h-6 w-6" />
+        </div>
+
+        <div>
+          <p className="text-2xl font-black text-white leading-tight">
+            Amizades
+          </p>
+          <p className="text-sm text-cyan-100">
+            Convide amigos, aceite solicitações e acompanhe o ranking
+          </p>
+        </div>
+      </div>
+
       {/* Adicionar amigo */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50 dark:bg-slate-950/40">
         <h2 className="text-xl font-bold mb-1">Adicionar amigo</h2>
@@ -251,6 +267,7 @@ function Friendships() {
           Seu código: <strong>{myInviteCode || "-"}</strong>
           {myName ? ` (${myName})` : ""}
         </p>
+
         <button
           type="button"
           onClick={() => copiarCodigo(myInviteCode)}
@@ -267,6 +284,7 @@ function Friendships() {
             className="flex-1 p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none focus:border-cyan-500"
             required
           />
+
           <button
             type="submit"
             className="px-5 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold cursor-pointer"
@@ -307,6 +325,7 @@ function Friendships() {
                     {new Date(request.created_at).toLocaleString()}
                   </p>
                 </div>
+
                 <button
                   onClick={() => aceitarPedido(request.id)}
                   className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold cursor-pointer"
@@ -348,9 +367,11 @@ function Friendships() {
                   <th className="py-2 pr-4 font-semibold">Código</th>
                 </tr>
               </thead>
+
               <tbody>
                 {ranking.map((row, index) => {
                   const isMe = myUserId && row.user_id === myUserId;
+
                   return (
                     <tr
                       key={row.user_id}
@@ -359,7 +380,9 @@ function Friendships() {
                         isMe ? "bg-cyan-50 dark:bg-cyan-950/30" : "",
                       ].join(" ")}
                     >
-                      <td className="py-2 pr-4 text-sm font-semibold">{medalha(index + 1)}</td>
+                      <td className="py-2 pr-4 text-sm font-semibold">
+                        {medalha(index + 1)}
+                      </td>
                       <td className="py-2 pr-4 text-sm">
                         {row.nome ?? "-"} {isMe ? "(você)" : ""}
                       </td>
@@ -375,7 +398,9 @@ function Friendships() {
                           >
                             {row.invite_code}
                           </button>
-                        ) : "-"}
+                        ) : (
+                          "-"
+                        )}
                       </td>
                     </tr>
                   );

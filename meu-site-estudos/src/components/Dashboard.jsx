@@ -61,7 +61,7 @@ function Dashboard({ user }) {
         if (abaAtiva === "ciclo") return "Ciclo de Estudos";
         if (abaAtiva === "flashcards") return "Flashcards";
         if (abaAtiva === "calendario") return "Calendário";
-        if (abaAtiva === "tarefas") return "To-do list";
+        if (abaAtiva === "tarefas") return "Tarefas";
         if (abaAtiva === "revisoes") return "Revisões";
         if (abaAtiva === "historico") return "Histórico";
         if (abaAtiva === "amizades") return "Amizades";
@@ -120,7 +120,7 @@ function Dashboard({ user }) {
                     <MenuLink id="materias" icon={ListTree} label="Matérias" />
                     <MenuLink id="ciclo" icon={Repeat} label="Ciclo de Estudos" />
                     <MenuLink id="calendario" icon={Calendar} label="Calendário" />
-                    <MenuLink id="tarefas" icon={CheckSquare} label="To-Do" />
+                    <MenuLink id="tarefas" icon={CheckSquare} label="Tarefas" />
 
                     {/* ✅ EXECUÇÃO */}
                     {menuAberto && (

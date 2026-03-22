@@ -9,20 +9,18 @@ import interactionPlugin from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
 
 // Icons
-import { Pencil, RefreshCw, Trash2, Filter } from "lucide-react";
+import { Pencil, RefreshCw, Trash2, Filter, Repeat } from "lucide-react";
 
 /* ============================
    CONSTANTES
 ============================ */
 
-// ✅ cores (tarefa)
 const PRIORITY = {
     1: { label: "Baixa", hex: "#10b981" },
     2: { label: "Média", hex: "#f59e0b" },
     3: { label: "Alta", hex: "#f43f5e" },
 };
 
-// ✅ dificuldade (etiqueta no card do To-do)
 const DIFICULDADE = {
     facil: { label: "Fácil", hex: "#22c55e" },
     media: { label: "Média", hex: "#f59e0b" },
@@ -50,16 +48,15 @@ const dataLegivel = (d) => {
     }
 };
 
-// ✅ cores principais (estudo/revisão)
-const COR_ESTUDO = "#10b981"; // verde
-const COR_REVISAO = "#2563eb"; // azul
+const COR_ESTUDO = "#10b981";
+const COR_REVISAO = "#2563eb";
 
-// ✅ identificar subtipo da sessão (para cor)
 const normalizarTipoSessao = (raw) => {
     const t = (raw || "").toString().toLowerCase();
     if (t.includes("simul")) return "simulado";
-    if (t.includes("revis") || t.includes("quest") || t.includes("exerc"))
+    if (t.includes("revis") || t.includes("quest") || t.includes("exerc")) {
         return "revisao_questoes";
+    }
     return "teoria";
 };
 
@@ -71,7 +68,7 @@ const labelTipoSessao = (key) => {
 
 const corSessao = (tipoKey) => {
     if (tipoKey === "revisao_questoes") return COR_REVISAO;
-    return COR_ESTUDO; // teoria e simulado = verde
+    return COR_ESTUDO;
 };
 
 const pillDificuldade = (difKey) => {
@@ -109,7 +106,6 @@ const badgePrioridadeAbaixo = (prioridade) => {
     );
 };
 
-// ✅ contraste automático
 const coresTextoParaFundo = (fundo) => {
     if (!fundo) return { title: "#0f172a", sub: "rgba(15,23,42,0.65)" };
 
@@ -136,33 +132,21 @@ const Calendario = ({ user }) => {
     const [allEventos, setAllEventos] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // ✅ modo edição
     const [modoEdicao, setModoEdicao] = useState(false);
     const [apagando, setApagando] = useState(false);
     const [marcando, setMarcando] = useState(false);
 
-    // ✅ modal detalhes
     const [modalAberto, setModalAberto] = useState(false);
     const [eventoSelecionado, setEventoSelecionado] = useState(null);
 
-    /* ============================
-       FILTROS (SIMPLES)
-    ============================ */
     const [filtroOpen, setFiltroOpen] = useState(false);
-
-    // all | tarefa | revisao | sessao
     const [tipoFiltro, setTipoFiltro] = useState("all");
-
-    // prioridade só aparece se tipoFiltro === "tarefa"
-    const [filtroPrioridade, setFiltroPrioridade] = useState("all"); // all | 1 | 2 | 3
-
-    // somente atrasadas
+    const [filtroPrioridade, setFiltroPrioridade] = useState("all");
     const [somenteAtrasadas, setSomenteAtrasadas] = useState(false);
 
-    // ✅ realtime + load
     useEffect(() => {
         if (user?.id) buscarEventos();
-        // eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
     useEffect(() => {
@@ -215,7 +199,7 @@ const Calendario = ({ user }) => {
             supabase.removeChannel(chSes);
             supabase.removeChannel(chTar);
         };
-        // eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
     const buscarEventos = async () => {
@@ -236,7 +220,6 @@ const Calendario = ({ user }) => {
                 .select("*")
                 .eq("user_id", user.id);
 
-            // ✅ revisões (allDay)
             const eventosRevisoes = (revisoes || []).map((rev) => {
                 const concluida = !!rev.executada;
                 return {
@@ -253,7 +236,7 @@ const Calendario = ({ user }) => {
                         executada: concluida,
                         titulo: rev.titulo,
                         conteudo: rev.conteudo,
-                        tipoRevisao: rev.tipo_revisao, // só nos detalhes
+                        tipoRevisao: rev.tipo_revisao,
                         origem: rev.origem,
                         qtdFeitas: safeNumber(rev.qtd_feitas, 0),
                         qtdAcertos: safeNumber(rev.qtd_acertos, 0),
@@ -263,24 +246,22 @@ const Calendario = ({ user }) => {
                 };
             });
 
-            // ✅ sessões (horário real)
             const eventosSessoes = (sessoes || []).map((s) => {
                 const inicio = s.inicio_em;
                 const dur = safeNumber(s.duracao_segundos, 0);
 
                 const fim =
                     dur > 0
-                        ? new Date(new Date(inicio).getTime() + dur * 1000).toISOString()
+                        ? new Date(
+                            new Date(inicio).getTime() + dur * 1000
+                        ).toISOString()
                         : null;
 
                 const tipoKey = normalizarTipoSessao(s.tipo_estudo);
 
-                // ✅ status "concluída" (se existir)
                 const statusSessaoExplicito =
                     s.concluida ?? s.finalizada ?? s.realizada ?? s.feita;
 
-                // Quando não existe coluna de status na sessão, considera concluída
-                // se a sessão já tem duração registrada e iniciou no passado.
                 const concluidaSessao =
                     statusSessaoExplicito != null
                         ? !!statusSessaoExplicito
@@ -309,11 +290,9 @@ const Calendario = ({ user }) => {
                 };
             });
 
-            // ✅ tarefas (allDay)
             const eventosTarefas = (tarefas || []).map((t) => {
                 const prioridade = safeNumber(t.prioridade, 1);
                 const cor = PRIORITY[prioridade]?.hex || PRIORITY[1].hex;
-
                 const titulo = t.texto || "Tarefa";
                 const concluida = !!t.concluida;
 
@@ -323,7 +302,9 @@ const Calendario = ({ user }) => {
 
                 let dificuldade = null;
                 if (rawDif.includes("fac")) dificuldade = "facil";
-                if (rawDif.includes("méd") || rawDif.includes("med")) dificuldade = "media";
+                if (rawDif.includes("méd") || rawDif.includes("med")) {
+                    dificuldade = "media";
+                }
                 if (rawDif.includes("dif")) dificuldade = "dificil";
 
                 return {
@@ -339,8 +320,9 @@ const Calendario = ({ user }) => {
                         supaId: t.id,
                         prioridade,
                         corPrioridade: cor,
-                        categoria: t.categoria || "To-do",
+                        categoria: t.categoria || "Tarefa",
                         concluida,
+                        concluidaEm: t.concluida_em || null,
                         notas: t.notas,
                         dificuldade,
                     },
@@ -353,9 +335,6 @@ const Calendario = ({ user }) => {
         }
     };
 
-    /* ============================
-       FILTRAGEM (FRONT)
-    ============================ */
     const eventosFiltrados = useMemo(() => {
         const hoje0 = inicioDoDia(new Date());
         const agora = new Date();
@@ -364,7 +343,6 @@ const Calendario = ({ user }) => {
             const p = ev.extendedProps || {};
             const tipo = p.tipo;
 
-            // somente pendentes entram como "atrasadas"
             const pendente =
                 tipo === "tarefa"
                     ? !p.concluida
@@ -374,14 +352,12 @@ const Calendario = ({ user }) => {
 
             if (!pendente) return false;
 
-            // tasks/revisões: atraso por dia (antes de hoje)
             if (tipo === "tarefa" || tipo === "revisao") {
                 if (!ev.start) return false;
                 const d = inicioDoDia(new Date(ev.start));
                 return d < hoje0;
             }
 
-            // sessões: atraso por horário (iniciou no passado e ainda não concluiu)
             if (tipo === "sessao") {
                 if (!ev.start) return false;
                 return new Date(ev.start) < agora;
@@ -395,16 +371,13 @@ const Calendario = ({ user }) => {
                 const p = ev.extendedProps || {};
                 const tipo = p.tipo;
 
-                // tipo principal
                 if (tipoFiltro !== "all" && tipo !== tipoFiltro) return false;
 
-                // prioridade apenas quando filtrando To-do
                 if (tipoFiltro === "tarefa" && filtroPrioridade !== "all") {
                     const alvo = Number(filtroPrioridade);
                     if (Number(p.prioridade || 1) !== alvo) return false;
                 }
 
-                // atrasadas
                 if (somenteAtrasadas && !isOverdue(ev)) return false;
 
                 return true;
@@ -432,9 +405,6 @@ const Calendario = ({ user }) => {
         setEventoSelecionado(null);
     };
 
-    /* ============================
-       CONCLUIR (SINCRONIZA)
-    ============================ */
     const toggleConcluida = async (t) => {
         if (!user?.id) return;
         if (!t?.tipo || !t?.supaId) return;
@@ -444,14 +414,20 @@ const Calendario = ({ user }) => {
 
             if (t.tipo === "tarefa") {
                 const novo = !t.concluida;
+                const concluidaEm = novo ? new Date().toISOString() : null;
+
                 const { error } = await supabase
                     .from("tarefas")
-                    .update({ concluida: novo })
+                    .update({ concluida: novo, concluida_em: concluidaEm })
                     .eq("id", t.supaId)
                     .eq("user_id", user.id);
                 if (error) throw error;
 
-                setEventoSelecionado((prev) => ({ ...prev, concluida: novo }));
+                setEventoSelecionado((prev) => ({
+                    ...prev,
+                    concluida: novo,
+                    concluidaEm,
+                }));
             }
 
             if (t.tipo === "revisao") {
@@ -491,7 +467,10 @@ const Calendario = ({ user }) => {
                         "Para marcar Sessões como concluídas, crie uma coluna booleana na tabela 'sessoes_estudo' (recomendado: 'concluida')."
                     );
                 } else {
-                    setEventoSelecionado((prev) => ({ ...prev, concluidaSessao: novo }));
+                    setEventoSelecionado((prev) => ({
+                        ...prev,
+                        concluidaSessao: novo,
+                    }));
                 }
             }
 
@@ -504,15 +483,12 @@ const Calendario = ({ user }) => {
         }
     };
 
-    /* ============================
-       EXCLUIR
-    ============================ */
     const excluirEvento = async (ev) => {
         if (!user?.id) return;
         if (!ev?.tipo || !ev?.supaId) return;
 
         const ok = window.confirm(
-            `Excluir este evento?\n\n"${ev.title}"\n\nIsso remove do calendário e também do To-do/Revisões/Estudo.`
+            `Excluir este evento?\n\n"${ev.title}"\n\nIsso remove do calendário e também de Tarefas/Revisões/Estudo.`
         );
         if (!ok) return;
 
@@ -560,7 +536,7 @@ const Calendario = ({ user }) => {
         if (!user?.id) return;
 
         const ok = window.confirm(
-            "⚠️ ATENÇÃO!\n\nIsso apagará TUDO do sistema:\n- To-do list\n- Revisões\n- Sessões de estudo\n\nDeseja continuar?"
+            "⚠️ ATENÇÃO!\n\nIsso apagará TUDO do sistema:\n- Tarefas\n- Revisões\n- Sessões de estudo\n\nDeseja continuar?"
         );
         if (!ok) return;
 
@@ -593,9 +569,6 @@ const Calendario = ({ user }) => {
         }
     };
 
-    /* ============================
-       BADGES (MODAL)
-    ============================ */
     const badgeTipo = (tipo, extra) => {
         if (tipo === "tarefa") {
             const pr = PRIORITY[extra?.prioridade || 1];
@@ -608,7 +581,7 @@ const Calendario = ({ user }) => {
                         borderColor: `${pr?.hex}40`,
                     }}
                 >
-                    To-do • {pr?.label || "Prioridade"}
+                    Tarefa • {pr?.label || "Prioridade"}
                 </span>
             );
         }
@@ -647,9 +620,6 @@ const Calendario = ({ user }) => {
         );
     };
 
-    /* ============================
-       CARD EVENTO (WHITE NO MÊS / DARK NO DIA)
-    ============================ */
     const renderEventoTrello = (arg) => {
         const ev = arg.event;
         const p = ev.extendedProps || {};
@@ -665,7 +635,6 @@ const Calendario = ({ user }) => {
                     ? !!p.executada
                     : !!p.concluidaSessao;
 
-        // ✅ bolinha pendente inclui Estudar agora
         const showDot =
             (tipo === "tarefa" && !p.concluida) ||
             (tipo === "revisao" && !p.executada) ||
@@ -673,9 +642,8 @@ const Calendario = ({ user }) => {
 
         const title = ev.title || "Evento";
 
-        // subtitle
         let subtitle = "";
-        if (tipo === "tarefa") subtitle = p.categoria ? String(p.categoria) : "To-do";
+        if (tipo === "tarefa") subtitle = p.categoria ? String(p.categoria) : "Tarefa";
         if (tipo === "revisao") subtitle = "Revisão";
         if (tipo === "sessao") {
             const key = p.sessaoKey || normalizarTipoSessao(p.tipoEstudo);
@@ -684,7 +652,6 @@ const Calendario = ({ user }) => {
 
         const timeText = arg.timeText ? String(arg.timeText) : "";
 
-        // tarja só em revisões e sessões
         let stripe = "transparent";
         if (tipo === "revisao") stripe = COR_REVISAO;
         if (tipo === "sessao") {
@@ -692,13 +659,11 @@ const Calendario = ({ user }) => {
             stripe = corSessao(key);
         }
 
-        // fundo do card
         let cardBg = isDayView ? "#0f172a" : "#ffffff";
         let borderColor = isDayView
             ? "rgba(148,163,184,0.25)"
             : "rgba(226,232,240,1)";
 
-        // concluídos preenchidos com cor do tipo (exceto To-do)
         if (isDone) {
             if (tipo === "revisao") {
                 cardBg = COR_REVISAO;
@@ -714,12 +679,9 @@ const Calendario = ({ user }) => {
 
         return (
             <div
-                className="w-full rounded-2xl overflow-hidden transition-all cursor-pointer relative
-        border shadow-[0_18px_50px_-32px_rgba(0,0,0,0.25)]
-        hover:translate-y-[-1px] hover:shadow-[0_22px_60px_-35px_rgba(0,0,0,0.35)]"
+                className="w-full rounded-2xl overflow-hidden transition-all cursor-pointer relative border shadow-[0_18px_50px_-32px_rgba(0,0,0,0.25)] hover:translate-y-[-1px] hover:shadow-[0_22px_60px_-35px_rgba(0,0,0,0.35)]"
                 style={{ background: cardBg, borderColor }}
             >
-                {/* tarja só se NÃO for To-do */}
                 {tipo !== "tarefa" && <div style={{ height: 7, background: stripe }} />}
 
                 {modoEdicao && (
@@ -750,7 +712,9 @@ const Calendario = ({ user }) => {
                                     style={{
                                         color: txt.title,
                                         textDecoration:
-                                            tipo === "tarefa" && isDone ? "line-through" : "none",
+                                            tipo === "tarefa" && isDone
+                                                ? "line-through"
+                                                : "none",
                                         opacity: tipo === "tarefa" && isDone ? 0.7 : 1,
                                     }}
                                     title={title}
@@ -762,15 +726,20 @@ const Calendario = ({ user }) => {
                             </div>
 
                             <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <p className="text-[11px] font-bold truncate" style={{ color: txt.sub }}>
-                                    {tipo === "sessao" && timeText ? `${timeText} • ${subtitle}` : subtitle}
+                                <p
+                                    className="text-[11px] font-bold truncate"
+                                    style={{ color: txt.sub }}
+                                >
+                                    {tipo === "sessao" && timeText
+                                        ? `${timeText} • ${subtitle}`
+                                        : subtitle}
                                 </p>
 
-                                {tipo === "tarefa" && badgePrioridadeAbaixo(p.prioridade)}
+                                {tipo === "tarefa" &&
+                                    badgePrioridadeAbaixo(p.prioridade)}
                             </div>
                         </div>
 
-                        {/* bolinha pendente */}
                         {showDot ? (
                             <span
                                 className="mt-1 inline-block w-2.5 h-2.5 rounded-full"
@@ -792,9 +761,6 @@ const Calendario = ({ user }) => {
         );
     };
 
-    /* ============================
-       MODAL DETALHES
-    ============================ */
     const ModalDetalhes = () => {
         if (!modalAberto || !eventoSelecionado) return null;
         const t = eventoSelecionado;
@@ -851,11 +817,12 @@ const Calendario = ({ user }) => {
                                 Fim
                             </p>
                             <p className="mt-1 font-bold text-slate-900 dark:text-white">
-                                {t.end ? dataLegivel(t.end) : "—"}
+                                {t.tipo === "tarefa"
+                                    ? (t.concluidaEm ? dataLegivel(t.concluidaEm) : "—")
+                                    : (t.end ? dataLegivel(t.end) : "—")}
                             </p>
                         </div>
 
-                        {/* TAREFA */}
                         {t.tipo === "tarefa" && (
                             <>
                                 <div className={box}>
@@ -863,7 +830,7 @@ const Calendario = ({ user }) => {
                                         Categoria
                                     </p>
                                     <p className="mt-1 font-bold text-slate-900 dark:text-white">
-                                        {t.categoria || "To-do"}
+                                        {t.categoria || "Tarefa"}
                                     </p>
                                 </div>
 
@@ -880,7 +847,9 @@ const Calendario = ({ user }) => {
                                     <p className="text-xs font-black text-slate-500 dark:text-slate-300">
                                         Dificuldade
                                     </p>
-                                    <div className="mt-2">{pillDificuldade(t.dificuldade) || "—"}</div>
+                                    <div className="mt-2">
+                                        {pillDificuldade(t.dificuldade) || "—"}
+                                    </div>
                                 </div>
 
                                 <div className={`${box} md:col-span-2`}>
@@ -894,7 +863,6 @@ const Calendario = ({ user }) => {
                             </>
                         )}
 
-                        {/* REVISÃO */}
                         {t.tipo === "revisao" && (
                             <>
                                 <div className={box}>
@@ -926,7 +894,6 @@ const Calendario = ({ user }) => {
                             </>
                         )}
 
-                        {/* SESSÃO */}
                         {t.tipo === "sessao" && (
                             <>
                                 <div className={box}>
@@ -963,8 +930,7 @@ const Calendario = ({ user }) => {
                         <button
                             onClick={() => toggleConcluida(t)}
                             disabled={marcando}
-                            className={`px-5 py-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border
-                ${marcando
+                            className={`px-5 py-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border ${marcando
                                     ? "bg-slate-300 text-white opacity-70 cursor-not-allowed border-slate-300"
                                     : done
                                         ? "bg-slate-900 hover:bg-slate-800 text-white border-slate-800"
@@ -978,8 +944,7 @@ const Calendario = ({ user }) => {
                             <button
                                 onClick={() => excluirEvento(t)}
                                 disabled={apagando}
-                                className={`px-5 py-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95
-                  ${apagando
+                                className={`px-5 py-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 ${apagando
                                         ? "bg-rose-300 text-white opacity-70 cursor-not-allowed"
                                         : "bg-rose-600 hover:bg-rose-500 text-white"
                                     }`}
@@ -1000,16 +965,12 @@ const Calendario = ({ user }) => {
         );
     };
 
-    /* ============================
-       CSS DO CALENDÁRIO
-    ============================ */
     const calendarStyles = useMemo(() => {
         return `
       .fc { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial; }
       .fc .fc-toolbar-title { font-weight: 900; letter-spacing: -0.02em; color: #0f172a; }
       .dark .fc .fc-toolbar-title { color: #ffffff; }
 
-      /* ✅ botões: mais respiro + menor */
       .fc .fc-button { border-radius: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; padding: 6px 10px; }
       .fc .fc-button-group { gap: 10px; }
       .fc .fc-button-group .fc-button { margin: 0 !important; }
@@ -1018,7 +979,6 @@ const Calendario = ({ user }) => {
       .fc .fc-button-primary:hover { background: #4338ca; }
       .fc .fc-button-primary:disabled { opacity: 0.65; }
 
-      /* ✅ header dias da semana com contraste */
       .fc .fc-col-header { background: #0b1220; }
       .fc .fc-col-header-cell { background: #0b1220; border-color: rgba(255,255,255,0.06) !important; }
       .fc .fc-col-header-cell-cushion {
@@ -1029,18 +989,15 @@ const Calendario = ({ user }) => {
         letter-spacing: 0.12em;
       }
 
-      /* ✅ grades */
       .fc .fc-scrollgrid { border-radius: 24px; overflow: hidden; border: 1px solid rgba(148,163,184,0.25); }
       .fc .fc-daygrid-day-frame { padding: 6px; }
       .fc .fc-daygrid-event { margin-top: 6px; }
       .fc .fc-event { border: none !important; background: transparent !important; padding: 0 !important; }
       .fc .fc-event .fc-event-main { padding: 0 !important; }
 
-      /* ✅ números do mês */
       .fc .fc-daygrid-day-number { font-weight: 900; color: rgba(15,23,42,0.85); }
       .dark .fc .fc-daygrid-day-number { color: rgba(255,255,255,0.85); }
 
-      /* ✅ modo dia */
       .fc .fc-timegrid-axis,
       .fc .fc-timegrid-slot-label,
       .fc .fc-timegrid-axis-frame,
@@ -1058,9 +1015,6 @@ const Calendario = ({ user }) => {
     `;
     }, []);
 
-    /* ============================
-       UI FILTRO SIMPLES (DROPDOWN)
-    ============================ */
     const resetarFiltros = () => {
         setTipoFiltro("all");
         setFiltroPrioridade("all");
@@ -1069,26 +1023,28 @@ const Calendario = ({ user }) => {
 
     return (
         <div className="w-full">
-            {/* Header / Ações */}
             <div className="flex flex-col gap-3 mb-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white">
-                            Calendário
-                        </h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            To-do + revisões + sessões (tudo sincronizado)
-                        </p>
+                    <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/20">
+                            <Repeat className="h-6 w-6" />
+                        </div>
+
+                        <div>
+                            <p className="text-2xl font-black text-white leading-tight">
+                                Calendário
+                            </p>
+                            <p className="text-sm text-cyan-100">
+                                Visualize aqui sua programação.
+                            </p>
+                        </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        {/* Filtro simples (sem "FILTROS" no lado esquerdo) */}
                         <div className="relative">
                             <button
                                 onClick={() => setFiltroOpen((v) => !v)}
-                                className="p-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border
-                  bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700
-                  hover:bg-slate-50 dark:hover:bg-slate-700"
+                                className="p-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
                                 title="Filtros"
                                 aria-label="Filtros"
                             >
@@ -1096,16 +1052,12 @@ const Calendario = ({ user }) => {
                             </button>
 
                             {filtroOpen && (
-                                <div
-                                    className="absolute right-0 mt-2 w-[320px] z-[99999] rounded-3xl border shadow-2xl overflow-hidden
-                    bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800"
-                                >
+                                <div className="absolute right-0 mt-2 w-[320px] z-[99999] rounded-3xl border shadow-2xl overflow-hidden bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800">
                                     <div className="p-4">
                                         <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-300">
                                             Filtros
                                         </p>
 
-                                        {/* Tipo */}
                                         <div className="mt-3">
                                             <label className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300">
                                                 Tipo
@@ -1116,20 +1068,19 @@ const Calendario = ({ user }) => {
                                                 onChange={(e) => {
                                                     const v = e.target.value;
                                                     setTipoFiltro(v);
-                                                    if (v !== "tarefa") setFiltroPrioridade("all");
+                                                    if (v !== "tarefa") {
+                                                        setFiltroPrioridade("all");
+                                                    }
                                                 }}
-                                                className="mt-2 w-full px-4 py-3 rounded-2xl border font-black text-[11px] uppercase tracking-widest
-                          bg-white dark:bg-slate-900 text-slate-900 dark:text-white
-                          border-slate-200 dark:border-slate-700 cursor-pointer"
+                                                className="mt-2 w-full px-4 py-3 rounded-2xl border font-black text-[11px] uppercase tracking-widest bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 cursor-pointer"
                                             >
                                                 <option value="all">Todos</option>
-                                                <option value="tarefa">To-do</option>
+                                                <option value="tarefa">Tarefas</option>
                                                 <option value="revisao">Revisões</option>
                                                 <option value="sessao">Estudar agora</option>
                                             </select>
                                         </div>
 
-                                        {/* Prioridade (somente To-do) */}
                                         {tipoFiltro === "tarefa" && (
                                             <div className="mt-4">
                                                 <label className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300">
@@ -1138,10 +1089,10 @@ const Calendario = ({ user }) => {
 
                                                 <select
                                                     value={filtroPrioridade}
-                                                    onChange={(e) => setFiltroPrioridade(e.target.value)}
-                                                    className="mt-2 w-full px-4 py-3 rounded-2xl border font-black text-[11px] uppercase tracking-widest
-                            bg-white dark:bg-slate-900 text-slate-900 dark:text-white
-                            border-slate-200 dark:border-slate-700 cursor-pointer"
+                                                    onChange={(e) =>
+                                                        setFiltroPrioridade(e.target.value)
+                                                    }
+                                                    className="mt-2 w-full px-4 py-3 rounded-2xl border font-black text-[11px] uppercase tracking-widest bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 cursor-pointer"
                                                 >
                                                     <option value="all">Todas</option>
                                                     <option value="1">Baixa</option>
@@ -1151,12 +1102,8 @@ const Calendario = ({ user }) => {
                                             </div>
                                         )}
 
-                                        {/* Atrasadas */}
                                         <div className="mt-4">
-                                            <label
-                                                className="flex items-center justify-between gap-3 p-3 rounded-2xl border
-                        border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40"
-                                            >
+                                            <label className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
                                                 <div className="min-w-0">
                                                     <p className="text-sm font-black text-slate-900 dark:text-white">
                                                         Somente atrasadas
@@ -1169,7 +1116,9 @@ const Calendario = ({ user }) => {
                                                 <input
                                                     type="checkbox"
                                                     checked={somenteAtrasadas}
-                                                    onChange={() => setSomenteAtrasadas((v) => !v)}
+                                                    onChange={() =>
+                                                        setSomenteAtrasadas((v) => !v)
+                                                    }
                                                     className="w-5 h-5 accent-indigo-600 cursor-pointer"
                                                 />
                                             </label>
@@ -1178,17 +1127,14 @@ const Calendario = ({ user }) => {
                                         <div className="mt-4 flex items-center justify-end gap-2">
                                             <button
                                                 onClick={resetarFiltros}
-                                                className="px-4 py-2 rounded-2xl font-black text-[11px] uppercase tracking-widest border
-                          bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white
-                          border-slate-200 dark:border-slate-700 cursor-pointer hover:opacity-90"
+                                                className="px-4 py-2 rounded-2xl font-black text-[11px] uppercase tracking-widest border bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 cursor-pointer hover:opacity-90"
                                             >
                                                 Limpar
                                             </button>
 
                                             <button
                                                 onClick={() => setFiltroOpen(false)}
-                                                className="px-4 py-2 rounded-2xl font-black text-[11px] uppercase tracking-widest border
-                          bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500 cursor-pointer"
+                                                className="px-4 py-2 rounded-2xl font-black text-[11px] uppercase tracking-widest border bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500 cursor-pointer"
                                             >
                                                 Aplicar
                                             </button>
@@ -1198,11 +1144,9 @@ const Calendario = ({ user }) => {
                             )}
                         </div>
 
-                        {/* edição */}
                         <button
                             onClick={() => setModoEdicao((v) => !v)}
-                            className={`p-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border
-                ${modoEdicao
+                            className={`p-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border ${modoEdicao
                                     ? "bg-slate-900 text-white border-slate-700 dark:bg-white dark:text-slate-900 dark:border-white"
                                     : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700"
                                 }`}
@@ -1214,9 +1158,7 @@ const Calendario = ({ user }) => {
 
                         <button
                             onClick={buscarEventos}
-                            className="p-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border
-                bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500
-                shadow-[0_10px_25px_-10px_rgba(79,70,229,0.6)]"
+                            className="p-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500 shadow-[0_10px_25px_-10px_rgba(79,70,229,0.6)]"
                             title="Atualizar calendário"
                             aria-label="Atualizar"
                         >
@@ -1227,8 +1169,7 @@ const Calendario = ({ user }) => {
                             <button
                                 onClick={apagarTudoDoCalendario}
                                 disabled={apagando}
-                                className={`p-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border
-                  ${apagando
+                                className={`p-3 rounded-2xl font-black cursor-pointer transition-all active:scale-95 border ${apagando
                                         ? "bg-rose-300 text-white opacity-70 cursor-not-allowed border-rose-300"
                                         : "bg-rose-600 hover:bg-rose-500 text-white border-rose-500"
                                     }`}
@@ -1241,7 +1182,6 @@ const Calendario = ({ user }) => {
                     </div>
                 </div>
 
-                {/* Loading */}
                 {loading ? (
                     <div className="p-10 rounded-[32px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                         <p className="text-center text-slate-500 dark:text-slate-400 font-semibold">
@@ -1272,7 +1212,6 @@ const Calendario = ({ user }) => {
                     </div>
                 )}
 
-                {/* ✅ Como ler o calendário */}
                 <div className="mt-6 rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
                     <p className="text-sm font-black text-slate-900 dark:text-white">
                         Como ler o calendário
@@ -1284,58 +1223,53 @@ const Calendario = ({ user }) => {
                                 Tarja superior
                             </p>
                             <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
-                                A tarja aparece em <b>Revisões</b> e <b>Estudar agora</b>.
+                                A tarja azul identifica as <b>Revisões</b> no calendário.
                             </p>
 
                             <div className="mt-3 flex flex-col gap-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="w-5 h-2 rounded-full" style={{ background: COR_REVISAO }} />
+                                    <span
+                                        className="w-5 h-2 rounded-full"
+                                        style={{ background: COR_REVISAO }}
+                                    />
                                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                         Revisão (azul)
                                     </span>
                                 </div>
-
-                                <div className="flex items-center gap-2">
-                                    <span className="w-5 h-2 rounded-full" style={{ background: COR_ESTUDO }} />
-                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                        Estudar agora (verde)
-                                    </span>
-                                </div>
                             </div>
 
                             <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                                To-do não tem tarja: mostra a prioridade abaixo do título.
+                                Tarefas não têm tarja e mostram a prioridade logo abaixo do título.
                             </p>
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
                             <p className="text-xs font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest">
-                                Bolinha (pendente)
+                                Bolinha lateral
                             </p>
 
                             <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
-                                A bolinha aparece quando o evento ainda <b>não foi concluído</b>.
+                                A bolinha do lado aparece quando a atividade ainda <b>não foi concluída</b>.
                             </p>
 
                             <div className="mt-3 flex flex-col gap-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: PRIORITY[3].hex }} />
+                                    <span
+                                        className="w-2.5 h-2.5 rounded-full"
+                                        style={{ background: PRIORITY[3].hex }}
+                                    />
                                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                        To-do pendente
+                                        Tarefa pendente
                                     </span>
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: COR_REVISAO }} />
+                                    <span
+                                        className="w-2.5 h-2.5 rounded-full"
+                                        style={{ background: COR_REVISAO }}
+                                    />
                                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                         Revisão pendente
-                                    </span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: COR_ESTUDO }} />
-                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                        Estudar agora pendente
                                     </span>
                                 </div>
                             </div>
@@ -1343,23 +1277,19 @@ const Calendario = ({ user }) => {
 
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
                             <p className="text-xs font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest">
-                                Concluir / sincronizar
+                                Filtros e edição
                             </p>
 
                             <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
-                                Clique no card → abra detalhes → marque como <b>concluído</b>.
+                                Use os botões no topo para organizar melhor sua visualização.
                             </p>
 
                             <ul className="mt-3 text-sm text-slate-700 dark:text-slate-300 font-semibold list-disc pl-5 space-y-2">
-                                <li>Atualiza o Supabase.</li>
-                                <li>Sincroniza com as outras guias.</li>
-                                <li>Concluído preenche o card com a cor do tipo.</li>
-                                <li>To-do concluído fica riscado.</li>
+                                <li>O ícone de filtro permite exibir apenas o tipo de atividade desejado.</li>
+                                <li>Você também pode mostrar somente atividades atrasadas.</li>
+                                <li>Ao ativar o modo edição, fica possível excluir eventos do calendário.</li>
+                                <li>O botão de atualizar recarrega as informações mais recentes.</li>
                             </ul>
-
-                            <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                                <b>Atrasadas</b> = pendentes com data anterior a hoje.
-                            </p>
                         </div>
                     </div>
                 </div>
