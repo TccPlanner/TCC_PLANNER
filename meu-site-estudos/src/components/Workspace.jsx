@@ -30,22 +30,73 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-/* ==============================
-   ✅ Widgets disponíveis
-================================ */
 const WIDGET_LIBRARY = [
-    { type: "streak", title: "Ofensiva (sequência)", icon: Flame, description: "Gamificado: Eu me comprometo + animação." },
-    { type: "ultimos_5_dias", title: "Últimos 5 dias", icon: BarChart3, description: "Horas líquidas reais (baseado no histórico)." },
-    { type: "motivacional", title: "Frase motivacional", icon: Quote, description: "Uma frase curta para manter o foco." },
-    { type: "todo", title: "To-do real", icon: CheckSquare, description: "Crie e conclua tarefas com progresso real." },
-    { type: "calendario_mini", title: "Agenda dos próximos 7 dias", icon: CalendarDays, description: "Resumo real de tarefas e revisões por dia." },
-    { type: "cronometro_basico", title: "Progresso semanal", icon: Timer, description: "Meta semanal de horas com base nas sessões reais." },
-    { type: "revisoes_futuras", title: "Revisões futuras", icon: Sparkles, description: "Mostra próximas revisões pendentes reais." },
+    { type: "streak", title: "Constância", icon: Flame, description: "Acompanhe sua sequência com base nos estudos e tarefas concluídas." },
+    { type: "ultimos_5_dias", title: "Últimos 5 dias", icon: BarChart3, description: "Veja quanto tempo você estudou em cada um dos últimos dias." },
+    { type: "motivacional", title: "Resumo do dia", icon: Quote, description: "Receba uma mensagem personalizada com base no seu ritmo atual." },
+    { type: "todo", title: "Tarefas", icon: CheckSquare, description: "Adicione tarefas rápidas e acompanhe o andamento da sua lista." },
+    { type: "calendario_mini", title: "Próximos 7 dias", icon: CalendarDays, description: "Confira as tarefas e revisões previstas para a semana." },
+    { type: "cronometro_basico", title: "Meta semanal", icon: Timer, description: "Compare o total estudado nesta semana com a sua meta sugerida." },
+    { type: "revisoes_futuras", title: "Revisões futuras", icon: Sparkles, description: "Veja o que já está agendado para revisão nos próximos dias." },
 ];
 
-/* ==============================
-   ✅ Card arrastável
-================================ */
+const TZ = "America/Fortaleza";
+
+function toDateKey(dateOrIso) {
+    const d = dateOrIso instanceof Date ? dateOrIso : new Date(dateOrIso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-CA", { timeZone: TZ });
+}
+
+function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+}
+
+function buildLastNDays(n) {
+    const today = new Date();
+    return Array.from({ length: n }, (_, index) => {
+        const date = addDays(today, -(n - 1 - index));
+        return { key: toDateKey(date), date };
+    });
+}
+
+function computeStreakFrom(dayKeysSet, startKey) {
+    let streak = 0;
+    let cursor = new Date(`${startKey}T12:00:00`);
+    while (dayKeysSet.has(toDateKey(cursor))) {
+        streak += 1;
+        cursor = addDays(cursor, -1);
+    }
+    return streak;
+}
+
+function computeCurrentStreak(dayKeysSet, todayKey) {
+    if (!todayKey) return 0;
+    if (dayKeysSet.has(todayKey)) return computeStreakFrom(dayKeysSet, todayKey);
+    const yesterdayKey = toDateKey(addDays(new Date(`${todayKey}T12:00:00`), -1));
+    return computeStreakFrom(dayKeysSet, yesterdayKey);
+}
+
+function computeBestStreak(dayKeysSet, orderedKeys) {
+    let best = 0;
+    let run = 0;
+    orderedKeys.forEach((key) => {
+        if (dayKeysSet.has(key)) {
+            run += 1;
+            if (run > best) best = run;
+        } else {
+            run = 0;
+        }
+    });
+    return best;
+}
+
+function fmtHours(value) {
+    return `${Number(value || 0).toFixed(1)}h`;
+}
+
 function SortableWidgetCard({ widget, onRemove, children }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
         useSortable({ id: widget.id });
@@ -92,11 +143,8 @@ function SortableWidgetCard({ widget, onRemove, children }) {
     );
 }
 
-/* ==============================
-   ✅ Widget: Últimos 5 dias REAL
-================================ */
 function Ultimos5DiasWidget({ user }) {
-    const [days, setDays] = useState([]); // [{date, label, seconds}]
+    const [days, setDays] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const toYMD = (d) => {
@@ -115,7 +163,6 @@ function Ultimos5DiasWidget({ user }) {
         const run = async () => {
             setLoading(true);
 
-            // pega do começo do dia de 4 dias atrás até agora
             const start = new Date();
             start.setHours(0, 0, 0, 0);
             start.setDate(start.getDate() - 4);
@@ -133,9 +180,8 @@ function Ultimos5DiasWidget({ user }) {
                 return;
             }
 
-            // monta os 5 dias
             const base = [];
-            for (let i = 4; i >= 0; i--) {
+            for (let i = 4; i >= 0; i -= 1) {
                 const d = new Date();
                 d.setHours(0, 0, 0, 0);
                 d.setDate(d.getDate() - i);
@@ -146,19 +192,13 @@ function Ultimos5DiasWidget({ user }) {
                 });
             }
 
-            // soma por dia local
             const map = new Map(base.map((b) => [b.date, 0]));
             for (const row of data || []) {
                 const localDate = toYMD(new Date(row.inicio_em));
                 map.set(localDate, (map.get(localDate) || 0) + Number(row.duracao_segundos || 0));
             }
 
-            const final = base.map((b) => ({
-                ...b,
-                seconds: map.get(b.date) || 0,
-            }));
-
-            setDays(final);
+            setDays(base.map((b) => ({ ...b, seconds: map.get(b.date) || 0 })));
             setLoading(false);
         };
 
@@ -171,10 +211,15 @@ function Ultimos5DiasWidget({ user }) {
 
     return (
         <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-            <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    Últimos 5 dias (reais)
-                </p>
+            <div className="flex items-center justify-between gap-3">
+                <div>
+                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">
+                        Ritmo recente
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">
+                        Total acumulado nos últimos cinco dias.
+                    </p>
+                </div>
                 <p className="text-xs font-black text-cyan-600 dark:text-cyan-400">
                     {totalHours.toFixed(1)}h
                 </p>
@@ -188,14 +233,14 @@ function Ultimos5DiasWidget({ user }) {
                 <div className="mt-4 grid grid-cols-5 gap-3 items-end">
                     {days.map((d) => {
                         const h = d.seconds / 3600;
-                        const height = Math.max(8, Math.round((h / max) * 80)); // px
+                        const height = Math.max(8, Math.round((h / max) * 80));
                         return (
                             <div key={d.date} className="flex flex-col items-center gap-2">
                                 <div className="w-full rounded-2xl bg-slate-200 dark:bg-slate-700 h-[96px] flex items-end p-1">
                                     <div
                                         className="w-full rounded-2xl bg-cyan-600 dark:bg-cyan-500 transition-all"
                                         style={{ height: `${height}px` }}
-                                        title={`${h.toFixed(2)}h`}
+                                        title={`${h.toFixed(2)} horas`}
                                     />
                                 </div>
                                 <p className="text-[11px] font-black text-slate-600 dark:text-slate-300">
@@ -208,144 +253,155 @@ function Ultimos5DiasWidget({ user }) {
             )}
 
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
-                Baseado no que você registrou em <span className="font-black">Estudar Agora</span>.
+                Os valores consideram as sessões registradas em Estudar Agora.
             </p>
         </div>
     );
 }
 
-/* ==============================
-   ✅ Widget: Ofensiva + animação
-================================ */
 function StreakWidget({ user }) {
-    const [info, setInfo] = useState({
-        committed: false,
-        streak: 0,
-        best: 0,
-        last_visit: null,
-    });
     const [loading, setLoading] = useState(true);
-
+    const [error, setError] = useState("");
+    const [statsByDay, setStatsByDay] = useState({});
     const [celebrate, setCelebrate] = useState(false);
-    const [celebrateText, setCelebrateText] = useState("Mandou bem!");
+    const celebrateTimer = useRef(null);
+    const lastCelebratedKeyRef = useRef("");
 
-    const todayYMD = () => {
-        const d = new Date();
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        return `${yyyy}-${mm}-${dd}`;
-    };
+    const todayKey = useMemo(() => toDateKey(new Date()), []);
+    const last90 = useMemo(() => buildLastNDays(90), []);
 
-    const showCelebrate = (text) => {
-        setCelebrateText(text);
-        setCelebrate(true);
-        setTimeout(() => setCelebrate(false), 2400);
-    };
+    const studiedDays = useMemo(() => {
+        const keys = new Set();
+        Object.entries(statsByDay).forEach(([day, stats]) => {
+            const hasStudySession = (stats.studySeconds || 0) > 0;
+            const hasCycleSession = (stats.cycleMinutes || 0) > 0;
+            const hasTaskDone = (stats.tasksDone || 0) > 0;
+            if (hasStudySession || hasCycleSession || hasTaskDone) keys.add(day);
+        });
+        return keys;
+    }, [statsByDay]);
+
+    const currentStreak = useMemo(
+        () => computeCurrentStreak(studiedDays, todayKey),
+        [studiedDays, todayKey]
+    );
+
+    const bestStreak = useMemo(
+        () => computeBestStreak(studiedDays, last90.map((item) => item.key)),
+        [last90, studiedDays]
+    );
+
+    const activeDaysLast7 = useMemo(() => {
+        const last7 = buildLastNDays(7).map((item) => item.key);
+        return last7.filter((key) => studiedDays.has(key)).length;
+    }, [studiedDays]);
+
+    const todayStats = statsByDay[todayKey] || {};
+    const todayMinutes = Math.round(((todayStats.studySeconds || 0) / 60) + (todayStats.cycleMinutes || 0));
+    const todayTasks = todayStats.tasksDone || 0;
+    const statusText = todayMinutes > 0 || todayTasks > 0
+        ? "Hoje já conta para a sua sequência."
+        : "Registre um estudo ou conclua uma tarefa para manter a sequência.";
 
     useEffect(() => {
         if (!user?.id) return;
 
-        const run = async () => {
+        const fetchStats = async () => {
             setLoading(true);
+            setError("");
+            try {
+                const since = addDays(new Date(), -120).toISOString();
+                const [{ data: sessoes, error: err1 }, { data: cycleSessions, error: err2 }, { data: tarefas, error: err3 }] = await Promise.all([
+                    supabase
+                        .from("sessoes_estudo")
+                        .select("inicio_em, duracao_segundos")
+                        .eq("user_id", user.id)
+                        .gte("inicio_em", since),
+                    supabase
+                        .from("study_cycle_sessions")
+                        .select("started_at, minutos")
+                        .eq("user_id", user.id)
+                        .gte("started_at", since),
+                    supabase
+                        .from("tarefas")
+                        .select("concluida_em")
+                        .eq("user_id", user.id)
+                        .eq("concluida", true)
+                        .not("concluida_em", "is", null)
+                        .gte("concluida_em", since),
+                ]);
 
-            const { data, error } = await supabase
-                .from("user_streaks")
-                .select("*")
-                .eq("user_id", user.id)
-                .maybeSingle();
+                if (err1 || err2 || err3) throw err1 || err2 || err3;
 
-            if (error) {
+                const acc = {};
+                for (const s of sessoes || []) {
+                    const key = toDateKey(s.inicio_em);
+                    if (!key) continue;
+                    if (!acc[key]) acc[key] = { studySeconds: 0, cycleMinutes: 0, tasksDone: 0 };
+                    acc[key].studySeconds += Number(s.duracao_segundos || 0);
+                }
+                for (const c of cycleSessions || []) {
+                    const key = toDateKey(c.started_at);
+                    if (!key) continue;
+                    if (!acc[key]) acc[key] = { studySeconds: 0, cycleMinutes: 0, tasksDone: 0 };
+                    acc[key].cycleMinutes += Number(c.minutos || 0);
+                }
+                for (const t of tarefas || []) {
+                    const key = toDateKey(t.concluida_em);
+                    if (!key) continue;
+                    if (!acc[key]) acc[key] = { studySeconds: 0, cycleMinutes: 0, tasksDone: 0 };
+                    acc[key].tasksDone += 1;
+                }
+                setStatsByDay(acc);
+            } catch (e) {
+                setError(e?.message || "Não foi possível carregar sua constância.");
+            } finally {
                 setLoading(false);
-                return;
             }
-
-            // se não existir ainda, cria linha padrão
-            if (!data) {
-                const payload = {
-                    user_id: user.id,
-                    committed: false,
-                    streak: 0,
-                    best: 0,
-                    last_visit: null,
-                };
-                await supabase.from("user_streaks").insert([payload]);
-                setInfo(payload);
-                setLoading(false);
-                return;
-            }
-
-            setInfo({
-                committed: !!data.committed,
-                streak: Number(data.streak || 0),
-                best: Number(data.best || 0),
-                last_visit: data.last_visit,
-            });
-
-            // ✅ Se já está comprometida, ao entrar no site no dia → animação + streak por visita
-            const today = todayYMD();
-            if (data.committed && data.last_visit !== today) {
-                const newStreak = Number(data.streak || 0) + 1;
-                const newBest = Math.max(Number(data.best || 0), newStreak);
-
-                await supabase
-                    .from("user_streaks")
-                    .update({ streak: newStreak, best: newBest, last_visit: today })
-                    .eq("user_id", user.id);
-
-                setInfo((prev) => ({
-                    ...prev,
-                    streak: newStreak,
-                    best: newBest,
-                    last_visit: today,
-                }));
-
-                showCelebrate("Muito bem! Continue assim 🔥");
-            }
-
-            setLoading(false);
         };
 
-        run();
+        fetchStats();
+        const channel = supabase
+            .channel(`workspace-streak-${user.id}`)
+            .on("postgres_changes", { event: "*", schema: "public", table: "sessoes_estudo", filter: `user_id=eq.${user.id}` }, fetchStats)
+            .on("postgres_changes", { event: "*", schema: "public", table: "study_cycle_sessions", filter: `user_id=eq.${user.id}` }, fetchStats)
+            .on("postgres_changes", { event: "*", schema: "public", table: "tarefas", filter: `user_id=eq.${user.id}` }, fetchStats)
+            .subscribe();
+
+        return () => {
+            if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
+            supabase.removeChannel(channel);
+        };
     }, [user?.id]);
 
-    const commit = async () => {
-        const today = todayYMD();
+    useEffect(() => {
+        const hasProgressToday = todayMinutes > 0 || todayTasks > 0;
+        if (!hasProgressToday || !todayKey || lastCelebratedKeyRef.current === todayKey) return;
+        setCelebrate(true);
+        lastCelebratedKeyRef.current = todayKey;
+        if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
+        celebrateTimer.current = setTimeout(() => setCelebrate(false), 2200);
+    }, [todayKey, todayMinutes, todayTasks]);
 
-        // ao se comprometer: inicia streak em 1 e grava visita
-        await supabase
-            .from("user_streaks")
-            .update({
-                committed: true,
-                streak: Math.max(1, Number(info.streak || 0)),
-                best: Math.max(Number(info.best || 0), 1),
-                last_visit: today,
-            })
-            .eq("user_id", user.id);
+    if (loading) {
+        return <p className="text-xs text-slate-500 dark:text-slate-300 mt-3">Carregando…</p>;
+    }
 
-        setInfo((p) => ({
-            ...p,
-            committed: true,
-            streak: Math.max(1, Number(p.streak || 0)),
-            best: Math.max(Number(p.best || 0), 1),
-            last_visit: today,
-        }));
-
-        showCelebrate("Compromisso ativado! Você consegue 💪✨");
-    };
+    if (error) {
+        return <p className="text-xs text-rose-500 dark:text-rose-400">{error}</p>;
+    }
 
     return (
         <div className="relative rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4 overflow-hidden">
-            {/* ✅ Animação central */}
             {celebrate && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/55 backdrop-blur-sm">
                     <div className="w-[92%] max-w-sm rounded-3xl border border-slate-200/20 bg-slate-950 text-white p-6 text-center shadow-2xl animate-[pop_240ms_ease-out]">
                         <div className="mx-auto w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center mb-3">
                             <PartyPopper className="text-cyan-400" />
                         </div>
-                        <p className="font-black text-lg">{celebrateText}</p>
+                        <p className="font-black text-lg">Seu dia já está valendo 🔥</p>
                         <p className="text-xs text-slate-300 mt-1">
-                            Abrindo o workspace você mantém a sequência 🌙
+                            Continue registrando seus estudos para fortalecer a sequência.
                         </p>
                     </div>
 
@@ -361,52 +417,42 @@ function StreakWidget({ user }) {
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                        Ofensiva
+                        Sua constância
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">
-                        Sequência de dias que você entrou e manteve o foco.
+                        A sequência considera sessões de estudo, ciclo e tarefas concluídas.
                     </p>
                 </div>
 
                 <div className="px-3 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <p className="text-xs text-slate-500 dark:text-slate-300">Maior</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">Melhor marca</p>
                     <p className="text-lg font-black text-cyan-600 dark:text-cyan-400 leading-tight">
-                        {info.best}
+                        {bestStreak}
                     </p>
                 </div>
             </div>
 
-            {loading ? (
-                <p className="text-xs text-slate-500 dark:text-slate-300 mt-3">
-                    Carregando…
-                </p>
-            ) : (
-                <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex items-center justify-between">
-                    <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-300">Sequência atual</p>
-                        <p className="text-3xl font-black text-slate-900 dark:text-white">
-                            {info.streak} <span className="text-base font-black text-slate-500 dark:text-slate-300">dias</span>
-                        </p>
-                    </div>
-
-                    {!info.committed ? (
-                        <button
-                            onClick={commit}
-                            className="px-4 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm cursor-pointer"
-                        >
-                            EU ME COMPROMETO
-                        </button>
-                    ) : (
-                        <div className="px-4 py-3 rounded-2xl bg-cyan-600/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-black text-sm">
-                            Comprometida ✅
-                        </div>
-                    )}
+            <div className="mt-4 grid grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-300">Sequência atual</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{currentStreak} dias</p>
                 </div>
-            )}
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-300">Hoje</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{todayMinutes} min</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-300">Últimos 7 dias</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{activeDaysLast7}/7</p>
+                </div>
+            </div>
 
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
-                Você pode mudar essa lógica depois para contar “dias com estudo registrado”.
-            </p>
+            <div className="mt-3 rounded-2xl border border-cyan-200 dark:border-cyan-900/60 bg-cyan-50 dark:bg-cyan-950/20 px-3 py-2">
+                <p className="text-xs font-semibold text-cyan-800 dark:text-cyan-300">{statusText}</p>
+                <p className="text-[11px] text-cyan-700/80 dark:text-cyan-200/80 mt-1">
+                    {todayTasks > 0 ? `${todayTasks} tarefa${todayTasks > 1 ? "s" : ""} concluída${todayTasks > 1 ? "s" : ""} hoje.` : "Nenhuma tarefa concluída hoje ainda."}
+                </p>
+            </div>
         </div>
     );
 }
@@ -481,17 +527,17 @@ function TodoWidget({ user }) {
                 <input
                     value={texto}
                     onChange={(e) => setTexto(e.target.value)}
-                    placeholder="Nova tarefa"
+                    placeholder="Escreva a próxima tarefa"
                     className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm outline-none"
                 />
                 <button className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-black cursor-pointer">
-                    Add
+                    Adicionar
                 </button>
             </form>
 
             <div className="space-y-2 max-h-48 overflow-auto pr-1">
                 {loading && <p className="text-xs text-slate-500 dark:text-slate-300">Carregando…</p>}
-                {!loading && tarefas.length === 0 && <p className="text-xs text-slate-500 dark:text-slate-300">Sem tarefas ainda.</p>}
+                {!loading && tarefas.length === 0 && <p className="text-xs text-slate-500 dark:text-slate-300">Você ainda não tem tarefas nesta lista.</p>}
 
                 {tarefas.map((t) => (
                     <div key={t.id} className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-2 py-2">
@@ -541,11 +587,11 @@ function RevisoesFuturasWidget({ user }) {
         <div className="space-y-2">
             <p className="text-xs text-slate-500 dark:text-slate-300">Próximas revisões pendentes</p>
             {loading && <p className="text-xs text-slate-500 dark:text-slate-300">Carregando…</p>}
-            {!loading && items.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-300">Nada pendente nos próximos dias 🎉</p>}
+            {!loading && items.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-300">Nenhuma revisão pendente nos próximos dias.</p>}
 
             {items.map((r) => (
                 <div key={r.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2">
-                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{r.titulo || "Sem título"}</p>
+                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{r.titulo || "Revisão sem título"}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-300">
                         {new Date(`${r.data_revisao}T12:00:00`).toLocaleDateString("pt-BR")} • {r.tipo_revisao || "Revisão"}
                     </p>
@@ -557,11 +603,13 @@ function RevisoesFuturasWidget({ user }) {
 
 function AgendaMiniWidget({ user }) {
     const [dias, setDias] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!user?.id) return;
 
         const run = async () => {
+            setLoading(true);
             const hoje = new Date();
             hoje.setHours(0, 0, 0, 0);
             const fim = new Date(hoje);
@@ -587,11 +635,16 @@ function AgendaMiniWidget({ user }) {
             ]);
 
             const mapa = new Map();
-            for (let i = 0; i < 7; i++) {
+            for (let i = 0; i < 7; i += 1) {
                 const d = new Date(hoje);
                 d.setDate(d.getDate() + i);
                 const key = ymd(d);
-                mapa.set(key, { key, label: d.toLocaleDateString("pt-BR", { weekday: "short" }), tarefas: 0, revisoes: 0 });
+                mapa.set(key, {
+                    key,
+                    label: d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", ""),
+                    tarefas: 0,
+                    revisoes: 0,
+                });
             }
 
             for (const t of tarefas || []) {
@@ -602,112 +655,244 @@ function AgendaMiniWidget({ user }) {
             }
 
             setDias(Array.from(mapa.values()));
+            setLoading(false);
         };
 
         run();
     }, [user?.id]);
 
+    const totalAgenda = dias.reduce((acc, dia) => acc + dia.tarefas + dia.revisoes, 0);
+
     return (
         <div className="space-y-2">
-            <p className="text-xs text-slate-500 dark:text-slate-300">Próximos 7 dias</p>
-            <div className="grid grid-cols-7 gap-2">
-                {dias.map((d) => (
-                    <div key={d.key} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-2 text-center">
-                        <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">{d.label.replace('.', '')}</p>
-                        <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-black mt-1">T {d.tarefas}</p>
-                        <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-black">R {d.revisoes}</p>
-                    </div>
-                ))}
+            <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-500 dark:text-slate-300">Visão da próxima semana</p>
+                <p className="text-xs font-black text-cyan-600 dark:text-cyan-400">{totalAgenda} itens</p>
             </div>
+            {loading ? (
+                <p className="text-xs text-slate-500 dark:text-slate-300">Carregando…</p>
+            ) : (
+                <div className="grid grid-cols-7 gap-2">
+                    {dias.map((d) => (
+                        <div key={d.key} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-2 text-center">
+                            <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">{d.label}</p>
+                            <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-black mt-1">{d.tarefas} tarefa{d.tarefas === 1 ? "" : "s"}</p>
+                            <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-black">{d.revisoes} revisão{d.revisoes === 1 ? "" : "ões"}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
 
 function ProgressoSemanalWidget({ user }) {
     const [horas, setHoras] = useState(0);
-    const meta = 20;
+    const [meta, setMeta] = useState(10);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!user?.id) return;
 
         const run = async () => {
+            setLoading(true);
             const hoje = new Date();
             const diaSemana = (hoje.getDay() + 6) % 7;
             const segunda = new Date(hoje);
             segunda.setDate(hoje.getDate() - diaSemana);
             segunda.setHours(0, 0, 0, 0);
 
-            const { data } = await supabase
-                .from("sessoes_estudo")
-                .select("duracao_segundos")
-                .eq("user_id", user.id)
-                .gte("inicio_em", segunda.toISOString());
+            const quatroSemanasAtras = new Date(segunda);
+            quatroSemanasAtras.setDate(quatroSemanasAtras.getDate() - 21);
 
-            const total = (data || []).reduce((acc, x) => acc + Number(x.duracao_segundos || 0), 0);
-            setHoras(total / 3600);
+            const [{ data: sessoes }, { data: cicloSessoes }] = await Promise.all([
+                supabase
+                    .from("sessoes_estudo")
+                    .select("duracao_segundos, inicio_em")
+                    .eq("user_id", user.id)
+                    .gte("inicio_em", quatroSemanasAtras.toISOString()),
+                supabase
+                    .from("study_cycle_sessions")
+                    .select("minutos, started_at")
+                    .eq("user_id", user.id)
+                    .gte("started_at", quatroSemanasAtras.toISOString()),
+            ]);
+
+            const weekTotals = [0, 0, 0, 0];
+            const addToBucket = (dateValue, hoursValue) => {
+                const date = new Date(dateValue);
+                if (Number.isNaN(date.getTime())) return;
+                const diffDays = Math.floor((date - quatroSemanasAtras) / 86400000);
+                if (diffDays < 0) return;
+                const bucket = Math.min(3, Math.floor(diffDays / 7));
+                weekTotals[bucket] += hoursValue;
+            };
+
+            (sessoes || []).forEach((item) => addToBucket(item.inicio_em, Number(item.duracao_segundos || 0) / 3600));
+            (cicloSessoes || []).forEach((item) => addToBucket(item.started_at, Number(item.minutos || 0) / 60));
+
+            setHoras(weekTotals[3] || 0);
+            const historicWeeks = weekTotals.slice(0, 3).filter((value) => value > 0);
+            const average = historicWeeks.length
+                ? historicWeeks.reduce((acc, value) => acc + value, 0) / historicWeeks.length
+                : 8;
+            setMeta(Math.max(4, Math.round(average || 8)));
+            setLoading(false);
         };
 
         run();
     }, [user?.id]);
 
-    const percentual = Math.min(100, Math.round((horas / meta) * 100));
+    const percentual = meta > 0 ? Math.min(100, Math.round((horas / meta) * 100)) : 0;
+    const restante = Math.max(0, meta - horas);
 
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-slate-800 dark:text-slate-100">Meta da semana</p>
-                <p className="text-xs text-slate-500 dark:text-slate-300">{horas.toFixed(1)}h / {meta}h</p>
+            <div className="flex items-center justify-between gap-3">
+                <div>
+                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">Meta da semana</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">Meta sugerida com base nas últimas semanas.</p>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-300">{fmtHours(horas)} / {fmtHours(meta)}</p>
             </div>
-            <div className="h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                <div className="h-full bg-emerald-500" style={{ width: `${percentual}%` }} />
-            </div>
-            <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">{percentual}% concluído</p>
+            {loading ? (
+                <p className="text-xs text-slate-500 dark:text-slate-300">Carregando…</p>
+            ) : (
+                <>
+                    <div className="h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div className="h-full bg-emerald-500" style={{ width: `${percentual}%` }} />
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                        <p className="font-black text-emerald-600 dark:text-emerald-400">{percentual}% concluído</p>
+                        <p className="text-slate-500 dark:text-slate-300">Faltam {fmtHours(restante)} para a meta</p>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
 
-/* ==============================
-   ✅ Conteúdo por widget
-================================ */
+function MotivationalWidget({ user }) {
+    const [loading, setLoading] = useState(true);
+    const [insight, setInsight] = useState({
+        title: "",
+        body: "",
+        footer: "",
+    });
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const run = async () => {
+            setLoading(true);
+            const hoje = new Date();
+            const inicioDia = new Date(hoje);
+            inicioDia.setHours(0, 0, 0, 0);
+            const inicioSemana = new Date(inicioDia);
+            const diaSemana = (inicioSemana.getDay() + 6) % 7;
+            inicioSemana.setDate(inicioSemana.getDate() - diaSemana);
+
+            const [
+                { data: sessoesHoje },
+                { data: sessoesSemana },
+                { data: tarefasHoje },
+                { data: revisoesPendentes },
+            ] = await Promise.all([
+                supabase
+                    .from("sessoes_estudo")
+                    .select("duracao_segundos")
+                    .eq("user_id", user.id)
+                    .gte("inicio_em", inicioDia.toISOString()),
+                supabase
+                    .from("sessoes_estudo")
+                    .select("duracao_segundos")
+                    .eq("user_id", user.id)
+                    .gte("inicio_em", inicioSemana.toISOString()),
+                supabase
+                    .from("tarefas")
+                    .select("id")
+                    .eq("user_id", user.id)
+                    .eq("concluida", true)
+                    .gte("concluida_em", inicioDia.toISOString()),
+                supabase
+                    .from("revisoes_agendadas")
+                    .select("id")
+                    .eq("user_id", user.id)
+                    .eq("executada", false)
+                    .gte("data_revisao", toDateKey(inicioDia)),
+            ]);
+
+            const horasHoje = (sessoesHoje || []).reduce((acc, item) => acc + Number(item.duracao_segundos || 0), 0) / 3600;
+            const horasSemana = (sessoesSemana || []).reduce((acc, item) => acc + Number(item.duracao_segundos || 0), 0) / 3600;
+            const tarefasFeitasHoje = (tarefasHoje || []).length;
+            const revisoes = (revisoesPendentes || []).length;
+
+            if (horasHoje >= 2) {
+                setInsight({
+                    title: "Excelente ritmo hoje",
+                    body: `Você já acumulou ${fmtHours(horasHoje)} de estudo hoje. Aproveite para encerrar com uma revisão leve e consolidar o conteúdo.`,
+                    footer: revisoes > 0 ? `Você ainda tem ${revisoes} revisão${revisoes === 1 ? "" : "ões"} pendente${revisoes === 1 ? "" : "s"}.` : "Sua agenda de revisões está em dia para os próximos dias.",
+                });
+            } else if (horasHoje > 0 || tarefasFeitasHoje > 0) {
+                setInsight({
+                    title: "Você já começou bem",
+                    body: `Seu dia já teve progresso: ${fmtHours(horasHoje)} estudadas e ${tarefasFeitasHoje} tarefa${tarefasFeitasHoje === 1 ? "" : "s"} concluída${tarefasFeitasHoje === 1 ? "" : "s"}.`,
+                    footer: `Na semana, você soma ${fmtHours(horasSemana)} de estudo registrado.`,
+                });
+            } else if (revisoes > 0) {
+                setInsight({
+                    title: "Um passo agora faz diferença",
+                    body: `Há ${revisoes} revisão${revisoes === 1 ? "" : "ões"} aguardando você. Começar por uma delas já coloca o dia em movimento.`,
+                    footer: `Seu total estudado nesta semana está em ${fmtHours(horasSemana)}.`,
+                });
+            } else {
+                setInsight({
+                    title: "Hoje é um ótimo dia para avançar",
+                    body: "Organize uma sessão curta, registre seu estudo e mantenha o ritmo construído nos outros módulos.",
+                    footer: `Até aqui, a semana soma ${fmtHours(horasSemana)} de estudo registrado.`,
+                });
+            }
+            setLoading(false);
+        };
+
+        run();
+    }, [user?.id]);
+
+    if (loading) {
+        return <p className="text-xs text-slate-500 dark:text-slate-300 mt-3">Carregando…</p>;
+    }
+
+    return (
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
+            <p className="text-sm font-black text-slate-800 dark:text-slate-100">{insight.title}</p>
+            <p className="text-sm text-slate-700 dark:text-slate-200 font-semibold mt-2">
+                {insight.body}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                {insight.footer}
+            </p>
+        </div>
+    );
+}
+
 function WidgetContent({ widget, user }) {
     if (widget.type === "streak") return <StreakWidget user={user} />;
     if (widget.type === "ultimos_5_dias") return <Ultimos5DiasWidget user={user} />;
-
-    if (widget.type === "motivacional") {
-        return (
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
-                <p className="text-sm text-slate-700 dark:text-slate-200 font-semibold">
-                    “Você está mandando muito bem. Continue assim!”
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Depois eu coloco frases aleatórias + personalizadas 💬
-                </p>
-            </div>
-        );
-    }
-
+    if (widget.type === "motivacional") return <MotivationalWidget user={user} />;
     if (widget.type === "todo") return <TodoWidget user={user} />;
-
     if (widget.type === "calendario_mini") return <AgendaMiniWidget user={user} />;
-
     if (widget.type === "cronometro_basico") return <ProgressoSemanalWidget user={user} />;
-
     if (widget.type === "revisoes_futuras") return <RevisoesFuturasWidget user={user} />;
 
     return null;
 }
 
-/* ==============================
-   ✅ Workspace
-================================ */
 export default function Workspace({ user }) {
     const [widgets, setWidgets] = useState([]);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [selectedTypes, setSelectedTypes] = useState([]);
 
     const saveTimer = useRef(null);
-
-    // ✅ Importantíssimo: evita o load sobrescrever seus cliques
     const didEditRef = useRef(false);
 
     const sensors = useSensors(
@@ -716,7 +901,6 @@ export default function Workspace({ user }) {
 
     const ids = useMemo(() => widgets.map((w) => w.id), [widgets]);
 
-    // ✅ Carrega layout do Supabase
     useEffect(() => {
         if (!user?.id) return;
 
@@ -727,7 +911,6 @@ export default function Workspace({ user }) {
                 .eq("user_id", user.id)
                 .maybeSingle();
 
-            // ✅ Se você já clicou/arrastou, NÃO sobrescreve
             if (didEditRef.current) return;
 
             if (!error && data?.layout?.widgets) {
@@ -740,7 +923,6 @@ export default function Workspace({ user }) {
         load();
     }, [user?.id]);
 
-    // ✅ Salva layout no Supabase (debounce)
     useEffect(() => {
         if (!user?.id) return;
 
@@ -812,14 +994,13 @@ export default function Workspace({ user }) {
 
     return (
         <div className="space-y-4">
-            {/* Top bar */}
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-sm font-black text-slate-900 dark:text-slate-100">
-                        Workspace
+                        Seu workspace
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Arraste para reorganizar • Salva automaticamente
+                        Organize seus widgets e acompanhe seus dados em tempo real.
                     </p>
                 </div>
 
@@ -832,19 +1013,17 @@ export default function Workspace({ user }) {
                 </button>
             </div>
 
-            {/* Empty state */}
             {widgets.length === 0 && (
                 <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center">
                     <p className="font-black text-slate-800 dark:text-slate-100 text-lg">
                         Seu workspace está vazio
                     </p>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Clique em <span className="font-black">Adicionar widget</span> para montar do seu jeito.
+                        Adicione os widgets que mais ajudam na sua rotina e monte seu painel do seu jeito.
                     </p>
                 </div>
             )}
 
-            {/* Widgets grid */}
             {widgets.length > 0 && (
                 <DndContext
                     sensors={sensors}
@@ -867,7 +1046,6 @@ export default function Workspace({ user }) {
                 </DndContext>
             )}
 
-            {/* Widget Picker modal */}
             {pickerOpen && (
                 <div
                     className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4"
@@ -881,7 +1059,7 @@ export default function Workspace({ user }) {
                             Adicionar widget
                         </p>
                         <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
-                            Selecione um bloco para colocar no workspace.
+                            Escolha os blocos que você quer acompanhar no workspace.
                         </p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
