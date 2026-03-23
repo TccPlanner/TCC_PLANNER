@@ -956,7 +956,7 @@ const GerenciadorTarefas = ({ user }) => {
                         : "bg-transparent text-slate-200/80 hover:bg-white/5"
                         }`}
                 >
-                    To do list
+                    Tarefas
                 </button>
 
                 <button

@@ -120,7 +120,7 @@ function Dashboard({ user }) {
                     <MenuLink id="materias" icon={ListTree} label="Matérias" />
                     <MenuLink id="ciclo" icon={Repeat} label="Ciclo de Estudos" />
                     <MenuLink id="calendario" icon={Calendar} label="Calendário" />
-                    <MenuLink id="tarefas" icon={CheckSquare} label="To-Do" />
+                    <MenuLink id="tarefas" icon={CheckSquare} label="Tarefas" />
 
                     {/* ✅ EXECUÇÃO */}
                     {menuAberto && (
